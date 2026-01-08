@@ -1,10 +1,24 @@
 # Gentoo Linux с systemd, niri, nftables и dbus-broker
 
+## Содержание
+- [Обзор](#обзор)
+- [Установка и настройка systemd](#установка-и-настройка-systemd)
+- [Установка и настройка niri](#установка-и-настройка-niri)
+- [Настройка xdg-desktop-portal для niri](#настройка-xdg-desktop-portal-для-niri)
+- [Установка и настройка nftables](#установка-и-настройка-nftables)
+- [Установка и настройка dbus-broker](#установка-и-настройка-dbus-broker)
+- [Установка и настройка iwd + NetworkManager](#установка-и-настройка-iwd--networkmanager)
+- [Настройка регулятора частоты (regulatory domain)](#настройка-регулятора-частоты-regulatory-domain)
+- [Проверка конфигурации](#проверка-конфигурации)
+- [Устранение неполадок](#устранение-неполадок)
+- [Полезные команды](#полезные-команды)
+
 ## Обзор
 
 Эта документация описывает настройку Gentoo Linux с использованием следующих компонентов:
 - **systemd** — система инициализации и управления сервисами
 - **niri** — Wayland compositor
+- **xdg-desktop-portal** — система для предоставления доступа к портальным функциям (скринкастинг, выбор файлов и т.д.)
 - **nftables** — система фильтрации сетевых пакетов (заменяет iptables)
 - **dbus-broker** — D-Bus message broker
 - **iwd + NetworkManager** — управление сетевыми соединениями (вместо wpa_supplicant)
@@ -385,3 +399,109 @@ nft add chain inet filter input # Добавить цепочку
 busctl list                  # Просмотр доступных сервисов
 busctl call <service> ...    # Вызов метода сервиса
 ```
+
+## Настройка xdg-desktop-portal для niri
+
+### Проблема с xdg-desktop-portal-gnome
+
+Для работы скринкастинга и выбора файлов в Wayland среде, рекомендуется использовать `xdg-desktop-portal-gnome` с niri. Однако, этот пакет имеет жесткую зависимость от `nautilus`, что может вызвать проблемы:
+
+1. При попытке открыть диалог выбора файла в приложениях (например, Thunar), система может зависать
+2. Приложение ожидает работу с `nautilus`, но используется другой файловый менеджер
+3. Возникают конфликты между различными реализациями порталов
+
+### Решение: использование xdg-desktop-portal-wlr с настройкой приоритетов
+
+Вместо `xdg-desktop-portal-gnome` рекомендуется использовать комбинацию различных реализаций порталов, настроенных через файл конфигурации.
+
+#### Установка необходимых пакетов
+
+```bash
+emerge --ask x11-misc/xdg-desktop-portal-wlr
+emerge --ask x11-misc/xdg-desktop-portal-gtk
+emerge --ask x11-misc/xdg-desktop-portal-gnome  # только если нужен скринкастинг окон
+```
+
+#### Настройка автозапуска в niri
+
+Добавьте в файл `~/.config/niri/config.kdl` следующие строки в секцию основной конфигурации:
+
+```
+spawn-at-startup "dbus-update-activation-environment" "--systemd" "WAYLAND_DISPLAY" "XDG_CURRENT_DESKTOP=niri"
+spawn-at-startup "systemctl" "--user" "start" "xdg-desktop-portal-wlr"
+```
+
+#### Создание файла настроек порталов
+
+Создайте файл настроек для указания приоритетов различных реализаций порталов:
+
+```bash
+mkdir -p ~/.config/xdg-desktop-portal
+```
+
+Создайте файл `~/.config/xdg-desktop-portal/niri-portals.conf` со следующим содержимым:
+
+```
+[preferred]
+default=wlr;gtk;
+org.freedesktop.impl.portal.Screenshot=wlr;
+org.freedesktop.impl.portal.ScreenCast=gnome;wlr;
+org.freedesktop.impl.portal.FileChooser=gtk;
+org.freedesktop.impl.portal.AppChooser=gtk;
+```
+
+#### Объяснение настроек
+
+- `default=wlr;gtk;` — по умолчанию использовать wlr, затем gtk реализации
+- `org.freedesktop.impl.portal.ScreenCast=gnome;wlr;` — для скринкастинга использовать gnome (для окон) и wlr (для экрана)
+- `org.freedesktop.impl.portal.FileChooser=gtk;` — для выбора файлов использовать gtk (работает с Thunar и другими файловыми менеджерами)
+- `org.freedesktop.impl.portal.AppChooser=gtk;` — для выбора приложений использовать gtk реализацию
+
+#### Альтернативная настройка без gnome порталов
+
+Если не нужна функция скринкастинга окон, можно использовать только wlr и gtk порталы:
+
+```
+[preferred]
+default=wlr;gtk;
+org.freedesktop.impl.portal.Screenshot=wlr;
+org.freedesktop.impl.portal.ScreenCast=wlr;
+org.freedesktop.impl.portal.FileChooser=gtk;
+org.freedesktop.impl.portal.AppChooser=gtk;
+```
+
+#### Перезапуск служб после настройки
+
+После создания конфигурации перезапустите пользовательские службы:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart xdg-desktop-portal-wlr
+systemctl --user restart xdg-desktop-portal
+```
+
+### Устранение неполадок
+
+Если приложения все еще зависают при выборе файлов:
+
+1. Проверьте, что XDG_CURRENT_DESKTOP установлен правильно:
+   ```bash
+   echo $XDG_CURRENT_DESKTOP
+   ```
+
+2. Убедитесь, что службы порталов запущены:
+   ```bash
+   systemctl --user status xdg-desktop-portal*
+   ```
+
+3. Проверьте логи на наличие ошибок:
+   ```bash
+   journalctl --user -u xdg-desktop-portal* -f
+   ```
+
+4. Если используется Thunar или другой файловый менеджер, убедитесь, что он не конфликтует с nautilus:
+   ```bash
+   pkill nautilus
+   ```
+
+Эта настройка позволяет использовать niri с полноценной поддержкой порталов, избегая проблем с зависимостями от nautilus.
