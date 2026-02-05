@@ -13,17 +13,20 @@
 - [Устранение неполадок](#устранение-неполадок)
 - [Полезные команды](#полезные-команды)
 - [Безопасность в Gentoo Linux с niri](#безопасность-в-gentoo-linux-с-niri)
+- [Kernel Hardening](#kernel-hardening)
 
 ## Обзор
 
-Эта документация описывает настройку Gentoo Linux с использованием следующих компонентов:
+Эта документация описывает настройку современного Gentoo Linux с использованием следующих компонентов:
 - **systemd** — система инициализации и управления сервисами
-- **niri** — Wayland compositor
+- **niri** — Wayland compositor (современная альтернатива X11)
 - **xdg-desktop-portal** — система для предоставления доступа к портальным функциям (скринкастинг, выбор файлов и т.д.)
-- **nftables** — система фильтрации сетевых пакетов (заменяет iptables)
-- **dbus-broker** — D-Bus message broker
-- **iwd + NetworkManager** — управление сетевыми соединениями (вместо wpa_supplicant)
-- **security** - безопасность системы (обновление системы, фаервол + nftables, ssh, мониторинг)
+- **nftables** — система фильтрации сетевых пакетов (современная замена iptables)
+- **dbus-broker** — D-Bus message broker (более производительная альтернатива dbus-daemon)
+- **iwd + NetworkManager** — управление сетевыми соединениями (вместо устаревшего wpa_supplicant)
+- **security** - комплексная безопасность системы (обновление системы, фаервол + nftables, ssh, мониторинг, kernel hardening)
+- **gentoo-kernel** - современное официальное ядро Gentoo с автоматической сборкой
+- **doas** - минималистичная альтернатива sudo с меньшей поверхностью атаки
 
 ## Установка и настройка systemd
 
@@ -81,7 +84,7 @@ input {
 bindings {
     // Управление окнами
     "Mod+Return" run "alacritty"
-    "Mod+Space" run "dmenu_run"
+    "Mod+Space" run "fuzzel"
     "Mod+Shift+Q" close-window
     "Mod+Shift+E" run "systemctl --user start poweroff.target"
 
@@ -107,10 +110,15 @@ bindings {
 
 ### Запуск niri
 
-Чтобы запустить niri при входе в систему, создайте файл `~/.xinitrc`:
+Поскольку niri - это чистый Wayland-композитор (а не X11), традиционный способ с .xinitrc не подходит. Вместо этого, вы можете запустить niri напрямую из терминала или настроить автозапуск через systemd.
+
+Для автозапуска при входе в систему через TTY, добавьте в `~/.bash_profile`:
 
 ```bash
-echo "exec niri" > ~/.xinitrc
+# В ~/.bash_profile
+if [[ -z $DISPLAY && $(tty) == /dev/tty1 ]]; then
+  exec niri
+fi
 ```
 
 Или настройте автозапуск через systemd:
@@ -119,6 +127,37 @@ echo "exec niri" > ~/.xinitrc
 systemctl --user enable niri
 systemctl --user start niri
 ```
+
+#### Дополнительные сервисы для полноценного рабочего стола
+
+Для полноценного рабочего стола с niri рекомендуется также настроить автозапуск следующих сервисов:
+
+1. **Панель состояния**: Установите и настройте waybar или swaybar:
+    ```bash
+    # Установка waybar
+    emerge --ask dev-libs/waybar
+    
+    # Создание конфигурации
+    mkdir -p ~/.config/waybar
+    # Добавьте конфигурацию в ~/.config/waybar/config и ~/.config/waybar/style.css
+    ```
+
+2. **Службы для фона и уведомлений**:
+    ```bash
+    # Установка фона
+    emerge --ask gui-apps/swaybg
+    
+    # Установка уведомлений
+    emerge --ask gui-apps/mako
+    ```
+
+3. **Настройка автозапуска дополнительных сервисов**:
+    Добавьте в файл `~/.config/niri/config.kdl`:
+    ```
+    spawn-at-startup "waybar"
+    spawn-at-startup "swaybg" "-o" "eDP-1" "-i" "/path/to/image.jpg" "-m" "fill"
+    spawn-at-startup "mako"
+    ```
 
 ## Установка и настройка nftables
 
@@ -130,12 +169,14 @@ emerge --ask net-firewall/nftables
 
 ### Переключение с iptables на nftables
 
-Для обеспечения совместимости с существующими скриптами и сервисами, настроим xtables для использования nftables в качестве backend:
+Если у вас есть старые скрипты, которые используют iptables напрямую, вы можете настроить xtables для использования nftables в качестве backend:
 
 ```bash
 eselect iptables list          # Проверим доступные варианты
-eselect iptables set 2         # Выберем xtables-nft-multi
+eselect iptables set 2         # Выберем xtables-nft-multi (опционально)
 ```
+
+**Примечание**: Если ваш стек (Docker, NetworkManager) уже собран с нативной поддержкой nftables, этот шаг не требуется. Современные приложения работают с nftables напрямую.
 
 ### Отключение iptables сервисов
 
@@ -164,7 +205,7 @@ table inet filter {
         type filter hook input priority 0; policy drop;
         ct state {established,related} accept
         iifname "lo" accept
-        ip protocol icmp accept
+        ip protocol icmp limit rate 5/second accept
         ct state invalid drop
         tcp dport {ssh, http, https} accept
         accept
@@ -231,6 +272,24 @@ systemctl enable dbus-broker
 systemctl restart dbus-broker
 ```
 
+#### Пользовательская сессия dbus-broker
+
+Для корректной работы пользовательской сессии с niri убедитесь, что у вас установлен и активирован пользовательский экземпляр dbus-broker:
+
+```bash
+# Проверьте, что пакет установлен
+emerge --ask sys-apps/dbus-broker
+
+# Активируйте пользовательский сервис
+systemctl --user enable dbus-broker
+systemctl --user start dbus-broker
+
+# Убедитесь, что переменная DBUS_SESSION_BUS_ADDRESS указывает на правильный сокет
+echo $DBUS_SESSION_BUS_ADDRESS
+```
+
+В большинстве случаев systemd автоматически запускает пользовательский экземпляр dbus-broker при входе в систему, но в случае проблем с D-Bus в сеансах Wayland может потребоваться ручная настройка.
+
 ## Установка и настройка iwd + NetworkManager
 
 ### Установка iwd
@@ -280,6 +339,17 @@ systemctl start NetworkManager
 ```
 [device]
 wifi.backend=iwd
+```
+
+Для дополнительной безопасности в публичных сетях добавьте настройку рандомизации MAC-адреса в файл `/etc/NetworkManager/conf.d/wifi_backend.conf`:
+
+```
+[connection]
+wifi.mac-address-randomization=2
+
+[device]
+wifi.backend=iwd
+wifi.scan-rand-mac-address=yes
 ```
 
 ### Настройка D-Bus для NetworkManager
@@ -422,7 +492,12 @@ busctl call <service> ...    # Вызов метода сервиса
 emerge --ask x11-misc/xdg-desktop-portal-wlr
 emerge --ask x11-misc/xdg-desktop-portal-gtk
 emerge --ask x11-misc/xdg-desktop-portal-gnome  # только если нужен скринкастинг окон
+emerge --ask gui-libs/xdg-desktop-portal-shm   # для передачи буферов памяти для скриншотов
 ```
+
+#### Дополнительные настройки для Thunar
+
+Если вы используете файловый менеджер Thunar, убедитесь, что gvfs собран с поддержкой необходимых бэкендов, иначе портал FileChooser может вести себя нестабильно.
 
 #### Настройка автозапуска в niri
 
@@ -516,12 +591,13 @@ systemctl --user restart xdg-desktop-portal
 
 ### Содержание
 - [Системные обновления](#системные-обновления)
-- [Управление пользователями и sudo](#управление-пользователями-и-sudo)
+- [Управление пользователями и doas](#управление-пользователями-и-doas)
 - [Конфигурация фаервола с помощью nftables](#конфигурация-фаервола-с-помощью-nftables)
 - [Безопасность SSH](#безопасность-ssh)
 - [Мониторинг системы](#мониторинг-системы)
 - [Меры безопасности для конкретного ноутбука](#меры-безопасности-для-конкретного-ноутбука)
 - [Безопасность Intel Management Engine (ME)](#безопасность-intel-management-engine-me)
+- [Kernel Hardening](#kernel-hardening)
 
 ### Системные обновления
 
@@ -563,7 +639,7 @@ systemctl --user restart xdg-desktop-portal
 - **Возможность отката**: Снимки файловой системы позволяют быстро восстановить систему, если обновления вызывают проблемы
 - **Спокойствие**: Регулярные обновления значительно снижают уровень угроз для вашей системы
 
-### Управление пользователями и sudo
+### Управление пользователями и doas
 
 #### Почему это важно
 Следование принципу минимальных привилегий предотвращает предоставление злоумышленнику полного контроля над системой при компрометации учетной записи пользователя. Разделение обычных пользовательских учетных записей от административных привилегий ограничивает ущерб от вредоносных программ или несанкционированного доступа.
@@ -576,16 +652,20 @@ systemctl --user restart xdg-desktop-portal
    passwd yourusername
    ```
 
-2. **Настройка доступа через sudo**: Позвольте пользователю безопасно выполнять административные задачи
+2. **Настройка доступа через doas**: Позвольте пользователю безопасно выполнять административные задачи
    ```bash
-   # Установить sudo если еще не установлен
-   emerge --ask app-admin/sudo
+   # Установить doas если еще не установлен (альтернатива sudo с меньшей поверхностью атаки)
+   emerge --ask app-admin/doas
    
-   # Отредактируйте файл sudoers с помощью visudo (критично для избежания синтаксических ошибок)
-   EDITOR=nano visudo
+   # Создать файл конфигурации
+   touch /etc/doas.conf
    
-   # Раскомментируйте строку для разрешения участникам группы wheel выполнения любых команд
-   # %wheel ALL=(ALL:ALL) ALL
+   # Добавить разрешение для группы wheel (аналог sudo %wheel)
+   echo 'permit :wheel' >> /etc/doas.conf
+   
+   # Установить безопасные права доступа
+   chmod 600 /etc/doas.conf
+   chown root:root /etc/doas.conf
    ```
 
 3. **Отключение входа root**: Предотвратите прямой вход root для дополнительной безопасности
@@ -604,10 +684,10 @@ systemctl --user restart xdg-desktop-portal
    ```
 
 #### Преимущества
-- **Сокращенная поверхность атаки**: Ограничивает то, что может быть повреждено при компрометации учетной записи пользователя
-- **Журнал аудита**: Все административные действия регистрируются при выполнении через sudo
+- **Сокращенная поверхность атаки**: Doas имеет более простую кодовую базу по сравнению с sudo, что снижает вероятность уязвимостей
+- **Журнал аудита**: Все административные действия регистрируются при выполнении через doas
 - **Совместимость оборудования**: Правильные членства в группах обеспечивают корректную работу оборудования с Niri
-- **Соответствие лучшим практикам**: Следует стандартным рекомендациям безопасности для Unix-подобных систем
+- **Соответствие философии минимализма**: Doas соответствует философии минимализма, характерной для современных установок
 
 ### Конфигурация фаервола с помощью nftables
 
@@ -941,13 +1021,17 @@ Intel Management Engine (ME) - это встроенный микроконтр�
    - Обратите внимание, что это может повлиять на некоторые функции ноутбука
 
 3. **Использование инструментов для изменения ME**: Для опытных пользователей
-   ```bash
-   # ME Cleaner - инструмент для отключения ME (используйте с осторожностью!)
-   # https://github.com/corna/me_cleaner
-   # pip install me_cleaner
-   # me_cleaner -S /path/to/bios.rom
-   # ВНИМАНИЕ: Изменение прошивки может сделать систему неработоспособной!
-   ```
+    ```bash
+    # ME Cleaner - инструмент для отключения ME (используйте с осторожностью!)
+    # https://github.com/corna/me_cleaner
+    # pip install me_cleaner
+    # me_cleaner -S /path/to/bios.rom
+    # ВНИМАНИЕ: Изменение прошивки может сделать систему неработоспособной!
+    ```
+
+    **ВАЖНО**: На многих современных процессорах Intel (начиная с 12-го поколения) агрессивная очистка ME может привести к тому, что система будет выключаться через 30 минут или вообще не пройдет POST. Будьте особенно осторожны при работе с ME на новых системах.
+
+    **Альтернатива**: Вместо me_cleaner стоит рассмотреть установку HAP-бита (High Assurance Platform), что является более безопасным программным способом «усыпления» ME.
 
 4. **Мониторинг активности**: Наблюдение за сетевой активностью и другими признаками активности ME
    ```bash
@@ -963,6 +1047,61 @@ Intel Management Engine (ME) - это встроенный микроконтр�
 - **Повышенная конфиденциальность**: Ограничение фоновой активности
 - **Контроль над системой**: Больше контроля над компонентами системы
 
+### Kernel Hardening
+
+Для дополнительной защиты системы рекомендуется использовать hardened-ядро или параметры жесткой изоляции (LSM).
+
+#### Использование hardened-ядра
+
+1. **Установка современного ядра**:
+     ```bash
+     # Установить официальное ядро с поддержкой автоматической сборки
+     emerge --ask sys-kernel/gentoo-kernel
+     
+     # Для hardening-настроек в Gentoo теперь используются USE-флаги
+     # или переопределение конфига через /etc/kernel/config.d/
+     ```
+
+2. **Усиление (Hardening)**:
+     Создайте файл `/etc/kernel/config.d/hardened.config`:
+     ```bash
+     # Защита от переполнения кучи и стека
+     CONFIG_FORTIFY_SOURCE=y
+     CONFIG_GCC_PLUGIN_STACKLEAK=y
+     # Ограничение доступа к dmesg
+     CONFIG_SECURITY_DMESG_RESTRICT=y
+     # Включение LSM (Landlock, AppArmor и др.)
+     CONFIG_LSM="landlock,lockdown,yama,loadpin,safesetid,selinux,bpf"
+     ```
+
+3. **Активация LSM-политик**:
+     В файле `/etc/default/grub` добавьте параметры ядра:
+     ```
+     GRUB_CMDLINE_LINUX_DEFAULT="... lsm=landlock,lockdown,yama,apparmor,bpf"
+     ```
+     
+     Затем обновите конфигурацию GRUB:
+     ```bash
+     grub-mkconfig -o /boot/grub/grub.cfg
+     ```
+
+4. **Обновление**:
+     После изменения конфига просто пересоберите ядро: `emerge --ask sys-kernel/gentoo-kernel`.
+
+#### Альтернативные параметры безопасности ядра
+
+Вы можете также добавить следующие параметры в GRUB для дополнительной защиты:
+
+```
+GRUB_CMDLINE_LINUX_DEFAULT="... slab_merge=1 slub_debug=FZPU smep smap spec_store_bypass_disable=on spectre_v2=on randomize_kstack_offset=on vsyscall=none pti=on kpti=on"
+```
+
+Эти параметры обеспечивают:
+- SMEP/SMAP: Защита от выполнения пользовательского кода в ядре
+- PTI: Защита от атак типа Spectre/Meltdown
+- SLUB_DEBUG: Обнаружение повреждений кучи
+- Randomize kernel stack offset: Защита от ROP-атак
+
 ### Тестирование вашей безопасности
 
 После реализации этих мер:
@@ -970,6 +1109,6 @@ Intel Management Engine (ME) - это встроенный микроконтр�
 2. Проверить правила фаервола: `nft list ruleset`
 3. Запустить проверку AIDE: `aide --check`
 4. Проверить конфигурацию SSH: `sshd -t`
-5. Проверить настройки sudo: `visudo -c`
+5. Проверить настройки doas: `doas -C /etc/doas.conf`
 
 Этот комплексный подход гарантирует, что ваша система Gentoo с niri остается защищенной от обычных и сложных угроз, при этом сохраняя оптимальную производительность и удобство использования.
