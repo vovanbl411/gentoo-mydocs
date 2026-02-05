@@ -1,4 +1,4 @@
-# Gentoo Linux с systemd, niri, nftables, dbus-broker и Security
+# Конфигурация Gentoo с systemd, niri, xdg-portal-desktop, nftables, dbus-broker, iwd + NetworkManager, security, gentoo-kernel, doas 
 
 ## Содержание
 - [Обзор](#обзор)
