@@ -121,50 +121,63 @@ systemctl --user start niri
 Для полноценного рабочего стола с niri рекомендуется также настроить:
 
 1. **Установка noctalia-shell**:
-    ```bash
-    eselect repository enable guru
-    emerge --sync guru
+     ```bash
+     eselect repository enable guru
+     emerge --sync guru
+     ```
+     Добавьте в `/etc/portage/package.accept_keywords` (или папку):
+     ```
+     gui-apps/noctalia-shell ~amd64
+     ```
+     Установите:
+     ```bash
+     emerge gui-apps/noctalia-shell
+     ```
+     Прочитайте post-install сообщения — там указаны опции активации сервиса systemd (`systemctl --user enable --now noctalia`). [docs.noctalia](https://docs.noctalia.dev/getting-started/installation/)
 
-    # Next, update the /etc/portage/package.accept_keywords file/folder to enable the unstable keyword on the noctalia-shell package:
-    gui-apps/noctalia-shell ~amd64
-    
-    # Install
-    emerge gui-apps/noctalia-shell
-    ```
+  2. **Зависимости для noctalia-shell**:
 
- 2. **Зависимости для noctalia-shell**:
+     **Обязательные зависимости**:
+     Все перечисленные пакеты критичны и подтверждены документацией noctalia:
+     - `quickshell`: фреймворк оболочки.
+     - `brightnessctl`: яркость ноутбучного экрана.
+     - `imagemagick`: обработка обоев.
+     - `python`: шаблоны.
+     - `git`: обновления и плагины.
 
-    Обязательные зависимости:
-    - quickshell - основа фреймворка оболочки
-    - brightnessctl - управление яркостью внутреннего/ноутбучного монитора
-    - imagemagick - требуется для обработки шаблонов и изменения размера обоев
-    - python - требуется для обработки шаблонов
-    - git - требуется для проверки обновлений и системы плагинов
+     Команда установки с guru (добавьте флаг `--ask` для подтверждения):
+     ```
+     emerge gui-apps/quickshell app-misc/brightnessctl media-gfx/imagemagick dev-lang/python dev-vcs/git
+     ```
+     Убедитесь, что quickshell из guru (git-версия для совместимости).
 
-    Установка обязательных зависимостей:
-    ```bash
-    emerge --ask gui-apps/quickshell(guru repo) app-misc/brightnessctl(guru repo)  media-gfx/imagemagick dev-lang/python dev-vcs/git
-    ```
+     **Аппаратные зависимости**:
+     - `ddcutil`: только для внешних мониторов по DDC/CI. Рискует вызвать мерцание или выключение на некоторых моделях (например, старые Dell). Тестируйте осторожно:
+     ```
+     emerge app-misc/ddcutil
+     ```
+     Добавьте пользователя в группу `video` после установки: `gpasswd -a $USER video`. [docs.noctalia](https://docs.noctalia.dev/getting-started/installation/)
 
-    Аппаратно-специфичные зависимости:
-    - ddcutil - управление яркостью настольного монитора (⚠️ может вызвать нестабильность системы с определенными мониторами)
+     **Рекомендуемые зависимости**:
+     Устанавливайте по потребности, чтобы избежать ненужного мусора:
+     ```
+     emerge gui-apps/cliphist media-sound/cava gui-apps/wlsunset sys-apps/xdg-desktop-portal
+     ```
+     - `cliphist`: история клипборда (с wl-clipboard).
+     - `cava`: визуализатор аудио.
+     - `wlsunset`: ночной режим (альтернатива redshift).
+     - `xdg-desktop-portal`: порталы для скриншотов/записи (нужен для PipeWire).
+     - `evolution-data-server`: календарь (тяжёлый, используйте если нужен GNOME-календарь; альтернатива — khal/vdirsyncer).
 
-    Установка аппаратно-специфичных зависимостей:
-    ```bash
-    emerge --ask app-misc/ddcutil
-    ```
+     Команда с guru; пропустите EDS, если не используете (`gnome-extra/evolution-data-server`).
 
-    Необязательные, но рекомендуемые зависимости:
-    - cliphist - поддержка истории буфера обмена
-    - cava - компонент аудио визуализации
-    - wlsunset - функция ночного света
-    - xdg-desktop-portal - включает опцию "Портал" в программе записи экрана
-    - evolution-data-server - события календаря
+     **Возможные проблемы**:
+     - **Конфликты**: imagemagick может тянуть X11-зависимости; используйте `media-gfx/imagemagick -X`.
+     - **Запуск**: Добавьте в config Niri (`~/.config/niri/config.kdl`): `spawn-at-startup "noctalia-shell"`. Или через systemd. [tonybtw](https://www.tonybtw.com/tutorial/niri/)
+     - **Обновления**: ~amd64 — testing, мониторьте `emerge --pretend --update noctalia-shell`.
+     - **Тестирование**: После установки: `noctalia-shell qs -c ~/.config/quickshell/noctalia` (если config скопирован). [github](https://github.com/Ly-sec/Noctalia)
 
-    Установка необязательных зависимостей:
-    ```bash
-    emerge --ask gui-apps/cliphist(guru repo) media-sound/cava gui-apps/wlsunset(guru repo) sys-apps/xdg-desktop-portal gnome-extra/evolution-data-server(рекомендую подумать)
-    ```
+     Это создаст полноценный DE с баром, лаунчером и эффектами. Если ошибки — проверьте логи `journalctl --user -u noctalia`.
 
 #### Настройка Display Manager
 
