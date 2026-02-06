@@ -14,6 +14,12 @@
 - [Полезные команды](#полезные-команды)
 - [Безопасность в Gentoo Linux с niri](#безопасность-в-gentoo-linux-с-niri)
 - [Kernel Hardening](#kernel-hardening)
+- [Дополнительные оптимизации для конкретных процессоров](#дополнительные-оптимизации-для-конкретных-процессоров)
+- [Настройка графики для Intel Iris Xe](#настройка-графики-для-intel-iris-xe)
+- [Настройка Steam и multilib](#настройка-steam-и-multilib)
+- [Управление питанием](#управление-питанием)
+- [Обслуживание файловой системы Btrfs](#обслуживание-файловой-системы-btrfs)
+- [Расширенные полезные команды](#расширенные-полезные-команды)
 
 ## Обзор
 
@@ -27,6 +33,11 @@
 - **security** - комплексная безопасность системы (обновление системы, фаервол + nftables, ssh, мониторинг, kernel hardening)
 - **gentoo-kernel** - современное официальное ядро Gentoo с автоматической сборкой
 - **doas** - минималистичная альтернатива sudo с меньшей поверхностью атаки
+- **Оптимизации** - настройка флагов компиляции под конкретные процессоры (включая LTO)
+- **Графика** - конфигурация драйверов Intel Iris Xe для аппаратного ускорения
+- **Steam** - настройка multilib и особенности работы в Wayland среде
+- **Управление питанием** - оптимизация энергопотребления, особенно на ноутбуках
+- **Файловая система** - обслуживание Btrfs, настройка TRIM, scrub и balance
 
 ## Установка и настройка systemd
 
@@ -52,6 +63,15 @@ USE="systemd"
 
 ### Установка niri
 
+Сначала необходимо разрешить установку niri, добавив соответствующую строку в файл:
+
+FILE [/etc/portage/package.accept_keywords/niri](relative/file/path.ext:line)
+```
+gui-wm/niri ~amd64
+```
+
+Затем установите niri:
+
 ```bash
 emerge --ask gui-wm/niri
 ```
@@ -64,53 +84,21 @@ emerge --ask gui-wm/niri
 mkdir -p ~/.config/niri
 ```
 
-Создайте файл `~/.config/niri/config.kdl`:
-
-```
-output "eDP-1" {
-    scale 1.0
-    position 0 0
-    mode 1920x1080@60.000
-}
-
-input {
-    xkb {
-        layout "us,ru"
-        variant ",winkeys"
-        options "grp:alt_shift_toggle,grp_led:scroll"
-    }
-}
-
-bindings {
-    // Управление окнами
-    "Mod+Return" run "alacritty"
-    "Mod+Space" run "fuzzel"
-    "Mod+Shift+Q" close-window
-    "Mod+Shift+E" run "systemctl --user start poweroff.target"
-
-    // Управление рабочими пространствами
-    "Mod+1" focus-workspace 0
-    "Mod+2" focus-workspace 1
-    "Mod+3" focus-workspace 2
-    "Mod+Shift+1" move-window-to-workspace 0
-    "Mod+Shift+2" move-window-to-workspace 1
-    "Mod+Shift+3" move-window-to-workspace 2
-
-    // Управление экранами
-    "Mod+Left" focus-column-left
-    "Mod+Right" focus-column-right
-    "Mod+Down" focus-column-down
-    "Mod+Up" focus-column-up
-    "Mod+Shift+Left" move-column-left
-    "Mod+Shift+Right" move-column-right
-    "Mod+Shift+Down" move-column-down
-    "Mod+Shift+Up" move-column-up
-}
-```
-
 ### Запуск niri
 
-Поскольку niri - это чистый Wayland-композитор (а не X11), традиционный способ с .xinitrc не подходит. Вместо этого, вы можете запустить niri напрямую из терминала или настроить автозапуск через systemd.
+Поскольку niri - это чистый Wayland-композитор, вы можете запустить niri напрямую из терминала или настроить автозапуск через systemd.
+
+Для запуска niri в разных системах инициализации:
+
+- **Для systemd**:
+  ```bash
+  niri-session
+  ```
+
+- **Для OpenRC**:
+  ```bash
+  dbus-run-session niri --session
+  ```
 
 Для автозапуска при входе в систему через TTY, добавьте в `~/.bash_profile`:
 
@@ -128,36 +116,84 @@ systemctl --user enable niri
 systemctl --user start niri
 ```
 
-#### Дополнительные сервисы для полноценного рабочего стола
+#### Дополнительные сервисы для полноценного рабочего стола (noctalia-shell)
 
-Для полноценного рабочего стола с niri рекомендуется также настроить автозапуск следующих сервисов:
+Для полноценного рабочего стола с niri рекомендуется также настроить:
 
-1. **Панель состояния**: Установите и настройте waybar или swaybar:
+1. **Установка noctalia-shell**:
     ```bash
-    # Установка waybar
-    emerge --ask dev-libs/waybar
+    eselect repository enable guru
+    emerge --sync guru
+
+    # Next, update the /etc/portage/package.accept_keywords file/folder to enable the unstable keyword on the noctalia-shell package:
+    gui-apps/noctalia-shell ~amd64
     
-    # Создание конфигурации
-    mkdir -p ~/.config/waybar
-    # Добавьте конфигурацию в ~/.config/waybar/config и ~/.config/waybar/style.css
+    # Install
+    emerge gui-apps/noctalia-shell
     ```
 
-2. **Службы для фона и уведомлений**:
+ 2. **Зависимости для noctalia-shell**:
+
+    Обязательные зависимости:
+    - quickshell - основа фреймворка оболочки
+    - brightnessctl - управление яркостью внутреннего/ноутбучного монитора
+    - imagemagick - требуется для обработки шаблонов и изменения размера обоев
+    - python - требуется для обработки шаблонов
+    - git - требуется для проверки обновлений и системы плагинов
+
+    Установка обязательных зависимостей:
     ```bash
-    # Установка фона
-    emerge --ask gui-apps/swaybg
-    
-    # Установка уведомлений
-    emerge --ask gui-apps/mako
+    emerge --ask gui-apps/quickshell(guru repo) app-misc/brightnessctl(guru repo)  media-gfx/imagemagick dev-lang/python dev-vcs/git
     ```
 
-3. **Настройка автозапуска дополнительных сервисов**:
-    Добавьте в файл `~/.config/niri/config.kdl`:
+    Аппаратно-специфичные зависимости:
+    - ddcutil - управление яркостью настольного монитора (⚠️ может вызвать нестабильность системы с определенными мониторами)
+
+    Установка аппаратно-специфичных зависимостей:
+    ```bash
+    emerge --ask app-misc/ddcutil
     ```
-    spawn-at-startup "waybar"
-    spawn-at-startup "swaybg" "-o" "eDP-1" "-i" "/path/to/image.jpg" "-m" "fill"
-    spawn-at-startup "mako"
+
+    Необязательные, но рекомендуемые зависимости:
+    - cliphist - поддержка истории буфера обмена
+    - cava - компонент аудио визуализации
+    - wlsunset - функция ночного света
+    - xdg-desktop-portal - включает опцию "Портал" в программе записи экрана
+    - evolution-data-server - события календаря
+
+    Установка необязательных зависимостей:
+    ```bash
+    emerge --ask gui-apps/cliphist(guru repo) media-sound/cava gui-apps/wlsunset(guru repo) sys-apps/xdg-desktop-portal gnome-extra/evolution-data-server(рекомендую подумать)
     ```
+
+#### Настройка Display Manager
+
+Niri поддерживает большинство Display Manager'ов.
+
+Greetd. Ниже приведен пример конфигурации с использованием Tuigreet в качестве greeter:
+
+FILE [/etc/greetd/config.toml](relative/file/path.ext:line)
+```
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --cmd /etc/greetd/niri.sh"
+user = "greeter"
+```
+
+Скрипт "niri.sh" должен содержать следующее:
+FILE [/etc/greetd/niri.sh](relative/file/path.ext:line)
+```
+#!/bin/bash
+
+# For systemd:
+niri-session
+
+```
+
+При необходимости вы можете установить дополнительные переменные окружения, в зависимости от вашей системы.
+
 
 ## Установка и настройка nftables
 
@@ -1111,4 +1147,188 @@ GRUB_CMDLINE_LINUX_DEFAULT="... slab_merge=1 slub_debug=FZPU smep smap spec_stor
 4. Проверить конфигурацию SSH: `sshd -t`
 5. Проверить настройки doas: `doas -C /etc/doas.conf`
 
-Этот комплексный подход гарантирует, что ваша система Gentoo с niri остается защищенной от обычных и сложных угроз, при этом сохраняя оптимальную производительность и удобство использования.
+Этот комплексный подход гарантирует, что ваша система Gentoo с niri остается защищенной от обычных и сложных угроз, при этом сохраняя оптимальную производительность и удобность использования.
+
+## Дополнительные оптимизации для конкретных процессоров
+
+Для архитектур с гибридными ядрами (как Intel Alder Lake с P+E ядрами) или для ускорения работы системы можно использовать агрессивные флаги оптимизации, включая LTO (Link Time Optimization).
+
+### Оптимизация в /etc/portage/make.conf
+
+Ключевые моменты при настройке:
+ * Использование конкретного архитектурного флага (например, `-march=alderlake` для процессоров Alder Lake)
+ * Применение максимальной оптимизации (`-O3`) и LTO (`-flto=16`)
+ * Локальное управление ABI_X86 (глобально отключен, управляется локально для конкретных пакетов, например, Steam)
+
+Пример настройки COMMON_FLAGS в `/etc/portage/make.conf`:
+```
+COMMON_FLAGS="-march=native -O3 -flto=16 -pipe -mabm -mno-kl -mno-pconfig -mno-sgx -mno-widekl -mshstk --param=l1-cache-line-size=64 --param=l1-cache-size=32 --param=l2-cache-size=18432"
+CFLAGS="${COMMON_FLAGS}"
+CXXFLAGS="${COMMON_FLAGS}"
+FCFLAGS="${COMMON_FLAGS}"
+FFLAGS="${COMMON_FLAGS}"
+
+# Ограничение нагрузки при линковке (LTO может потреблять много памяти)
+MAKEOPTS="-j$(nproc) -l$(($(nproc)-4))"
+RUSTFLAGS="-C target-cpu=native -C opt-level=3"
+
+# CPU Flags (сгенерировано cpuid2cpuflags)
+CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
+
+# Графика и Ввод
+VIDEO_CARDS="intel iris i915"
+INPUT_DEVICES="libinput"
+
+# USE-флаги (Wayland-native, без лишнего функционала)
+USE="bluetooth btrfs dbus dist-kernel gles2 gstreamer libnotify vaapi \
+     networkmanager nftables pipewire policykit screencast systemd persist \
+     wayland hwdata alsa vulkan v4l libinput udisks2 thunderbolt zstd wifi \
+     brightness acpi pgo seatd X -elogind -consolekit"
+     
+# Язык и Зеркала
+LC_MESSAGES=C.UTF-8
+GENTOO_MIRRORS="mirrors"
+```
+
+### Обработка исключений LTO
+
+Если какой-либо пакет не собирается с LTO, используйте `/etc/portage/package.env`:
+ * Создайте `/etc/portage/env/no-lto.conf`: CFLAGS="${CFLAGS} -fno-lto"
+ * Пропишите пакет в `/etc/portage/package.env`: category/package no-lto.conf
+
+## Настройка графики для Intel Iris Xe
+
+Для аппаратного ускорения видео (VA-API) и корректной работы GPU 12-го поколения Intel и новее.
+
+### Драйверы и Firmware
+
+ * Установите пакет: `media-libs/libva-intel-media-driver` (iHD) для современного драйвера VA-API
+ * В ядре (GRUB): Включите GuC/HuC для управления питанием видеоядра.
+   В `/etc/default/grub` добавьте к `GRUB_CMDLINE_LINUX_DEFAULT`:
+   ```
+   i915.enable_guc=3
+   ```
+ * Можете установите переменную окружения: `LIBVA_DRIVER_NAME=iHD` (можно добавить в `/etc/env.d/99local):
+   ```
+   LIBVA_DRIVER_NAME=iHD
+   ```
+
+### Рекомендуемая настройка VIDEO_CARDS
+
+Для Intel Iris в Gentoo настройка VIDEO_CARDS в /etc/portage/make.conf зависит от поколения GPU, но обычно требует комбинации драйверов для полной поддержки.
+
+Добавьте в make.conf строку:
+```
+VIDEO_CARDS="intel i915 iris"
+```
+- `intel` — базовая поддержка Intel в libdrm/Mesa.
+- `i915` — kernel-драйвер (KMS) для большинства Intel GPU (с Haswell и новее Iris использует i915).
+- `iris` — Gallium3D-драйвер в Mesa для Gen8+ (Broadwell+).
+
+### Альтернатива через package.use
+
+Если хотите избежать глобального VIDEO_CARDS (чтобы не тянуть лишние зависимости), используйте /etc/portage/package.use/video:
+```
+x11-libs/libdrm video_cards_intel
+media-libs/mesa video_cards_intel iris
+```
+Это активирует нужное локально без make.conf.
+
+### Проверка и обновление
+
+После изменений выполните `emerge -uDN @world`, проверьте `emerge --info | grep VIDEO_CARDS` и `glxinfo | grep "OpenGL renderer"`.
+
+## Настройка Steam и multilib
+
+Рекомендуется использовать стратегию "Чистый 64-bit с локальным 32-bit".
+ * В make.conf НЕ прописывайте ABI_X86="64 32" глобально.
+ * Все 32-битные библиотеки прописывайте только для нужных пакетов в `/etc/portage/package.use/steam`.
+ * Обратите внимание на возможные опечатки в конфигах.
+
+## Управление питанием
+
+Для оптимизации энергопотребления, особенно на ноутбуках с современными процессорами.
+
+* Убедитесь, что используете драйвер: `intel_pstate` в режиме `active` (для Intel процессоров)
+* Установите утилиту: `sys-power/power-profiles-daemon` для управления профилями питания
+* Команды для переключения профилей:
+  * Для экономии батареи: `powerprofilesctl set power-saver`
+  * Для сбалансированного режима: `powerprofilesctl set balanced`
+  * Для производительности: `powerprofilesctl set performance`
+* Установите `sys-power/thermald` для защиты от троттлинга и перегрева
+
+## Обслуживание файловой системы Btrfs
+
+Для автоматизации поддержания здоровья файловой системы, особенно на SSD.
+
+* Включите TRIM через системный таймер: `systemctl enable --now fstrim.timer`
+* Используйте `sys-fs/btrfsmaintenance` для операций scrub и balance:
+  * Установите пакет: `emerge --ask sys-fs/btrfsmaintenance`
+  * Настройте конфиг в `/etc/default/btrfsmaintenance`:
+    ```
+    BTRFS_SCRUB_PERIOD="monthly"
+    BTRFS_BALANCE_PERIOD="monthly"
+    BTRFS_TRIM_PERIOD="none"  # так как fstrim.timer уже обрабатывает TRIM
+    ```
+
+### Оптимальные настройки для NVMe в fstab
+
+Оптимальные настройки для NVMe в /etc/fstab учитывают производительность SSD, снижение износа и совместимость с TRIM.
+
+#### Для Btrfs (рекомендуется с NVMe)
+```
+UUID=your-uuid-here / btrfs defaults,noatime,compress=zstd:1,discard=async 0 0
+```
+- `compress=zstd:1` — сжатие на лету (экономит место, ускоряет чтение).
+- `discard=async` — асинхронный TRIM при удалении файлов (безопаснее continuous discard).
+- `0 0` — Btrfs не требует fsck по умолчанию.
+
+#### Дополнительные опции
+```
+defaults,noatime,nodiratime,discard=async,x-systemd.device-timeout=30,noauto,nofail
+```
+- `nodiratime` — то же для каталогов (доп. оптимизация).
+- `x-systemd.device-timeout=30` — таймаут монтирования 30с (предотвращает зависания).
+- `nofail` — загрузка без NVMe (для внешних дисков). 
+
+#### Объяснение флагов
+- **noatime** — не обновлять время последнего доступа к файлам/каталогам при чтении. Снижает количество записей на SSD на 10-30%, продлевая срок службы.
+- **compress=zstd:1** — прозрачное сжатие данных алгоритмом Zstandard уровня 1 (быстрое, ~20-50% экономия места). Идеально для NVMe — ускоряет чтение и снижает I/O.
+- **space_cache=v2** — использовать второй формат кэша свободного пространства Btrfs (по умолчанию с kernel 5.15+). Ускоряет операции aloc для больших файловых систем.
+- **discard=async** — асинхронный TRIM при удалении файлов (не блокирует операции). Безопаснее continuous discard для NVMe, основной TRIM через fstrim.timer.
+- **ssd** — оптимизации для SSD: отключает барьеры записи, использует nolockdep, распознаёт SSD-специфичные паттерны доступа.
+- **subvol=@** — монтировать подтом btrfs с именем `@` как корень `/` (стандартная схема Btrfs: `@` для /, `@home` для /home и т.д.).
+
+#### Полный пример
+```
+UUID=your-uuid / btrfs defaults,noatime,compress=zstd:1,space_cache=v2,discard=async,ssd,subvol=@ 0 0
+```
+
+#### Замечания
+Опции `0 0` — Btrfs не требует fsck при загрузке (дамп и fsck отключены). После изменений: `mount -o remount /` и `btrfs filesystem usage /` для проверки.
+
+Space_cache v1 и v2 — это разные реализации кэша свободного места в Btrfs, существенно различающиеся по производительности на больших файловых системах.
+
+##### Основные различия
+**V1** использует простые списки свободных блоков в каждом block group, обновляя их при каждой транзакции. Это приводит к большим затратам ввода-вывода при частых изменениях (удаление/запись), особенно на файловых системах >1TB — производительность может падать на 50-90% при высоких нагрузках. 
+
+**V2** применяет B-tree (free space tree) для отслеживания фрагментированного пространства. Обновления происходят асинхронно и группируются, что устраняет деградацию на больших FS. Разница особенно заметна при workloads с множеством мелких файлов или RAID-массивах.
+
+##### Переход и проверка
+- **Проверка**: `btrfs fi df /` (v2 показывает меньше "GlobalReserve") или `journalctl -b | grep space` при монтировании.
+- **Переход**: `mount -o space_cache=v2,clear_cache` (один раз), затем всегда v2. Невозврат к v1 без форматирования. 
+- **По умолчанию**: v2 с kernel 6.2+ (2023), но man btrfs может показывать v1 в старых дистрибутивах. 
+- **Рекомендация**: Всегда `space_cache=v2` для NVMe/Btrfs в 2026 — v1 устарел.
+
+## Расширенные полезные команды
+
+Дополнительные команды, которые могут быть полезны при обслуживании системы:
+
+| Задача | Команда |
+|---|---|
+| Полное обновление системы | `doas emerge -avuDN --backtrack=30 @world` |
+| Очистка неиспользуемых пакетов | `doas emerge --depclean` |
+| Мониторинг использования GPU | `doas intel_gpu_top` |
+| Проверка VA-API ускорения | `vainfo` |
+| Проверка флагов CPU | `cpuid2cpuflags` |
+| Статус профилей питания | `powerprofilesctl` |
