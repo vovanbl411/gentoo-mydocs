@@ -117,7 +117,7 @@ doas rsync -av --progress /home/vladimir/llvm-project/build-profile/ /opt/llvm-b
 
 Создаем файл конфигурации с минимальным (и полностью рабочим!) набором переменных. Компилятор сам отлично находит системные пути GCC.
 
-Файл: `/etc/portage/env/bolt-compiler.conf`
+Файл: `/etc/portage/env/bolt-compiler`
 
 ```makefile
 CC="/opt/llvm-bolt/bin/clang"
@@ -130,11 +130,11 @@ CXX="/opt/llvm-bolt/bin/clang++"
 
 ```makefile
 # Для конкретных пакетов
-sys-devel/llvm bolt-compiler.conf
-sys-devel/clang bolt-compiler.conf
+sys-devel/llvm bolt-compiler
+sys-devel/clang bolt-compiler
 
 # ИЛИ для всего мира
-*/* bolt-compiler.conf
+*/* bolt-compiler
 ```
 
 > **Готово**! Теперь система собирается экстремально быстрым, кастомным компилятором, спрофилированным под конкретное железо.
