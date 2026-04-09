@@ -10,7 +10,7 @@ Niri — это современный Wayland-композитор, котор�
 
 ## 2. Запуск (Pure Wayland)
 
-Мы не используем Display Manager (SDDM/GDM). Запуск происходит напрямую из TTY.
+Мы используем Display Manager (greetd).
 
 Для корректной работы GTK/Qt приложений в Wayland-режиме, добавьте в переменные окружения (например, в `~/.config/niri/config.kdl`):
 

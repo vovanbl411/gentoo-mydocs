@@ -83,6 +83,7 @@
 | [settings/r2modman](settings/r2modman.md) | Интеграция r2modman со Steam (Flatpak) |
 | [settings/scanner-driver](settings/scanner-driver.md) | Настройка сканера отпечатков Elan 04f3:0c77 |
 | [settings/obs-studio](settings/obs-studio.md) | OBS Studio, FFmpeg и настройка кодеков |
+| [settings/bolt](settings/bolt.md) | Оптимизация Clang с помощью BOLT для Alder Lake |
 
 ## Ключевые компоненты системы
 
@@ -93,6 +94,12 @@
 - **Dracut** для генерации initramfs и UKI
 - **systemd-boot** как загрузчик
 - **Secure Boot** с собственными ключами (sbctl)
+
+### Компилятор и инструменты
+- **LLVM 23** — основной компилятор с LTO-оптимизациями
+- **BOLT** — профилированная бинарная оптимизация (ускорение до 30%)
+- **mold** — современный линкер
+- **ccache** — кэширование компиляции
 
 ### Графика
 - **Niri** — тайловый Wayland-композитор
@@ -119,6 +126,7 @@
 - [Niri Wiki](https://github.com/YaLTeR/niri)
 - [Noctalia Shell](https://github.com/quickget/quickget)
 - [Dracut Documentation](https://github.com/dracutdevs/dracut)
+- [BOLT Documentation](https://github.com/llvm/llvm-project/tree/main/bolt)
 
 ---
 
