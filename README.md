@@ -78,6 +78,7 @@
 | [settings/nm-iwd](settings/nm-iwd.md) | MAC-рандомизация и iwd |
 | [settings/r2modman](settings/r2modman.md) | Интеграция r2modman со Steam (Flatpak) |
 | [settings/scanner-driver](settings/scanner-driver.md) | Настройка сканера отпечатков Elan 04f3:0c77 |
+| [settings/obs-studio.md](settings/obs-studio.md) | Полное руководство по OBS Studio, FFmpeg и настройке кодеков |
 
 ## Ключевые компоненты системы
 
