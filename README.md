@@ -85,6 +85,17 @@
 | [settings/obs-studio](settings/obs-studio.md) | OBS Studio, FFmpeg и настройка кодеков |
 | [settings/bolt](settings/bolt.md) | Оптимизация Clang с помощью BOLT для Alder Lake |
 
+### ⚙️ Управление конфигурацией
+
+Конфигурационные файлы управляются через `chezmoi`.
+**Первичная настройка:**
+
+```bash
+emerge -av app-admin/chezmoi
+
+chezmoi init --apply [https://github.com/vovanbl411/dotfiles](https://github.com/vovanbl411/dotfiles)
+```
+
 ## Ключевые компоненты системы
 
 ### Профиль и ядро
@@ -125,7 +136,7 @@
 - [Gentoo Hardened](https://wiki.gentoo.org/wiki/Project:Hardened)
 - [Niri Wiki](https://www.mintlify.com/niri-wm/niri/development/documenting-niri)
 - [Noctalia Shell](https://noctalia.dev/)
-- [Dracut Documentation](https://github.com/dracutdevs/dracut)
+- [Dracut Documentation](https://dracut-ng.github.io/dracut-ng/)
 - [BOLT Documentation](https://github.com/llvm/llvm-project/tree/main/bolt)
 
 ---
