@@ -123,8 +123,8 @@
 
 - [Gentoo Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
 - [Gentoo Hardened](https://wiki.gentoo.org/wiki/Project:Hardened)
-- [Niri Wiki](https://github.com/YaLTeR/niri)
-- [Noctalia Shell](https://github.com/quickget/quickget)
+- [Niri Wiki](https://www.mintlify.com/niri-wm/niri/development/documenting-niri)
+- [Noctalia Shell](https://noctalia.dev/)
 - [Dracut Documentation](https://github.com/dracutdevs/dracut)
 - [BOLT Documentation](https://github.com/llvm/llvm-project/tree/main/bolt)
 
