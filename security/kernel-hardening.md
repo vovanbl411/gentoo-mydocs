@@ -4,9 +4,10 @@
 
 ## Основные направления защиты
 
-### 1.hardened gentoo-sources
+### 1. Hardened gentoo-sources
 
 Ядро собирается с дополнительными мерами защиты:
+
 - PIE (Position Independent Executable)
 - Stack Protector
 - RELRO (Relocation Read-Only)
@@ -16,23 +17,38 @@
 Настройка в `/etc/sysctl.d/99-security.conf`:
 
 ```conf
-# Защита от спуфинга
-net.ipv4.conf.all.rp_filter=1
-net.ipv6.conf.all.accept_source_route=0
+# Включаем Reverse Path Filtering (защита от IP-спуфинга)
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
 
-# Защита от ICMP redirect
-net.ipv4.conf.all.accept_redirects=0
-net.ipv6.conf.all.accept_redirects=0
+# --- Защита файловой системы ---
+# Ограничения на работу с FIFO и обычными файлами в sticky-директориях (/tmp)
+# Значение 2 — максимально строгий режим (Full)
+fs.protected_fifos = 2
+fs.protected_regular = 2
 
-# Защита от IP spoofing
-net.ipv4.conf.all.send_redirects=0
+# --- Скрытие указателей и ограничение perf ---
+kernel.kptr_restrict = 2
+kernel.perf_event_paranoid = 3
 
-# Игнорирование ping
-net.ipv4.icmp_echo_ignore_all=0
+# --- Харденинг BPF ---
+kernel.unprivileged_bpf_disabled = 1
+net.core.bpf_jit_harden = 2
 
-# Защита памяти
-kernel.dmesg_restrict=1
-kernel.kptr_restrict=2
+# --- Целостность системы и дампы ---
+# Критично для связки Secure Boot + UKI
+kernel.kexec_load_disabled = 1
+fs.suid_dumpable = 0
+
+# Ограничение TTY
+dev.tty.ldisc_autoload = 0
+
+# Ограничение на создание дампов памяти
+kernel.core_pattern = |/bin/false
+
+# Защита от атаки через перезагрузки (Cold boot attack)
+kernel.panic = 10
+kernel.panic_on_oops = 1
 ```
 
 ### 3. Module Silencing

@@ -7,7 +7,8 @@
 Данная система построена на принципах:
 - **Pure Wayland** — полный отказ от X11 в пользу нативного Wayland
 - **LLVM/LTO** — использование clang с оптимизациями для максимальной производительности
-- **Безопасность** — Secure Boot + TPM 2.0 + LUKS + AppArmor
+- **Hardened** — профиль `default/linux/amd64/23.0/no-multilib/hardened/systemd` + PiE, SSP, RELRO
+- **Безопасность** — Secure Boot + TPM 2.0 + LUKS + AppArmor + Audit
 - **Современный стек** — systemd, PipeWire, Dracut, Btrfs
 
 ## Структура документации
@@ -55,7 +56,10 @@
 
 | Раздел | Описание |
 |--------|----------|
-| [security/kernel-hardening](security/kernel-hardening.md) | Защита ядра (в разработке) |
+| [security/app-armor](security/app-armor.md) | Настройка AppArmor для ограничения приложений |
+| [security/auditd](security/auditd.md) | Система аудита событий безопасности |
+| [security/usbguard](security/usbguard.md) | Контроль USB-устройств и защита от BadUSB |
+| [security/kernel-hardening](security/kernel-hardening.md) | Защита ядра: sysctl, hardened flags |
 | [security/doas-configuration](security/doas-configuration.md) | Замена sudo на doas |
 
 ### ⚙️ Управление пакетами
@@ -78,11 +82,13 @@
 | [settings/nm-iwd](settings/nm-iwd.md) | MAC-рандомизация и iwd |
 | [settings/r2modman](settings/r2modman.md) | Интеграция r2modman со Steam (Flatpak) |
 | [settings/scanner-driver](settings/scanner-driver.md) | Настройка сканера отпечатков Elan 04f3:0c77 |
-| [settings/obs-studio.md](settings/obs-studio.md) | Полное руководство по OBS Studio, FFmpeg и настройке кодеков |
+| [settings/obs-studio](settings/obs-studio.md) | OBS Studio, FFmpeg и настройка кодеков |
 
 ## Ключевые компоненты системы
 
-### Ядро и загрузка
+### Профиль и ядро
+- **Gentoo Profile**: `default/linux/amd64/23.0/no-multilib/hardened/systemd` (stable)
+- **Hardened Kernel** — ядро с защищённой компиляцией (PIE, SSP, RELRO, Fortify)
 - **Gentoo Kernel** с savedconfig для кастомной оптимизации
 - **Dracut** для генерации initramfs и UKI
 - **systemd-boot** как загрузчик
@@ -99,13 +105,17 @@
 - **WirePlumber** — управление PipeWire
 
 ### Безопасность
+- **Hardened Profile** — PIE, SSP, RELRO, Fortify Source
 - **LUKS2** — шифрование диска
 - **TPM 2.0** — автоматическая расшифровка
 - **AppArmor** — Mandatory Access Control
+- **Auditd** — аудит событий
+- **USBGuard** — контроль USB-устройств
 
 ## Быстрые ссылки
 
 - [Gentoo Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
+- [Gentoo Hardened](https://wiki.gentoo.org/wiki/Project:Hardened)
 - [Niri Wiki](https://github.com/YaLTeR/niri)
 - [Noctalia Shell](https://github.com/quickget/quickget)
 - [Dracut Documentation](https://github.com/dracutdevs/dracut)

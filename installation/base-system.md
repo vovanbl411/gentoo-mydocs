@@ -1,8 +1,14 @@
 # Базовая настройка системы (Base System)
+
 Конфигурация окружения Gentoo с упором на производительность (LLVM/LTO), современные линкеры и кэширование.
+
 ## 1. Настройка компилятора и тулчейна (LLVM)
+
 В данной системе используется стек LLVM вместо классического GCC для достижения лучшей оптимизации и скорости сборки.
-Файл: /etc/portage/make.conf
+
+Файл: `/etc/portage/make.conf`
+
+```makefile
 # Глобальный тулчейн LLVM (Slot 23)
 CC="clang"
 CXX="clang++"
@@ -19,9 +25,13 @@ CXXFLAGS="${COMMON_FLAGS}"
 RUSTFLAGS="-C target-cpu=alderlake -C opt-level=3"
 GOAMD64="v3"
 GOFLAGS="-buildmode=pie"
+```
 
 ## 2. Ускорение сборки (mold & ccache)
+
 Для минимизации времени ожидания при сборке тяжелых пакетов используется современный линкер mold и система кэширования ccache.
+
+```makefile
 # Использование линкера mold
 LDFLAGS="${LDFLAGS} -fuse-ld=mold"
 
@@ -32,9 +42,13 @@ CCACHE_SIZE="50G"
 CCACHE_COMPRESS="1"
 CCACHE_COMPRESS_LEVEL="3"
 CCACHE_SLOPPINESS="include_file_mtime,include_file_ctime,time_macros,file_macro,pch_defines"
+```
 
 ## 3. Глобальные USE-флаги
+
 Философия системы: Pure Wayland. Полное отсутствие X11 зависимостей, использование системных демонов systemd и современных протоколов безопасности.
+
+```makefile
 USE="\
   # Графика: Wayland native, без X
   wayland gles2 egl mapi opencl vpp vaapi vulkan zink -X -xwayland \
@@ -48,10 +62,15 @@ USE="\
   bluetooth wifi networkmanager \
   # Отключено (телеметрия и устаревшие компоненты)
   -elogind -consolekit -telemetry"
+```
 
 ## 4. Повышение привилегий (doas)
+
 Вместо громоздкого sudo используется легковесный doas.
-Файл: /etc/doas.conf
+
+Файл: `/etc/doas.conf`
+
+```conf
 # Разрешить пользователю выполнять команды от root с сохранением пароля на время сессии
 permit persist :wheel
 
@@ -60,3 +79,4 @@ permit keepenv vladimir
 
 # Разрешить выполнение snapper без ввода пароля (для снапшотов)
 permit persist :wheel as root cmd snapper
+```

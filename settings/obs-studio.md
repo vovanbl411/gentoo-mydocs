@@ -1068,14 +1068,14 @@ htop + intel_gpu_top  # нагрузка во время записи
 
 ```mermaid
 graph TD
-    A[Исходное видео] --> B[CPU]
-    A --> C[GPU/Специализированные блоки]
-    B --> D[Программное кодирование x264/x265]
-    C --> E[Аппаратное кодирование VAAPI/QSV]
-    D --> F[Высокая нагрузка CPU]
-    E --> G[Низкая нагрузка CPU]
-    F --> H[Выходное видео]
-    G --> H
+  A[Исходное видео] --> B[CPU]
+  A --> C[GPU/Специализированные блоки]
+  B --> D[Программное кодирование x264/x265]
+  C --> E[Аппаратное кодирование VAAPI/QSV]
+  D --> F[Высокая нагрузка CPU]
+  E --> G[Низкая нагрузка CPU]
+  F --> H[Выходное видео]
+  G --> H
 ```
 
 ### Внутреннее устройство процесса аппаратного ускорения
@@ -1089,15 +1089,15 @@ graph TD
 
 ```mermaid
 sequenceDiagram
-    participant CPU
-    participant GPU
-    participant Memory
-    
-    CPU->>Memory: Подготовка видеоданных
-    CPU->>GPU: Отправка данных на GPU
-    GPU->>GPU: Аппаратное кодирование
-    GPU->>Memory: Возврат закодированных данных
-    CPU->>CPU: Финальная обработка
+  participant CPU
+  participant GPU
+  participant Memory
+  
+  CPU->>Memory: Подготовка видеоданных
+  CPU->>GPU: Отправка данных на GPU
+  GPU->>GPU: Аппаратное кодирование
+  GPU->>Memory: Возврат закодированных данных
+  CPU->>CPU: Финальная обработка
 ```
 
 ### Типы аппаратного ускорения
@@ -1108,13 +1108,13 @@ QSV использует специализированные блоки в пр
 
 ```mermaid
 graph LR
-    A[Центральный процессор Intel] --> B[Специализированные блоки кодирования]
-    B --> C[VLD - Video Decode]
-    B --> D[VME - Video Encode]
-    B --> E[VEP - Video Enhancement Processor]
-    C --> F[Декодирование H.264/H.265/VP8/VP9]
-    D --> G[Кодирование H.264/H.265]
-    E --> H[Обработка изображения]
+  A[Центральный процессор Intel] --> B[Специализированные блоки кодирования]
+  B --> C[VLD - Video Decode]
+  B --> D[VME - Video Encode]
+  B --> E[VEP - Video Enhancement Processor]
+  C --> F[Декодирование H.264/H.265/VP8/VP9]
+  D --> G[Кодирование H.264/H.265]
+  E --> H[Обработка изображения]
 ```
 
 #### Video Acceleration API (VAAPI)
@@ -1123,15 +1123,15 @@ VAAPI - это открытый API, поддерживающий различн
 
 ```mermaid
 graph TB
-    A[Приложение - FFmpeg/OBS] --> B[VAAPI API]
-    B --> C[Драйвер VAAPI]
-    C --> D{Поддерживаемый GPU}
-    D -->|Intel| E[Intel iHD Driver]
-    D -->|AMD| F[AMD RadeonSI Driver]
-    D -->|Other| G[Generic Driver]
-    E --> H[Аппаратное кодирование]
-    F --> H
-    G --> H
+  A[Приложение - FFmpeg/OBS] --> B[VAAPI API]
+  B --> C[Драйвер VAAPI]
+  C --> D{Поддерживаемый GPU}
+  D -->|Intel| E[Intel iHD Driver]
+  D -->|AMD| F[AMD RadeonSI Driver]
+  D -->|Other| G[Generic Driver]
+  E --> H[Аппаратное кодирование]
+  F --> H
+  G --> H
 ```
 
 ### Сравнение производительности
@@ -1140,10 +1140,10 @@ graph TB
 
 ```mermaid
 pie title Загрузка CPU при разных методах кодирования
-    "x264 кодирование" : 75
-    "x265 кодирование" : 85
-    "VAAPI H.264" : 15
-    "QSV H.264" : 10
+  "x264 кодирование" : 75
+  "x265 кодирование" : 85
+  "VAAPI H.264" : 15
+  "QSV H.264" : 10
 ```
 
 ### Преимущества и недостатки аппаратного ускорения
@@ -1160,17 +1160,17 @@ pie title Загрузка CPU при разных методах кодиров
 
 ```mermaid
 graph TD
-    A[OBS Studio] --> B[FFmpeg Backend]
-    B --> C{Выбор кодировщика}
-    C -->|x264/x265| D[CPU Processing]
-    C -->|VAAPI| E[Intel Media SDK]
-    C -->|QSV| F[Intel Quick Sync]
-    D --> G[Высокая CPU нагрузка]
-    E --> H[GPU Processing]
-    F --> H
-    H --> I[Низкая CPU нагрузка]
-    G --> J[Выходной поток]
-    I --> J
+  A[OBS Studio] --> B[FFmpeg Backend]
+  B --> C{Выбор кодировщика}
+  C -->|x264/x265| D[CPU Processing]
+  C -->|VAAPI| E[Intel Media SDK]
+  C -->|QSV| F[Intel Quick Sync]
+  D --> G[Высокая CPU нагрузка]
+  E --> H[GPU Processing]
+  F --> H
+  H --> I[Низкая CPU нагрузка]
+  G --> J[Выходной поток]
+  I --> J
 ```
 
 ## Глоссарий технических терминов

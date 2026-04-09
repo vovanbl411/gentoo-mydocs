@@ -1,4 +1,4 @@
-   # Документация: Настройка Noctalia Theme для GTK4 на Niri (Gentoo)
+# Документация: Настройка Noctalia Theme для GTK4 на Niri (Gentoo)
 
 ## Оглавление
 1. [Предпосылки](#предпосылки)

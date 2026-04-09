@@ -1,8 +1,14 @@
 # Файрвол: nftables
+
 nftables заменяет старый стек iptables, предлагая более простую логику правил и меньшую нагрузку на процессор.
-### 1. Базовый конфиг (Stateful Firewall)
-Мы настраиваем классический «десктопный» вариант: разрешаем всё исходящее, блокируем всё входящее, кроме уже установленных соединений.
-Файл: /etc/nftables.conf
+
+## 1. Базовый конфиг (Stateful Firewall)
+
+Мы настраиваем классический "десктопный" вариант: разрешаем всё исходящее, блокируем всё входящее, кроме уже установленных соединений.
+
+Файл: `/etc/nftables.conf`
+
+```nftables
 flush ruleset
 
 table inet filter {
@@ -31,6 +37,10 @@ table inet filter {
         type filter hook output priority 0; policy accept;
     }
 }
+```
 
-### 2. Применение
+## 2. Применение
+
+```bash
 doas systemctl enable --now nftables
+```
