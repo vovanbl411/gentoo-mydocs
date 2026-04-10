@@ -11,6 +11,12 @@
 - **Безопасность** — Secure Boot + TPM 2.0 + LUKS + AppArmor + Audit
 - **Современный стек** — systemd, PipeWire, Dracut, Btrfs
 
+## Визуальный обзор
+
+| Рабочий стол | Панель | Система |
+|------------|--------|--------|
+| ![Desktop](screenshots/Screenshot%20from%202026-04-10%2015-31-19.png) | ![Shell](screenshots/Screenshot%20from%202026-04-10%2015-31-37.png) | ![Status](screenshots/Screenshot%20from%202026-04-10%2016-09-05.png) |
+
 ## Структура документации
 
 ### 🚀 Установка и загрузка
@@ -68,12 +74,6 @@
 |--------|----------|
 | [managed/portage](managed/portage.md) | Полное руководство по Portage и emerge |
 
-### 📦 Приложения
-
-| Раздел | Описание |
-|--------|----------|
-| [applications/flatpak](applications/flatpak.md) | Flatpak и Flatseal для изоляции приложений |
-
 ### ⚡ Настройки
 
 | Раздел | Описание |
@@ -84,6 +84,8 @@
 | [settings/scanner-driver](settings/scanner-driver.md) | Настройка сканера отпечатков Elan 04f3:0c77 |
 | [settings/obs-studio](settings/obs-studio.md) | OBS Studio, FFmpeg и настройка кодеков |
 | [settings/bolt](settings/bolt.md) | Оптимизация Clang с помощью BOLT для Alder Lake |
+| [settings/firefox](settings/firefox.md) | Firefox: Clang, PGO, Wayland, Profile-sync-daemon |
+| [settings/flatpak](settings/flatpak.md) | Flatpak и Flatseal для изоляции приложений |
 
 ### ⚙️ Управление конфигурацией
 
