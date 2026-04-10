@@ -92,9 +92,10 @@
 
 ```bash
 emerge -av app-admin/chezmoi
-
-chezmoi init --apply [https://github.com/vovanbl411/dotfiles](https://github.com/vovanbl411/dotfiles)
 ```
+
+`chezmoi init --apply` [https://github.com/vovanbl411/dotfiles](https://github.com/vovanbl411/dotfiles)
+
 
 ## Ключевые компоненты системы
 
