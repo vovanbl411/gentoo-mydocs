@@ -47,7 +47,7 @@
 | Раздел | Описание |
 |--------|----------|
 | [hardware/asus-expertbook](hardware/asus-expertbook.md) | Специфика ноутбука ASUS ExpertBook B5402 |
-| [hardware/intel-grapgics](hardware/intel-grapgics.md) | Драйвер Intel Xe и Vulkan (ANV) |
+| [hardware/intel-graphics](hardware/intel-graphics.md) | Драйвер Intel Xe и Vulkan (ANV) |
 | [hardware/cpu-optimization](hardware/cpu-optimization.md) | Оптимизация для Intel Alder Lake (P-cores + E-cores) |
 
 ### 🌐 Сеть
