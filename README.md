@@ -86,7 +86,7 @@
 | [settings/bolt](settings/bolt.md) | Оптимизация Clang с помощью BOLT для Alder Lake |
 | [settings/firefox](settings/firefox.md) | Firefox: Clang, PGO, Wayland, Profile-sync-daemon |
 | [settings/flatpak](settings/flatpak.md) | Flatpak и Flatseal для изоляции приложений |
-| [settings/nftables](settings/nftables.md) | Nftables проблема отсутствия интернета на виртуальных машинах | 
+| [settings/nftables-docker-libvirt](settings/nftables-docker-libvirt.md) | Проблема отсутствия интернета на виртуальных машинах из-за правил Docker | 
 
 ### ⚙️ Управление конфигурацией
 
