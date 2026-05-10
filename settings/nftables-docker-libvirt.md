@@ -32,7 +32,17 @@ $ doas nft list ruleset | grep -A 5 "chain FORWARD"
 
 В nftables меньшее число priority = раньше обработка. `priority -10` срабатывает **до** Docker (`priority 0`), принимая пакет раньше, чем тот его дропнет.
 
-### /etc/nftables.conf
+### Файл конфигурации
+
+В Gentoo с systemd canonical путь для nftables конфига:
+
+```
+/etc/nftables/rules/main.nft
+```
+
+Это единственный файл, который загружает `nftables.service` при старте системы (проверяется через `ConditionPathExists=/etc/nftables/rules/main.nft`).
+
+### Содержимое `/etc/nftables/rules/main.nft`
 
 ```nft
 #!/usr/sbin/nft -f
@@ -45,8 +55,8 @@ flush ruleset
 
 # === Фикс для Libvirt bridge ===
 # priority -10 гарантирует выполнение ДО таблиц Docker (priority 0)
-table ip gentoo_bridge_fix {
-    chain forward {
+table ip gentoo_bridge_libvirt {
+    chain bypass_docker {
         type filter hook forward priority -10; policy accept;
 
         # Libvirt default network
@@ -67,7 +77,7 @@ table ip gentoo_bridge_fix {
 
 | Таблица | Priority | Policy | Результат |
 |---------|----------|--------|-----------|
-| `gentoo_bridge_fix` | **-10** | `accept` | ✅ Пакет принят **до** Docker |
+| `gentoo_bridge_libvirt` | **-10** | `accept` | ✅ Пакет принят **до** Docker |
 | `ip filter` (Docker) | 0 | `drop` | ❌ Не видит пакет — уже обработан |
 
 > **Важно:** В nftables `accept` в одной цепочке не останавливает обработку полностью — пакет всё ещё проходит через другие цепочки на том же hook. Но поскольку наш `accept` срабатывает раньше (priority -10), Docker (priority 0) уже не может его дропнуть — пакет помечен как принятый.
@@ -79,7 +89,8 @@ table ip gentoo_bridge_fix {
 ### 1. Бэкап текущей конфигурации
 
 ```bash
-$ doas cp /etc/nftables.conf /etc/nftables.conf.backup.$(date +%Y%m%d)
+$ doas mkdir -p /etc/nftables/rules
+$ doas cp /etc/nftables/rules/main.nft /etc/nftables/rules/main.nft.backup.$(date +%Y%m%d) 2>/dev/null || true
 $ doas nft list ruleset > ~/nftables-ruleset-backup.txt
 ```
 
@@ -94,57 +105,80 @@ $ eselect profile show | grep systemd
 $ doas emerge -av net-firewall/nftables
 ```
 
-### 3. Настройка systemd services (актуально для nftables ≥1.1.1-r1)
-
-Начиная с `net-firewall/nftables-1.1.1-r1` сервис разделён на два:
-- `nftables-load.service` — загружает правила при старте
-- `nftables-store.service` — сохраняет правила при выключении
+### 3. Создание конфигурации
 
 ```bash
-# Создаём файл состояния (требуется для store-сервиса)
-$ doas touch /var/lib/nftables/rules-save
+# Создаём директорию (если её нет)
+$ doas mkdir -p /etc/nftables/rules
 
-# Включаем автозагрузку
-$ doas systemctl enable --now nftables-load
-$ doas systemctl enable --now nftables-store
+# Пишем конфиг
+$ doas tee /etc/nftables/rules/main.nft << 'EOF'
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+table ip gentoo_bridge_libvirt {
+    chain bypass_docker {
+        type filter hook forward priority -10; policy accept;
+        ip saddr 10.0.0.0/24 accept
+        ip daddr 10.0.0.0/24 accept
+        ip saddr 192.168.122.0/24 accept
+        ip daddr 192.168.122.0/24 accept
+    }
+}
+EOF
+
+# Права на файл
+$ doas chmod 644 /etc/nftables/rules/main.nft
 ```
 
-### 4. Проверка и применение конфига
+### 4. Проверка синтаксиса и применение
 
 ```bash
 # Проверка синтаксиса (dry-run)
-$ doas /usr/sbin/nft -c -f /etc/nftables.conf
+$ doas /usr/sbin/nft -c -f /etc/nftables/rules/main.nft
 
-# Применение правил без рестарта сервиса
-$ doas /usr/sbin/nft -f /etc/nftables.conf
+# Применение правил
+$ doas /usr/sbin/nft -f /etc/nftables/rules/main.nft
 
-# Перезапуск сервиса (альтернатива)
-$ doas systemctl restart nftables-load
+# Альтернатива — через systemd
+$ doas systemctl restart nftables
 ```
 
-### 5. Проверка загрузки правил
+### 5. Включение автозагрузки
 
 ```bash
-$ doas nft list table ip gentoo_bridge_fix
+# Проверяем, что юнит видит файл
+$ doas systemctl status nftables
+# Должно быть: ConditionPathExists=/etc/nftables/rules/main.nft met
+
+# Включаем автозагрузку
+$ doas systemctl enable --now nftables
+```
+
+### 6. Проверка загрузки правил
+
+```bash
+$ doas nft list table ip gentoo_bridge_libvirt
 # Должно показать:
-# table ip gentoo_bridge_fix {
-#   chain forward {
-#     type filter hook forward priority -10; policy accept;
-#     ip saddr 192.168.122.0/24 accept
-#     ip daddr 192.168.122.0/24 accept
+# table ip gentoo_bridge_libvirt {
+#   chain bypass_docker {
+#     type filter hook forward priority filter - 10; policy accept;
 #     ip saddr 10.0.0.0/24 accept
 #     ip daddr 10.0.0.0/24 accept
 #   }
 # }
 ```
 
-### 6. Проверка порядка обработки hook'ов
+> **Примечание:** `nft` отображает `priority -10` как `priority filter - 10`. Это нормально — `filter` это базовый приоритет (0), `- 10` означает "минус 10 от базового".
+
+### 7. Проверка порядка обработки hook'ов
 
 ```bash
 $ doas nft list ruleset | grep "hook forward"
 # Должно быть:
-# type filter hook forward priority -10; policy accept;  ← наш фикс
-# type filter hook forward priority filter; policy drop;   ← Docker
+# type filter hook forward priority filter - 10; policy accept;  ← наш фикс
+# type filter hook forward priority filter; policy drop;         ← Docker
 ```
 
 ---
@@ -173,8 +207,60 @@ $ curl -I https://docker.io # HTTP/2 401 (это норма, значит дох
 $ dig +short gentoo.org     # Возвращает IP
 
 # Проверка счётчиков nftables
-$ doas nft list chain ip gentoo_bridge_fix forward -a
+$ doas nft list chain ip gentoo_bridge_libvirt bypass_docker -a
 # counter packets 1234 bytes 567890 ip saddr 10.0.0.0/24 accept # ← счётчик растёт
+```
+
+---
+
+## Расширение конфигурации
+
+### Добавление новых сетей
+
+Если появляются новые подсети (например, для k8s):
+
+```nft
+table ip gentoo_bridge_libvirt {
+    chain bypass_docker {
+        type filter hook forward priority -10; policy accept;
+
+        # Существующие сети
+        ip saddr 10.0.0.0/24 accept
+        ip daddr 10.0.0.0/24 accept
+        ip saddr 192.168.122.0/24 accept
+        ip daddr 192.168.122.0/24 accept
+
+        # Новая сеть для k8s
+        ip saddr 10.244.0.0/16 accept
+        ip daddr 10.244.0.0/16 accept
+    }
+}
+```
+
+После изменения:
+```bash
+$ doas /usr/sbin/nft -f /etc/nftables/rules/main.nft
+$ doas systemctl restart nftables
+```
+
+### Разделение по файлам (для сложных конфигураций)
+
+```
+/etc/nftables/
+└── rules/
+    ├── main.nft          # Точка входа
+    ├── base.nft          # Базовые правила
+    └── libvirt.nft       # Фикс для Libvirt
+```
+
+**`main.nft`:**
+```nft
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+include "/etc/nftables/rules/base.nft"
+include "/etc/nftables/rules/libvirt.nft"
 ```
 
 ---
@@ -195,7 +281,7 @@ $ doas nft list chain ip gentoo_bridge_fix forward -a
 - **Kernel:** 6.x (Alder Lake, Clang/LLVM + ThinLTO)
 - **Init:** systemd
 - **Firewall:** nftables 1.1.x (net-firewall/nftables)
-- **Docker:** 28.x (iptables-nft backend, `DOCKER-USER` chain)
+- **Docker:** 28.x (iptables-nft backend)
 - **Libvirt:** 10.x (QEMU/KVM, default NAT network)
 - **Privilege escalation:** doas
 
@@ -203,41 +289,39 @@ $ doas nft list chain ip gentoo_bridge_fix forward -a
 
 ## Troubleshooting
 
-### Правила не применились после рестарта
+### Правила не загрузились после рестарта
 
 ```bash
-# Проверить статус юнитов
-$ doas systemctl status nftables-load
-$ doas systemctl status nftables-store
+# Проверить, что файл существует
+$ ls -la /etc/nftables/rules/main.nft
 
-# Проверить, что юниты включены
-$ doas systemctl is-enabled nftables-load
-# Должно быть: enabled
+# Проверить статус юнита
+$ doas systemctl status nftables
+# Если: ConditionPathExists=/etc/nftables/rules/main.nft was not met
+# → Файла нет или путь неправильный
 
-# Если disabled — включить
-$ doas systemctl enable --now nftables-load
+# Проверить синтаксис
+$ doas /usr/sbin/nft -c -f /etc/nftables/rules/main.nft
 ```
 
-### Правила применились, но трафик всё ещё блокируется
+### Правила загружены, но трафик всё ещё блокируется
 
 ```bash
-# Проверить, что таблица gentoo_bridge_fix реально перехватывает
-$ doas nft list ruleset | grep -B2 -A5 "priority -10"
-# Должно быть: type filter hook forward priority -10
+# Проверить, что таблица реально перехватывает
+$ doas nft list ruleset | grep -B2 -A5 "priority filter - 10"
+# Должно быть: type filter hook forward priority filter - 10
 
-# Если priority 0 — опечатка в конфиге, nftables проигнорировал -10
-# или правила загружены не из /etc/nftables.conf
+# Если priority 0 — опечатка в конфиге
 
 # Проверить, что Docker не перехватывает раньше
 $ doas nft list ruleset | grep "hook forward"
-# gentoo_bridge_fix: priority -10
-# filter (Docker): priority 0
-# libvirt_network: priority 0
+# gentoo_bridge_libvirt: priority filter - 10
+# filter (Docker): priority filter
 ```
 
 ### Конфликт с firewalld
 
-Если установлен `firewalld` — он тоже лезет в nftables. На Gentoo с systemd это редкость, но если есть:
+Если установлен `firewalld` — он тоже лезет в nftables:
 
 ```bash
 $ doas systemctl stop firewalld
@@ -248,15 +332,15 @@ $ doas emerge -C firewalld
 ### Docker не стартует после изменений
 
 ```bash
-# Проверить, что nftables-load загрузился до Docker
+# Проверить, что nftables загрузился до Docker
 $ doas journalctl -u docker.service -b | grep -i nftables
 
 # Если Docker стартовал раньше — добавить зависимость
 $ doas mkdir -p /etc/systemd/system/docker.service.d/
 $ doas tee /etc/systemd/system/docker.service.d/nftables-dependency.conf << 'EOF'
 [Unit]
-After=nftables-load.service
-Wants=nftables-load.service
+After=nftables.service
+Wants=nftables.service
 EOF
 $ doas systemctl daemon-reload
 $ doas systemctl restart docker
