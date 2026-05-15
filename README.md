@@ -87,6 +87,7 @@
 | [settings/firefox](settings/firefox.md) | Firefox: Clang, PGO, Wayland, Profile-sync-daemon |
 | [settings/flatpak](settings/flatpak.md) | Flatpak и Flatseal для изоляции приложений |
 | [settings/nftables-docker-libvirt](settings/nftables-docker-libvirt.md) | Проблема отсутствия интернета на виртуальных машинах из-за правил Docker | 
+| [settings/connect-phone-android](settings/connect-phone-android.md) | Проблема с подключением телефона для передачи данных |
 
 ### ⚙️ Управление конфигурацией
 
