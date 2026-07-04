@@ -1,32 +1,49 @@
 # Беспроводные домены (Regulatory Domain)
 
-Чтобы Wi-Fi адаптер работал на правильных частотах и с разрешенной мощностью, необходимо установить код страны.
+Чтобы Wi-Fi адаптер работал на правильных частотах и с разрешенной мощностью, необходимо установить код страны (ISO 3166-1 alpha-2).
 
-## Настройка через crda или ядро
+В современных ядрах эту роль выполняет [wireless-regdb](https://wireless.wiki.kernel.org/en/developers/regulatory), а `crda` устарел. Для Gentoo достаточно установить пакет `net-wireless/wireless-regdb` — ядро автоматически подтянет `regulatory.db`.
 
-В современных системах это часто решается через параметры ядра или настройку iwd.
-
-### Проверка текущего региона
+## Проверка текущего региона
 
 ```bash
 iw reg get
 ```
 
-### Установка
+## Разовая установка домена
 
 ```bash
-# В systemd обычно достаточно настроить через iwd или udev
+doas iw reg set BY
+iw reg get   # проверка
 ```
 
-Пример для Беларуси:
+Синтаксис: `iw reg set <ISO 3166-1 alpha-2>`. Команда `iwdctl` не существует — управление iwd идёт через `iwctl` (интерактивный клиент) и конфиг-файл, а не через отдельный CLI.
 
-```bash
-# Через iwd
-iwdctl set-domain BY
+## Persistent-настройка
+
+### Через iwd (`/etc/iwd/main.conf`)
+
+```ini
+[General]
+Country=BY
 ```
 
-Или через sysfs:
+См. [iwd.config(5)](https://manpages.ubuntu.com/manpages/noble/man5/iwd.config.5.html). Примечание из upstream: `Country` в iwd — это лишь **запрос** к ядру, окончательное решение принимает kernel/regdb, а для «self-managed wiphy» установка из userspace вообще игнорируется.
 
-```bash
-echo "BY" > /sys/devices/virtual/net/wlan0/phy80211/country_code
+### Через параметр модуля `cfg80211` (`/etc/modprobe.d/cfg80211.conf`)
+
 ```
+options cfg80211 ieee80211_regdom=BY
+```
+
+Применится при загрузке модуля (`modprobe -r cfg80211 && modprobe cfg80211` или после ребута).
+
+## Что делать НЕ надо
+
+- ❌ `iwdctl set-domain <CC>` — такой утилиты нет.
+- ❌ `echo "BY" > /sys/devices/virtual/net/wlan0/phy80211/country_code` — этот sysfs-атрибут read-only, запись игнорируется.
+
+## Ссылки
+
+- [iwd.config(5) — секция [General].Country](https://manpages.ubuntu.com/manpages/noble/man5/iwd.config.5.html)
+- [kernel.org: Regulatory](https://wireless.wiki.kernel.org/en/developers/regulatory)
