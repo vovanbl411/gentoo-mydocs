@@ -21,20 +21,30 @@ doas systemctl enable --now usbguard
 Файл: `/etc/usbguard/usbguard-daemon.conf`
 
 ```conf
-# Интерфейс для взаимодействия
-IpAddress=127.0.0.1
-Port=12345
+# Файл с правилами
+RuleFile=/etc/usbguard/rules.conf
+
+# Реакция на уже подключённые и вновь подключаемые устройства
+ImplicitPolicyTarget=block
+PresentDevicePolicy=apply-policy
+PresentControllerPolicy=keep
+InsertedDevicePolicy=apply-policy
+RestoreControllerDeviceState=false
+
+# Backend уведомлений от ядра
+DeviceManagerBackend=uevent
+
+# Кто может общаться с демоном по IPC (Unix domain socket)
+IPCAllowedUsers=root
+IPCAllowedGroups=wheel
+IPCAccessControlFiles=/etc/usbguard/IPCAccessControl.d/
 
 # Аудит
-AuditEnabled=true
-AuditFile=/var/log/usbguard/usbguard-audit.log
-
-# Политика по умолчанию
-DefaultPolicy=block
-
-# Разрешить перезагрузку правил
-RuleFile=/etc/usbguard/rules.conf
+AuditBackend=FileAudit
+AuditFilePath=/var/log/usbguard/usbguard-audit.log
 ```
+
+> **Важно:** у `usbguard-daemon.conf` нет опций `IpAddress` / `Port`. IPC — это Unix domain socket, а не TCP. При наличии таких строк демон стартовать не будет. См. [usbguard.github.io: Configuration](https://usbguard.github.io/documentation/configuration) и [RHEL 8 Security hardening: USBGuard](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/protecting-systems-against-intrusive-usb-devices_security-hardening).
 
 ### 3. Создание начальных правил
 
