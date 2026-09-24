@@ -11,7 +11,9 @@
 на эксплуатации ASUS ExpertBook B5402 (Intel Core i7-1260P, Alder Lake).
 
 - Язык: **русский** (технические термины часто на английском).
-- Формат: Markdown без сборки/CI.
+- Формат: Markdown; источником правды остаются существующие `.md`-каталоги.
+  Для сайта добавлена минимальная инфраструктура Astro Starlight
+  (`npm run build` из `src/content/docs/`); CI и deployment отсутствуют.
 - Цель: публиковать повторяемые руководства и отдельно вести состояние
   эталонной системы.
 - Аудитория: пользователи, уже знакомые с Gentoo/Linux, и автор репозитория.
@@ -46,7 +48,17 @@
 ├── AGENTS.md                 # Этот файл
 ├── CHECKPOINT.md             # Текущее состояние и план работ
 ├── .markdownlint.json        # Конфиг markdownlint, но он в .gitignore
-├── .gitignore                # Игнорирует .history, .kilocodemodes, .markdownlint.json
+├── .gitignore                # Игнорирует .history, .kilocodemodes, .markdownlint.json,
+│                             # node_modules/, dist/, .astro/
+│
+├── package.json              # npm-скрипты и зависимости сайта (Astro Starlight)
+├── package-lock.json         # Зафиксированные версии зависимостей
+├── astro.config.mjs          # Конфиг Astro + Starlight; русский root locale
+├── src/
+│   ├── content.config.ts     # Схема docs-коллекции: docsSchema() + наша metadata
+│   └── content/
+│       └── docs/
+│           └── index.md      # Временная POC-страница (Gate 1), не навигация сайта
 │
 ├── installation/             # Установка и загрузка
 │   ├── base-system.md        # make.conf, toolchain, USE-флаги
@@ -268,7 +280,9 @@ systemd-cryptenroll
   вынесено в системный раздел.
 - `.gitignore`, `.kilocodemodes`, `.markdownlint.json` имеют executable bit.
 - `.markdownlint.json` игнорируется `.gitignore`.
-- Нет автоматических проверок (lint, ссылки).
+- Автоматических проверок в CI нет. Локальный `npm run build` (Astro Starlight)
+  собирает сайт из `src/content/docs/` и не валидирует Markdown в остальных
+  каталогах репозитория.
 
 Подробности и план — в `CHECKPOINT.md`.
 

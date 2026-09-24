@@ -2,6 +2,11 @@
 .markdownlint.json
 .codex
 
+# Astro / Node
+node_modules/
+dist/
+.astro/
+
 # Временные артефакты
 result-rebuild.md
 graphify-out/
