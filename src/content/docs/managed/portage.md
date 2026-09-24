@@ -9,9 +9,9 @@ verified_on: [asus-b5402]
 
 Как ставить пакеты, обновлять систему и поддерживать её в порядке через
 Portage (`emerge`). Конфигурация toolchain и `make.conf` разобраны в
-[базовой системе](../installation/base-system.md); записанная package
+[базовой системе](../../installation/base-system/); записанная package
 policy эталонной машины — в
-[её системном разделе](../systems/asus-b5402/system/boot-and-portage.md).
+[её системном разделе](../../systems/asus-b5402/system/boot-and-portage/).
 
 ## Quick workflow
 
@@ -376,7 +376,7 @@ guide](https://wiki.gentoo.org/wiki/Binary_package_guide).
 
 Ускоряет повторные сборки, кэшируя результаты компиляции. Включается
 `FEATURES="ccache"` в `make.conf`; подробная настройка — в
-[базовой системе](../installation/base-system.md).
+[базовой системе](../../installation/base-system/).
 
 ### distcc
 
@@ -405,7 +405,7 @@ Build-time зависимости Portage учитывает автоматич�
 USE и конфигурация ядерных пакетов управляются стандартными механизмами
 Portage (`package.use`, `savedconfig`). Установка образа, initramfs и
 загрузчика — зона `sys-kernel/installkernel` + Dracut: схема UKI, подписи и
-systemd-boot разобрана в [systemd-uki-setup](../installation/systemd-uki-setup.md).
+systemd-boot разобрана в [systemd-uki-setup](../../installation/systemd-uki-setup/).
 Здесь руководство по сборке ядра не повторяется.
 
 Автозагрузка модулей ядра под systemd — файлы `/etc/modules-load.d/*.conf`.
@@ -429,7 +429,7 @@ systemd-boot разобрана в [systemd-uki-setup](../installation/systemd-u
 Если память кончается при сборке одного тяжёлого пакета, обычно снижают
 `MAKEOPTS` для него через `package.env` / env-файл (пример env-политики —
 [системный раздел эталонной
-машины](../systems/asus-b5402/system/boot-and-portage.md)). Если параллельно
+машины](../../systems/asus-b5402/system/boot-and-portage/)). Если параллельно
 идут несколько пакетов, дополнительно снижают Portage `--jobs`.
 
 ### Система сломалась после обновления
@@ -442,8 +442,8 @@ repair-команды нет: сначала разберитесь, что им
 
 ## Related docs
 
-- [Базовая настройка системы: make.conf, USE, ccache](../installation/base-system.md)
-- [Ядро и загрузка: UKI через Dracut](../installation/systemd-uki-setup.md)
-- [Package policy эталонной машины asus-b5402](../systems/asus-b5402/system/boot-and-portage.md)
+- [Базовая настройка системы: make.conf, USE, ccache](../../installation/base-system/)
+- [Ядро и загрузка: UKI через Dracut](../../installation/systemd-uki-setup/)
+- [Package policy эталонной машины asus-b5402](../../systems/asus-b5402/system/boot-and-portage/)
 - [Gentoo Wiki: Portage](https://wiki.gentoo.org/wiki/Portage)
 - [`emerge(1)`](https://dev.gentoo.org/~zmedico/portage/doc/man/emerge.1.html)

@@ -22,7 +22,7 @@ verified_on: [asus-b5402]
 системы. Выбирай субволюмы по тому, какие данные должны попадать в снимки и
 какие каталоги требуют отдельных VFS options или атрибутов. Фактический layout
 ASUS B5402 записан в
-[системном разделе](../systems/asus-b5402/filesystem/layout-and-snapshots.md).
+[системном разделе](../../systems/asus-b5402/filesystem/layout-and-snapshots/).
 
 ## Когда применять эту схему
 
@@ -207,5 +207,5 @@ doas btrfs scrub status
 
 ## Related docs
 
-- [Btrfs и Snapper на ASUS B5402](../systems/asus-b5402/filesystem/layout-and-snapshots.md) — подтверждённое состояние эталонной машины.
-- [Snapper](snapper-backups.md) — настройка и использование снимков.
+- [Btrfs и Snapper на ASUS B5402](../../systems/asus-b5402/filesystem/layout-and-snapshots/) — подтверждённое состояние эталонной машины.
+- [Snapper](../snapper-backups/) — настройка и использование снимков.

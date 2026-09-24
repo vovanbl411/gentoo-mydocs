@@ -22,12 +22,12 @@ derived metrics, методические примечания и огранич
 Границы источников правды:
 
 - текущее production-состояние системы — в
-  [`../../systems/asus-b5402/system/boot-and-portage.md`](../../systems/asus-b5402/system/boot-and-portage.md);
+  [`../../systems/asus-b5402/system/boot-and-portage.md`](../../../systems/asus-b5402/system/boot-and-portage/);
 - подробный decision record — в
-  [optimization-o2-o3.md](optimization-o2-o3.md);
+  [optimization-o2-o3.md](../optimization-o2-o3/);
 - каноническая методика — в
-  [benchmark-methodology.md](benchmark-methodology.md);
-- gate journal — в [results.md](results.md).
+  [benchmark-methodology.md](../benchmark-methodology/);
+- gate journal — в [results.md](../results/).
 
 B1–B4 — это benchmark results, а не validation gates. «PASS» здесь не
 используется: ни один optimization level не является «успехом теста».
@@ -218,7 +218,7 @@ optimization policy всей системы.
 production-политике не было; package-specific `-O3` rule для libde265 не был
 создан — на том этапе это был только experimental result. Выбор пакетов
 следующих гейтов оставался за владельцем (критерии — в
-[optimization-o2-o3.md](optimization-o2-o3.md)).
+[optimization-o2-o3.md](../optimization-o2-o3/)).
 
 ## 5. B2 — app-arch/zstd-1.5.7-r1
 
@@ -873,7 +873,7 @@ multi-thread, E-core и другие версии Mesa.
 > benefit был небольшим, workload-specific, отсутствующим либо отрицательным.
 
 Это итог Experiment B. Зафиксированное решение — в
-[optimization-o2-o3.md](optimization-o2-o3.md) § 7 и [results.md](results.md).
+[optimization-o2-o3.md](../optimization-o2-o3/) § 7 и [results.md](../results/).
 
 Что покрыто исследованием: C и C++; workload'ы с ThinLTO и без LTO; codec,
 compression, decompression, crypto, крупная desktop/graphics codebase;

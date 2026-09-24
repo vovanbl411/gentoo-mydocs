@@ -24,5 +24,5 @@ verified_on: [asus-b5402]
 
 ## Related docs
 
-- [doas: конфигурация](../../../security/doas-configuration.md) — общая
+- [doas: конфигурация](../../../../security/doas-configuration/) — общая
   конфигурация и параметры.

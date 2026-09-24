@@ -116,6 +116,6 @@ Niri как systemd session поднимает через `xdg-desktop-autostart
 
 ## Общие руководства
 
-- [Niri](../../../desktop/niri.md)
-- [XDG Desktop Portals](../../../desktop/wayland-portals.md)
-- [GTK4 и палитра Noctalia](../../../settings/gtk.md)
+- [Niri](../../../../desktop/niri/)
+- [XDG Desktop Portals](../../../../desktop/wayland-portals/)
+- [GTK4 и палитра Noctalia](../../../../settings/gtk/)

@@ -44,7 +44,7 @@ verified_on: [asus-b5402]
 `-O3` — только package-specific после отдельного benchmark. По итогам
 эксперимента B1–B4 selective-правил для `-O3` не создано. Решение 2026-09-20,
 доказательная база —
-[experiments/llvm23-toolchain](../../../experiments/llvm23-toolchain/index.md).
+[experiments/llvm23-toolchain](../../../../experiments/llvm23-toolchain/).
 
 - Fortran — `-O2` без ThinLTO: GNU Fortran не понимает `-flto=thin`
   (расширение Clang).
@@ -234,7 +234,7 @@ sys-firmware/intel-microcode  dist-kernel initramfs split-ucode hostonly -vanill
   -default-lld -libcxx -llvm-libunwind`. По умолчанию сохраняется GNU runtime
   ABI; наличие compiler-rt/sanitizer runtimes не переводит систему на LLVM
   runtimes — это отдельный [Experiment
-  C](../../../experiments/llvm23-toolchain/index.md) (NOT STARTED).
+  C](../../../../experiments/llvm23-toolchain/) (NOT STARTED).
 - **OpenVPN**: `net-vpn/openvpn dco kernel-ovpn` (решение 2026-09-22, по
   итогам инцидента с `ovpn-dco`): DCO включён через mainline in-kernel модуль
   `ovpn` (`CONFIG_OVPN=m`, собирается с ядром). Out-of-tree
@@ -287,7 +287,7 @@ sys-firmware/intel-microcode  dist-kernel initramfs split-ucode hostonly -vanill
   metadata support.
 - `gui-apps/noctalia jemalloc` — jemalloc сохранён как выбранная runtime
   memory-allocation policy для long-running shell (состояние — в [системном
-  desktop-разделе](../desktop/noctalia.md)).
+  desktop-разделе](../../desktop/noctalia/)).
 
 **Network analysis**
 
@@ -331,7 +331,7 @@ java -version                     # openjdk-bin:25, Temurin 25.0.4 LTS
 
 ## Связанные документы
 
-- [Базовая система](../../../installation/base-system.md)
-- [UKI через Dracut](../../../installation/systemd-uki-setup.md)
-- [Portage](../../../managed/portage.md)
-- [Эксперимент LLVM 23 toolchain](../../../experiments/llvm23-toolchain/index.md)
+- [Базовая система](../../../../installation/base-system/)
+- [UKI через Dracut](../../../../installation/systemd-uki-setup/)
+- [Portage](../../../../managed/portage/)
+- [Эксперимент LLVM 23 toolchain](../../../../experiments/llvm23-toolchain/)

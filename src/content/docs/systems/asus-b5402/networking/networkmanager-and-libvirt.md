@@ -31,7 +31,7 @@ NetworkManager использует iwd как Wi-Fi backend. Wi-Fi работа
   которыми iwd управляет для корректного Wi-Fi roaming. Остальной hardening
   drop-in'а сохранён (CapabilityBoundingSet, RestrictAddressFamilies,
   ProtectSystem/ProtectHome и др.).
-- Первичные источники — [руководство NetworkManager + iwd](../../../networking/networkmanager-iwd.md).
+- Первичные источники — [руководство NetworkManager + iwd](../../../../networking/networkmanager-iwd/).
 
 ## Docker and Libvirt
 
@@ -45,7 +45,7 @@ NetworkManager использует iwd как Wi-Fi backend. Wi-Fi работа
   `ip gentoo_bridge_libvirt`, `ip tailscale_nat`.
 
 Разбор конфликта Docker/Libvirt в nftables и ход диагностики — в
-[troubleshooting](../../../troubleshooting/docker-libvirt-nftables.md).
+[troubleshooting](../../../../troubleshooting/docker-libvirt-nftables/).
 
 ## Mesh VPN
 
@@ -83,6 +83,6 @@ device `/net/connman/iwd/0`. NetworkManager в этот момент логир�
 
 ## Related docs
 
-- [NetworkManager и iwd](../../../networking/networkmanager-iwd.md)
-- [MAC-рандомизация](../../../troubleshooting/networkmanager-iwd-mac-randomization.md)
-- [Docker, Libvirt и nftables](../../../troubleshooting/docker-libvirt-nftables.md)
+- [NetworkManager и iwd](../../../../networking/networkmanager-iwd/)
+- [MAC-рандомизация](../../../../troubleshooting/networkmanager-iwd-mac-randomization/)
+- [Docker, Libvirt и nftables](../../../../troubleshooting/docker-libvirt-nftables/)

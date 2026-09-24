@@ -26,7 +26,7 @@ verified_on: [asus-b5402]
 > **Примечание для Docker 29:** нативный nftables backend по-прежнему
 > включается только явно. Если после обновления `docker.service` падает с
 > ошибкой `iptables not found`, см.
-> [отдельную инструкцию](docker-29-iptables-missing.md).
+> [отдельную инструкцию](../docker-29-iptables-missing/).
 
 ## 3. Cause
 
@@ -75,7 +75,7 @@ policy drop в таблице Docker, обработанный в той же т
 
 Решение проверялось на ASUS B5402. Фактическая структура, текущие версии и
 подтверждённое состояние находятся в
-[системном документе](../systems/asus-b5402/networking/networkmanager-and-libvirt.md).
+[системном документе](../../systems/asus-b5402/networking/networkmanager-and-libvirt/).
 Текущее состояние эталонной системы здесь не дублируется.
 
 ## 5. Verification
@@ -356,7 +356,7 @@ include "/etc/nftables/rules/libvirt.nft"
 - **Privilege escalation:** doas.
 
 Текущее подтверждённое состояние эталонной системы смотри в
-[системном документе](../systems/asus-b5402/networking/networkmanager-and-libvirt.md).
+[системном документе](../../systems/asus-b5402/networking/networkmanager-and-libvirt/).
 
 ## 12. Additional troubleshooting
 
@@ -405,7 +405,7 @@ $ doas emerge -C firewalld
 
 Если журнал содержит `failed to create NAT chain DOCKER: iptables not found`,
 проблема не в порядке запуска `nftables.service`. Используй
-[инструкцию для Docker 29](docker-29-iptables-missing.md).
+[инструкцию для Docker 29](../docker-29-iptables-missing/).
 
 ```bash
 # Проверить, что nftables загрузился до Docker
@@ -424,11 +424,11 @@ $ doas systemctl restart docker
 
 ## Related docs
 
-- [Сеть ASUS B5402](../systems/asus-b5402/networking/networkmanager-and-libvirt.md)
+- [Сеть ASUS B5402](../../systems/asus-b5402/networking/networkmanager-and-libvirt/)
   — текущее подтверждённое состояние и system-specific layout.
-- [Docker 29: `iptables not found`](docker-29-iptables-missing.md) — отдельный
+- [Docker 29: `iptables not found`](../docker-29-iptables-missing/) — отдельный
   симптом запуска Docker.
-- [Минимальный nftables firewall](../networking/nftables-firewall.md) — простой
+- [Минимальный nftables firewall](../../networking/nftables-firewall/) — простой
   desktop example без интеграции Docker и Libvirt.
 
 ## References

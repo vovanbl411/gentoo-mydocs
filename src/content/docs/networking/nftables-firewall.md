@@ -112,6 +112,6 @@ ICMP и необходимые способы управления хостом.
 
 ## Related docs
 
-- [Docker, Libvirt и nftables](../troubleshooting/docker-libvirt-nftables.md)
+- [Docker, Libvirt и nftables](../../troubleshooting/docker-libvirt-nftables/)
   — отдельный разбор сложного взаимодействия forwarded traffic и нескольких
   tables/chains.

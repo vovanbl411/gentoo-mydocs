@@ -13,9 +13,9 @@ verified_on: [asus-b5402]
 том, как были получены результаты.
 
 Фактические данные находятся в
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md), подробный decision record — в
-[optimization-o2-o3.md](optimization-o2-o3.md), gate journal — в
-[results.md](results.md).
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/), подробный decision record — в
+[optimization-o2-o3.md](../optimization-o2-o3/), gate journal — в
+[results.md](../results/).
 
 ## 0. Разделение фактов и выводов
 
@@ -191,7 +191,7 @@ trade-off скорость / code size / стабильность для кон�
 
 ## Связанные записи
 
-- [Decision record: `optimization-o2-o3.md`](optimization-o2-o3.md)
-- [Measurement record: `o2-o3-benchmarks.md`](o2-o3-benchmarks.md)
-- [Gate journal: `results.md`](results.md)
-- [Обзор эксперимента: `README.md`](index.md)
+- [Decision record: `optimization-o2-o3.md`](../optimization-o2-o3/)
+- [Measurement record: `o2-o3-benchmarks.md`](../o2-o3-benchmarks/)
+- [Gate journal: `results.md`](../results/)
+- [Обзор эксперимента: `README.md`](../)

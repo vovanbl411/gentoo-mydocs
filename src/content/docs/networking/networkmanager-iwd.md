@@ -13,10 +13,10 @@ NetworkManager остаётся верхним уровнем управлени
 настраиваются и контролируются через NetworkManager.
 
 Фактическое состояние ASUS B5402 записано в
-[системном разделе](../systems/asus-b5402/networking/networkmanager-and-libvirt.md).
+[системном разделе](../../systems/asus-b5402/networking/networkmanager-and-libvirt/).
 Оно не является обязательной конфигурацией для других систем. Отдельная
 диагностика MAC randomization находится в
-[troubleshooting-документе](../troubleshooting/networkmanager-iwd-mac-randomization.md).
+[troubleshooting-документе](../../troubleshooting/networkmanager-iwd-mac-randomization/).
 
 ## 1. Когда применять и что проверить заранее
 
@@ -140,9 +140,9 @@ doas systemd-analyze verify iwd.service
 
 ## Related docs
 
-- [Сеть ASUS B5402](../systems/asus-b5402/networking/networkmanager-and-libvirt.md)
+- [Сеть ASUS B5402](../../systems/asus-b5402/networking/networkmanager-and-libvirt/)
   — фактическое состояние эталонной системы.
-- [Диагностика MAC randomization](../troubleshooting/networkmanager-iwd-mac-randomization.md)
+- [Диагностика MAC randomization](../../troubleshooting/networkmanager-iwd-mac-randomization/)
   — отдельный troubleshooting-документ.
 
 ## References

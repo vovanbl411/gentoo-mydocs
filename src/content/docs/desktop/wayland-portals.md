@@ -19,7 +19,7 @@ oo7-portal или gnome-keyring = Secret portal, если он нужен при
 ```
 
 Выбранная на эталонной системе ASUS B5402 связка записана в
-[системном разделе](../systems/asus-b5402/desktop/environment.md).
+[системном разделе](../../systems/asus-b5402/desktop/environment/).
 
 ## Required components
 
@@ -92,7 +92,7 @@ org.freedesktop.impl.portal.Secret=gnome-keyring
 
 ## Session integration
 
-При запуске через [`niri-session`](niri.md) вручную ничего делать не нужно:
+При запуске через [`niri-session`](../niri/) вручную ничего делать не нужно:
 session environment (`WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP` и остальные)
 уже импортирован в systemd user manager и D-Bus activation environment, и
 порталы, запущенные systemd/D-Bus, видят сессию.
@@ -134,8 +134,8 @@ systemctl --user status xdg-desktop-portal.service \
 
 ## Related docs
 
-- [Niri](niri.md) — запуск сессии.
-- [Рабочее окружение ASUS B5402](../systems/asus-b5402/desktop/environment.md)
+- [Niri](../niri/) — запуск сессии.
+- [Рабочее окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/)
   — фактическое состояние.
 
 ## References

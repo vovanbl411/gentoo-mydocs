@@ -202,5 +202,5 @@ Dracut), sbctl, firmware TPM; токен `systemd-tpm2`: PCR 7, sha256, SRK.
 - [`systemd-cryptenroll(8)`](https://www.freedesktop.org/software/systemd/man/latest/systemd-cryptenroll.html) — PCR-политики, повторное зачисление
 - [`systemd-cryptsetup(8)`](https://www.freedesktop.org/software/systemd/man/latest/systemd-cryptsetup.html)
 - [TPM2 PCR measurements (systemd)](https://systemd.io/TPM2_PCR_MEASUREMENTS/)
-- [Ядро и загрузка: UKI](../installation/systemd-uki-setup.md)
-- [Secure Boot и TPM2](../installation/secure-boot-tpm.md)
+- [Ядро и загрузка: UKI](../../installation/systemd-uki-setup/)
+- [Secure Boot и TPM2](../../installation/secure-boot-tpm/)

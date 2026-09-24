@@ -35,8 +35,8 @@ verified_on: [asus-b5402]
 
 ## Общие руководства
 
-- [Firefox](../../settings/firefox.md)
-- [Flatpak и Flatseal](../../settings/flatpak.md)
-- [OBS Studio](../../settings/obs-studio.md)
-- [Perplexity AppImage](../../settings/perplexity.md)
-- [r2modman и Steam Flatpak](../../settings/r2modman.md)
+- [Firefox](../../../settings/firefox/)
+- [Flatpak и Flatseal](../../../settings/flatpak/)
+- [OBS Studio](../../../settings/obs-studio/)
+- [Perplexity AppImage](../../../settings/perplexity/)
+- [r2modman и Steam Flatpak](../../../settings/r2modman/)

@@ -91,5 +91,5 @@ doas tlp-stat -b
 
 ## Related docs
 
-- [Niri](../../../desktop/niri.md) — обработка мультимедиа-клавиш.
-- [Оптимизация CPU: Intel Alder Lake](cpu-optimization.md)
+- [Niri](../../../../desktop/niri/) — обработка мультимедиа-клавиш.
+- [Оптимизация CPU: Intel Alder Lake](../cpu-optimization/)

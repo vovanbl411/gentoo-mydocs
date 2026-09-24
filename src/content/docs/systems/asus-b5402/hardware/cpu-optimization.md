@@ -66,9 +66,9 @@ CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcn
 
 BOLT сейчас не используется — временно отключён с 2026-07; ждём стабильного
 релиза LLVM 23 и нового профилирования. Инструкция сохранена в
-[`archive/bolt.md`](../../../archive/bolt.md) как историческая справка.
+[`archive/bolt.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/bolt.md) как историческая справка.
 Использовать старый профиль вслепую нельзя — см.
-[`CHECKPOINT.md`](../../../CHECKPOINT.md).
+[`CHECKPOINT.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/CHECKPOINT.md).
 
 Раньше для критически важных компонентов (LLVM-тулчейн, Clang) применялся BOLT
 (Binary Optimization and Layout Tool) — переупорядочивание кода внутри
@@ -77,6 +77,6 @@ BOLT сейчас не используется — временно отклю�
 
 ## Related docs
 
-- [Загрузка и Portage](../system/boot-and-portage.md) — toolchain,
+- [Загрузка и Portage](../../system/boot-and-portage/) — toolchain,
   оптимизация, политика `-O2` + ThinLTO.
-- [BOLT (архив)](../../../archive/bolt.md)
+- [BOLT (архив)](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/bolt.md)

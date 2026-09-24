@@ -20,7 +20,7 @@ GUI overrides  = ~/.local/state/noctalia/settings.toml
 ```
 
 Проверенная конфигурация эталонной системы ASUS B5402 описана отдельно в
-[системном журнале](../systems/asus-b5402/desktop/noctalia.md).
+[системном журнале](../../systems/asus-b5402/desktop/noctalia/).
 
 ## Package source
 
@@ -63,7 +63,7 @@ keyword, добавь только запрошенные правила в от
 [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay) —
 проверенный пример такого репозитория. Его подключение и сопровождение
 описаны в README оверлея, фактическое состояние машины — в
-[системной записи](../systems/asus-b5402/desktop/noctalia.md).
+[системной записи](../../systems/asus-b5402/desktop/noctalia/).
 
 ## Configuration model
 
@@ -103,9 +103,9 @@ TOML-конфигурацию: выводит предупреждения по 
 
 ## Related docs
 
-- [Noctalia v5 на ASUS B5402](../systems/asus-b5402/desktop/noctalia.md) —
+- [Noctalia v5 на ASUS B5402](../../systems/asus-b5402/desktop/noctalia/) —
   фактическое состояние эталонной системы.
-- [Niri](niri.md) — композитор, вокруг которого построена оболочка.
+- [Niri](../niri/) — композитор, вокруг которого построена оболочка.
 - [Официальный релиз Noctalia v5.1.0](https://github.com/noctalia-dev/noctalia/releases/tag/v5.1.0)
 - [Noctalia v5: установка для Gentoo](https://docs.noctalia.dev/noctalia/getting-started/installation/)
 - [Noctalia v5: модель конфигурации и проверка TOML](https://docs.noctalia.dev/noctalia/configuration/)

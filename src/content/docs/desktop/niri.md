@@ -20,7 +20,7 @@ Niri
 ```
 
 Записанное состояние эталонной системы ASUS B5402 — в
-[системном разделе](../systems/asus-b5402/desktop/environment.md).
+[системном разделе](../../systems/asus-b5402/desktop/environment/).
 
 ## Launch
 
@@ -28,7 +28,7 @@ Niri
 
 В Gentoo Niri обычно доступен через оверлеи (например, guru) или собственный
 ebuild. Захват экрана и системные диалоги обеспечивают portal-бэкенды — см.
-[XDG Desktop Portals](wayland-portals.md).
+[XDG Desktop Portals](../wayland-portals/).
 
 ### niri-session
 
@@ -127,13 +127,13 @@ systemctl --user is-active niri.service \
 ```
 
 Ожидаемый результат: `niri` и `active` для каждого юнита. Затем можно
-проверить компоненты сессии: [portals](wayland-portals.md) и, при
-использовании, [Noctalia](noctalia-shell.md).
+проверить компоненты сессии: [portals](../wayland-portals/) и, при
+использовании, [Noctalia](../noctalia-shell/).
 
 ## Related docs
 
-- [XDG Desktop Portals](wayland-portals.md) — screencast и диалоги.
-- [Noctalia v5 для Niri](noctalia-shell.md) — оболочка.
-- [Рабочее окружение ASUS B5402](../systems/asus-b5402/desktop/environment.md)
+- [XDG Desktop Portals](../wayland-portals/) — screencast и диалоги.
+- [Noctalia v5 для Niri](../noctalia-shell/) — оболочка.
+- [Рабочее окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/)
   — фактическое состояние.
 - [Niri wiki](https://github.com/YaLTeR/niri/wiki) — полный reference.

@@ -29,7 +29,7 @@ systemd-boot
 - **systemd-boot = loader** — находит UKI (Type #2) в `EFI/Linux` на ESP и
   загружает его;
 - **sbctl = signing/verification** — ключи Secure Boot и проверка подписи
-  (создание ключей и enrollment — в [Secure Boot и TPM 2.0](secure-boot-tpm.md)).
+  (создание ключей и enrollment — в [Secure Boot и TPM 2.0](../secure-boot-tpm/)).
 
 `ukify` — альтернативный генератор UKI, а не этап основной цепочки; он
 рассмотрен в разделе «Альтернативный путь: ukify».
@@ -42,7 +42,7 @@ systemd-boot
 - подпись — ключами sbctl.
 
 Фактическое состояние эталонной ASUS B5402 записано в
-[системном разделе](../systems/asus-b5402/system/boot-and-portage.md).
+[системном разделе](../../systems/asus-b5402/system/boot-and-portage/).
 
 ## Prerequisites / Recovery prerequisites
 
@@ -271,7 +271,7 @@ cat /sys/kernel/security/lsm
 
 Диагностика сломавшейся TPM2-разблокировки (PCR-mismatch, перезачисление
 токена) — в [troubleshooting: TPM2-анлок после пересборки
-UKI](../troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md).
+UKI](../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild/).
 
 ## Источники
 

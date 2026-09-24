@@ -23,7 +23,7 @@ sudo используется легковесный doas.
 
 Конфигурация проверена на эталонной машине ASUS B5402; её фактическое
 состояние записано в
-[системном разделе](../systems/asus-b5402/system/boot-and-portage.md).
+[системном разделе](../../systems/asus-b5402/system/boot-and-portage/).
 
 ## Prerequisites / Before you copy
 
@@ -114,7 +114,7 @@ SECUREBOOT_SIGN_CERT="/var/lib/sbctl/keys/db/db.pem"
 > package-specific и только после отдельного benchmark. Решение (2026-09-20)
 > принято по итогам сравнения `-O2`/`-O3` на четырёх классах workload —
 > методика и данные:
-> [experiments/llvm23-toolchain](../experiments/llvm23-toolchain/index.md).
+> [experiments/llvm23-toolchain](../../experiments/llvm23-toolchain/).
 
 > **Примечание**: для конкретной системы рекомендуется явный
 > `-march=<microarchitecture>`: такая policy воспроизводима и проверяема по
@@ -150,7 +150,7 @@ permit persist :wheel as root cmd snapper
 
 Это общий пример, а не фактическая policy конкретной машины: систему
 привилегий эталонного ASUS B5402 описывает
-[systems/asus-b5402/security/doas.md](../systems/asus-b5402/security/doas.md).
+[systems/asus-b5402/security/doas.md](../../systems/asus-b5402/security/doas/).
 
 ## Verification
 

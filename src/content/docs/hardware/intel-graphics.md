@@ -16,7 +16,7 @@ verified_on: [asus-b5402]
 
 На ASUS B5402 переход пока не выполнен. Актуальное состояние этой машины
 записано в
-[системном разделе](../systems/asus-b5402/hardware/graphics.md); значения из
+[системном разделе](../../systems/asus-b5402/hardware/graphics/); значения из
 него не являются универсальной конфигурацией для любого Intel GPU.
 
 > **Важно**: не применяй переход автоматически только потому, что GPU
@@ -169,7 +169,7 @@ latency и interactive behaviour, frame presentation, suspend/resume, внешн
 `i915.force_probe=!<PCI-ID>`.
 
 Порядок сборки Dracut/initramfs и UKI описан в
-[руководстве по systemd-boot и UKI](../installation/systemd-uki-setup.md).
+[руководстве по systemd-boot и UKI](../../installation/systemd-uki-setup/).
 Рабочий fallback необходимо сохранить до проверки загрузки и графической
 сессии с `xe`.
 
@@ -187,5 +187,5 @@ latency и interactive behaviour, frame presentation, suspend/resume, внешн
 
 ## Related docs
 
-- [Графический стек ASUS B5402](../systems/asus-b5402/hardware/graphics.md) — текущее подтверждённое состояние машины.
-- [Ядро и загрузка: UKI](../installation/systemd-uki-setup.md) — Dracut, пересборка boot artifact и fallback.
+- [Графический стек ASUS B5402](../../systems/asus-b5402/hardware/graphics/) — текущее подтверждённое состояние машины.
+- [Ядро и загрузка: UKI](../../installation/systemd-uki-setup/) — Dracut, пересборка boot artifact и fallback.

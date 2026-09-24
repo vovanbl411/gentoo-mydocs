@@ -26,7 +26,7 @@ Wi-Fi, ожидается MAC randomization, но фактическая кон�
 - допустим ли временный разрыв Wi-Fi при перезапуске NetworkManager.
 
 Фактическое текущее состояние ASUS B5402 находится в
-[системном документе](../systems/asus-b5402/networking/networkmanager-and-libvirt.md)
+[системном документе](../../systems/asus-b5402/networking/networkmanager-and-libvirt/)
 и не дублируется здесь.
 
 ## 3. Cause: наблюдения исходного инцидента
@@ -398,11 +398,11 @@ doas ip link set wlan0 up
 
 Это историческое окружение исходного инцидента. Текущее подтверждённое
 состояние ASUS B5402 находится в
-[системном документе](../systems/asus-b5402/networking/networkmanager-and-libvirt.md).
+[системном документе](../../systems/asus-b5402/networking/networkmanager-and-libvirt/).
 
 ## Related docs
 
-- [NetworkManager + iwd](../networking/networkmanager-iwd.md) — общая
+- [NetworkManager + iwd](../../networking/networkmanager-iwd/) — общая
   конфигурация NetworkManager с backend iwd.
-- [Сеть ASUS B5402](../systems/asus-b5402/networking/networkmanager-and-libvirt.md)
+- [Сеть ASUS B5402](../../systems/asus-b5402/networking/networkmanager-and-libvirt/)
   — текущее подтверждённое состояние эталонной системы.

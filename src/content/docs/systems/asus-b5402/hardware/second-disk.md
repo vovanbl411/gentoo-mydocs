@@ -33,7 +33,7 @@ verified_on: [asus-b5402]
 второй физический диск `nvme0n1`, который хочется задействовать под бэкапы и
 данные.
 
-Контекст: подробности загрузочного стека — [installation/systemd-uki-setup](../../../installation/systemd-uki-setup.md) и [installation/secure-boot-tpm](../../../installation/secure-boot-tpm.md). Btrfs-соглашения — [filesystem/btrfs-setup](../../../filesystem/btrfs-setup.md).
+Контекст: подробности загрузочного стека — [installation/systemd-uki-setup](../../../../installation/systemd-uki-setup/) и [installation/secure-boot-tpm](../../../../installation/secure-boot-tpm/). Btrfs-соглашения — [filesystem/btrfs-setup](../../../../filesystem/btrfs-setup/).
 
 ## 1. Target design
 
@@ -192,7 +192,7 @@ doas blkid -s UUID -o value /dev/nvme0n1p1
 
 > ⚠️ **Важно**: обязательно оставь **парольный слот**. Если TPM умрёт или PCR изменятся (обновление firmware, перемонтаж Secure Boot) — без пароля диск не открыть никогда. Сравни с первым диском: `doas cryptsetup luksDump /dev/nvme1n1p2` — там тоже должен быть парольный слот рядом с TPM.
 
-> ⚠️ **Важный нюанс**: именно PCR 7, а не расширенный набор вроде `0+7` — на этой машине даже с минимальным набором смена cmdline (2026-09-14) совпадала с PCR-mismatch и потерей анлока, повторное зачисление восстановило работу; точный measurement path прошивки не подтверждён (прямого before/after-замера PCR 7 не было). Хронология и процедура перезачисления — [troubleshooting: TPM2-анлок после пересборки UKI](../../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md). Возьмёшь другой набор — синхронизируй `tpm2-pcrs=` в `/etc/crypttab` (§8).
+> ⚠️ **Важный нюанс**: именно PCR 7, а не расширенный набор вроде `0+7` — на этой машине даже с минимальным набором смена cmdline (2026-09-14) совпадала с PCR-mismatch и потерей анлока, повторное зачисление восстановило работу; точный measurement path прошивки не подтверждён (прямого before/after-замера PCR 7 не было). Хронология и процедура перезачисления — [troubleshooting: TPM2-анлок после пересборки UKI](../../../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild/). Возьмёшь другой набор — синхронизируй `tpm2-pcrs=` в `/etc/crypttab` (§8).
 
 ---
 
@@ -595,5 +595,5 @@ doas cryptsetup luksDump /dev/nvme1n1p2
 - [borgbackup documentation](https://borgbackup.readthedocs.io/) — exclude-паттерны, restore, automation
 - [systemd-cryptenroll](https://www.freedesktop.org/software/systemd/man/systemd-cryptenroll.html) — TPM2-привязка
 - [crypttab](https://www.freedesktop.org/software/systemd/man/crypttab.html) — опции LUKS через systemd
-- [filesystem/btrfs-setup](../../../filesystem/btrfs-setup.md) — соглашения по subvols/опциям
-- [installation/secure-boot-tpm](../../../installation/secure-boot-tpm.md) — модель TPM/LUKS первого диска
+- [filesystem/btrfs-setup](../../../../filesystem/btrfs-setup/) — соглашения по subvols/опциям
+- [installation/secure-boot-tpm](../../../../installation/secure-boot-tpm/) — модель TPM/LUKS первого диска

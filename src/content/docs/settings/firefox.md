@@ -21,8 +21,8 @@ Firefox from Gentoo
 ```
 
 Фактическая package policy ASUS B5402 остаётся в
-[applications.md](../systems/asus-b5402/applications.md) и
-[boot-and-portage.md](../systems/asus-b5402/system/boot-and-portage.md).
+[applications.md](../../systems/asus-b5402/applications/) и
+[boot-and-portage.md](../../systems/asus-b5402/system/boot-and-portage/).
 
 ## Build policy
 
@@ -59,7 +59,7 @@ PulseAudio-compatible layer. `USE=system-pipewire` отдельно выбира
 `media-video/pipewire` для WebRTC и screencast вместо bundled library.
 
 Ассоциации Firefox для HTTP(S), HTML и PDF настраиваются через
-[приложения по умолчанию (XDG MIME)](../desktop/default-applications.md).
+[приложения по умолчанию (XDG MIME)](../../desktop/default-applications/).
 
 ## Example package.use
 
@@ -107,6 +107,6 @@ systemctl --user status psd.service
 
 ## Related docs
 
-- [Firefox на ASUS B5402](../systems/asus-b5402/applications.md) — фактическая package policy и состояние машины.
-- [Portage и загрузка на ASUS B5402](../systems/asus-b5402/system/boot-and-portage.md) — системные настройки сборки.
-- [Приложения по умолчанию](../desktop/default-applications.md) — MIME-ассоциации.
+- [Firefox на ASUS B5402](../../systems/asus-b5402/applications/) — фактическая package policy и состояние машины.
+- [Portage и загрузка на ASUS B5402](../../systems/asus-b5402/system/boot-and-portage/) — системные настройки сборки.
+- [Приложения по умолчанию](../../desktop/default-applications/) — MIME-ассоциации.

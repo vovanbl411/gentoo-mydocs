@@ -19,7 +19,7 @@ AppImage
 ```
 
 Записанная конфигурация ASUS B5402 находится в
-[applications.md](../systems/asus-b5402/applications.md).
+[applications.md](../../systems/asus-b5402/applications/).
 
 ## Prerequisites
 
@@ -108,7 +108,7 @@ xdg-mime query default x-scheme-handler/perplexity-app
 ```
 
 Последняя команда должна вывести `perplexity.desktop`. Общие правила для MIME
-и URI scheme описаны в [приложениях по умолчанию](../desktop/default-applications.md).
+и URI scheme описаны в [приложениях по умолчанию](../../desktop/default-applications/).
 
 ## Verification
 
@@ -163,7 +163,7 @@ xdg-mime default perplexity.desktop x-scheme-handler/perplexity-app
 
 ## Related docs
 
-- [Flatpak](flatpak.md) — другой способ установки GUI-приложений.
-- [r2modman](r2modman.md) — пример интеграции AppImage со Steam Flatpak.
-- [Niri](../desktop/niri.md) — Wayland-композитор.
-- [Приложения по умолчанию](../desktop/default-applications.md) — MIME-ассоциации и URI schemes через XDG.
+- [Flatpak](../flatpak/) — другой способ установки GUI-приложений.
+- [r2modman](../r2modman/) — пример интеграции AppImage со Steam Flatpak.
+- [Niri](../../desktop/niri/) — Wayland-композитор.
+- [Приложения по умолчанию](../../desktop/default-applications/) — MIME-ассоциации и URI schemes через XDG.

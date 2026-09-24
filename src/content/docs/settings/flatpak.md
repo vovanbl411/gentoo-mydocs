@@ -21,7 +21,7 @@ Flatpak
 ```
 
 Локальная политика ASUS B5402 записана в
-[applications.md](../systems/asus-b5402/applications.md).
+[applications.md](../../systems/asus-b5402/applications/).
 
 ## Flathub
 
@@ -104,5 +104,5 @@ flatpak override --user --reset <app-id>
 
 ## Related docs
 
-- [Flatpak на ASUS B5402](../systems/asus-b5402/applications.md) — фактическое состояние машины.
-- [Приложения по умолчанию](../desktop/default-applications.md) — MIME-ассоциации GUI-приложений.
+- [Flatpak на ASUS B5402](../../systems/asus-b5402/applications/) — фактическое состояние машины.
+- [Приложения по умолчанию](../../desktop/default-applications/) — MIME-ассоциации GUI-приложений.

@@ -20,7 +20,7 @@ ASUS B5402 он сейчас не активен.
 Ожидаемый результат — доступная пользователю история снимков, автоматическое
 создание и удаление по заданной политике и понятный способ проверить таймеры и
 занимаемое место. Подтверждённое состояние ASUS B5402 и дата его проверки
-записаны в [системном разделе](../systems/asus-b5402/filesystem/layout-and-snapshots.md).
+записаны в [системном разделе](../../systems/asus-b5402/filesystem/layout-and-snapshots/).
 
 ## Prerequisites
 
@@ -84,7 +84,7 @@ Pre/post-снимки вокруг `emerge` не являются обязате
 
 На эталонной ASUS B5402 Portage pre/post hook сейчас не используется.
 Актуальное подтверждённое состояние находится в
-[системном разделе](../systems/asus-b5402/filesystem/layout-and-snapshots.md).
+[системном разделе](../../systems/asus-b5402/filesystem/layout-and-snapshots/).
 
 Если снимки вокруг `emerge` снова понадобятся, hook нужно вернуть как отдельное
 осознанное изменение. Это не требуется для timeline- или boot-снимков.
@@ -168,5 +168,5 @@ doas btrfs filesystem du -s /.snapshots
 
 ## Related docs
 
-- [Btrfs и Snapper на ASUS B5402](../systems/asus-b5402/filesystem/layout-and-snapshots.md) — фактическая конфигурация и подтверждённое состояние машины.
-- [Структура Btrfs и субволюмы](btrfs-setup.md) — layout, mount options, tmpfs и CoW.
+- [Btrfs и Snapper на ASUS B5402](../../systems/asus-b5402/filesystem/layout-and-snapshots/) — фактическая конфигурация и подтверждённое состояние машины.
+- [Структура Btrfs и субволюмы](../btrfs-setup/) — layout, mount options, tmpfs и CoW.

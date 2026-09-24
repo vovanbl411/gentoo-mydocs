@@ -9,7 +9,7 @@ verified_on: [asus-b5402]
 
 Файл фиксирует состояние Noctalia на эталонной системе. Установка, обновление
 и общая модель конфигурации описаны в
-[`desktop/noctalia-shell.md`](../../../desktop/noctalia-shell.md).
+[`desktop/noctalia-shell.md`](../../../../desktop/noctalia-shell/).
 
 ## Current state
 
@@ -78,5 +78,5 @@ GURU прежний локальный overlay `/var/db/repos/noctalia-local` и
 
 ## Related docs
 
-- [Noctalia v5 для Niri](../../../desktop/noctalia-shell.md) — установка,
+- [Noctalia v5 для Niri](../../../../desktop/noctalia-shell/) — установка,
   обновление, модель конфигурации.

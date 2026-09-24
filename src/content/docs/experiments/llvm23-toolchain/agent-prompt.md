@@ -11,8 +11,8 @@ verified_on: [asus-b5402]
 > организации LLVM 23 experiment. Он сохраняется как provenance принятых
 > решений и reasoning process. Experiment A и B уже завершены; инструкции
 > «создай документы», «начни Gate A1» и другие шаги ниже не являются current
-> next steps. Актуальный статус эксперимента см. в [README.md](index.md),
-> фактические результаты — в [results.md](results.md).
+> next steps. Актуальный статус эксперимента см. в [README.md](../),
+> фактические результаты — в [results.md](../results/).
 
 Работай в репозитории `vovanbl411/gentoo-mydocs`, ветка
 `docs/llvm23-toolchain-experiment`.
@@ -247,7 +247,7 @@ LLVM 23 + -O3 + ThinLTO
 ## Эксперимент A — LLVM 22 vs LLVM 23
 
 Далее сохранён исходный план Experiment A. Фактические результаты находятся в
-[results.md](results.md); Experiment A имеет статус COMPLETE.
+[results.md](../results/); Experiment A имеет статус COMPLETE.
 
 ### Gate A0 — baseline
 
@@ -355,9 +355,9 @@ LLVM 23 + -O3 + ThinLTO
 
 Последующие материалы Experiment B:
 
-- [Гипотеза и decision record](optimization-o2-o3.md);
-- [Методика benchmark](benchmark-methodology.md);
-- [Данные B1–B4](o2-o3-benchmarks.md).
+- [Гипотеза и decision record](../optimization-o2-o3/);
+- [Методика benchmark](../benchmark-methodology/);
+- [Данные B1–B4](../o2-o3-benchmarks/).
 
 ## Эксперимент C — runtimes
 
@@ -387,7 +387,7 @@ libgcc_s -> libunwind
 
 ## Related records
 
-- [README.md](index.md) — current experiment status;
-- [results.md](results.md) — gate journal и фактические результаты;
-- [optimization-o2-o3.md](optimization-o2-o3.md) — decision record;
-- [o2-o3-benchmarks.md](o2-o3-benchmarks.md) — benchmark data.
+- [README.md](../) — current experiment status;
+- [results.md](../results/) — gate journal и фактические результаты;
+- [optimization-o2-o3.md](../optimization-o2-o3/) — decision record;
+- [o2-o3-benchmarks.md](../o2-o3-benchmarks/) — benchmark data.

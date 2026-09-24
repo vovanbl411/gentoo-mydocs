@@ -45,7 +45,7 @@ XDG-ассоциации при открытии внешних ссылок.
 
 Ниже — примеры, а не универсальный набор по умолчанию: подставляй свои
 desktop ID. Какие приложения реально установлены на эталонной системе,
-зафиксировано в [её записи](../systems/asus-b5402/applications.md).
+зафиксировано в [её записи](../../systems/asus-b5402/applications/).
 
 ### HTTP/HTML/PDF (пример: Firefox)
 
@@ -88,8 +88,8 @@ xdg-mime default <application>.desktop x-scheme-handler/<scheme>
 xdg-mime query default x-scheme-handler/<scheme>
 ```
 
-См. [Perplexity AppImage](../settings/perplexity.md) и
-[r2modman](../settings/r2modman.md).
+См. [Perplexity AppImage](../../settings/perplexity/) и
+[r2modman](../../settings/r2modman/).
 
 ## Verification
 
@@ -109,5 +109,5 @@ desktop ID. Ручное редактирование `mimeapps.list` обычн
 
 ## Related docs
 
-- [Приложения ASUS B5402](../systems/asus-b5402/applications.md) — фактический
+- [Приложения ASUS B5402](../../systems/asus-b5402/applications/) — фактический
   набор приложений эталонной системы.

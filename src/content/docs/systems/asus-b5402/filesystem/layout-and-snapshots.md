@@ -90,5 +90,5 @@ SPACE_LIMIT=0.8
 
 ## Related docs
 
-- [Структура Btrfs](../../../filesystem/btrfs-setup.md)
-- [Snapper](../../../filesystem/snapper-backups.md)
+- [Структура Btrfs](../../../../filesystem/btrfs-setup/)
+- [Snapper](../../../../filesystem/snapper-backups/)

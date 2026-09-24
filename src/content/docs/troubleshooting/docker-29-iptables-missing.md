@@ -152,13 +152,13 @@ forwarding были выключены, а действующая конфигу
 - **Init:** systemd
 
 Текущее подтверждённое состояние эталонной системы находится в
-[системном документе](../systems/asus-b5402/networking/networkmanager-and-libvirt.md).
+[системном документе](../../systems/asus-b5402/networking/networkmanager-and-libvirt/).
 
 ## Related docs
 
-- [Docker + Libvirt и nftables](docker-libvirt-nftables.md) — взаимодействие
+- [Docker + Libvirt и nftables](../docker-libvirt-nftables/) — взаимодействие
   forwarded traffic Docker, Libvirt и nftables.
-- [Сеть ASUS B5402](../systems/asus-b5402/networking/networkmanager-and-libvirt.md)
+- [Сеть ASUS B5402](../../systems/asus-b5402/networking/networkmanager-and-libvirt/)
   — текущее подтверждённое состояние эталонной системы.
 
 ## References

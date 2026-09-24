@@ -27,7 +27,7 @@ verified_on: [asus-b5402]
 
 - x86 UEFI, корень на LUKS2;
 - systemd в initramfs с tpm2-tss (модули Dracut из
-  [UKI-руководства](systemd-uki-setup.md));
+  [UKI-руководства](../systemd-uki-setup/));
 - ключи и подпись образов — sbctl; UKI подписывается при сборке.
 
 ## Before you begin
@@ -39,7 +39,7 @@ verified_on: [asus-b5402]
 - recovery/live носитель на случай проблем с загрузкой;
 - понимание текущего состояния Secure Boot (посмотреть — `doas sbctl status`);
 - существующий подписанный boot path и возможность вернуться к нему
-  (fallback-UKI, см. [Rollback в UKI-руководстве](systemd-uki-setup.md#rollback--fallback));
+  (fallback-UKI, см. [Rollback в UKI-руководстве](../systemd-uki-setup/#rollback--fallback));
 - не очищайте TPM и key databases прошивки без отдельной причины.
 
 ## 1. Secure Boot
@@ -83,7 +83,7 @@ doas sbctl enroll-keys -m
 ### Verify signed UKI
 
 После записи ключей убедитесь, что ваш образ UKI подписан. В конфигурации
-Dracut из [UKI-руководства](systemd-uki-setup.md) подпись происходит
+Dracut из [UKI-руководства](../systemd-uki-setup/) подпись происходит
 автоматически (`uefi_secureboot_cert/key` в `90-uki.conf`), но проверить
 можно вручную:
 
@@ -132,7 +132,7 @@ PCR selection = policy decision
 Распространённый «строгий» вариант — `0+7`: разблокировка связывается и с
 прошивкой, и с состоянием Secure Boot.
 
-> ⚠️ **Важный нюанс**: не предполагайте фактический measurement path конкретной машины только по ожидаемой схеме. Если поведение PCR отличается от ожидаемого, сравните значения и TPM event log до и после контролируемого изменения (слепки: `tpm2_pcrread sha256:<N>`). Как находить фактический состав — в [troubleshooting: TPM2-анлок после пересборки UKI](../troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md).
+> ⚠️ **Важный нюанс**: не предполагайте фактический measurement path конкретной машины только по ожидаемой схеме. Если поведение PCR отличается от ожидаемого, сравните значения и TPM event log до и после контролируемого изменения (слепки: `tpm2_pcrread sha256:<N>`). Как находить фактический состав — в [troubleshooting: TPM2-анлок после пересборки UKI](../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild/).
 
 ### Привязка (systemd-cryptenroll)
 
@@ -153,7 +153,7 @@ doas systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 /dev/nvme0n1p3
 
 Политика и наблюдения конкретной машины — не универсальная рекомендация.
 Хронология, диагностика и процедура перезачисления — в
-[troubleshooting: TPM2-анлок после пересборки UKI](../troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md).
+[troubleshooting: TPM2-анлок после пересборки UKI](../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild/).
 
 - **Политика машины**: набор из одного **PCR 7**; токен перезачислен и
   проверен реальной загрузкой 2026-09-14.
@@ -195,14 +195,14 @@ doas systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 /dev/nvme0n1p3
 
 - Авторазблокировка пропала после пересборки UKI или смены cmdline —
   диагностика (PCR-слепки, журнал `systemd-cryptsetup`) и перезачисление
-  токена: [troubleshooting: TPM2-анлок после пересборки UKI](../troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md).
+  токена: [troubleshooting: TPM2-анлок после пересборки UKI](../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild/).
 - Система не загружается после смены ключей или образа — fallback-UKI в
   меню systemd-boot и recovery-носитель; порядок отката —
-  [Rollback в UKI-руководстве](systemd-uki-setup.md#rollback--fallback).
+  [Rollback в UKI-руководстве](../systemd-uki-setup/#rollback--fallback).
 
 ## Ссылки
 
 - [`systemd-cryptenroll(8)`](https://www.freedesktop.org/software/systemd/man/latest/systemd-cryptenroll.html) — PCR-политики, зачисление TPM2-токена
 - [TPM2 PCR measurements (systemd)](https://systemd.io/TPM2_PCR_MEASUREMENTS/) — канонический состав PCR
 - [sbctl](https://github.com/Foxboron/sbctl) — управление ключами Secure Boot
-- [troubleshooting: TPM2-анлок после пересборки UKI](../troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md) — наблюдения эталонной машины
+- [troubleshooting: TPM2-анлок после пересборки UKI](../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild/) — наблюдения эталонной машины

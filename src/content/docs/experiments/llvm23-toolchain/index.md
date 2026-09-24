@@ -30,22 +30,22 @@ LLVM 23. Этот вопрос остаётся открытым.
 `experiments/` хранит research record, hypotheses, gates и measurements. Это
 не подтверждённое текущее состояние машины. Current source of truth для
 системы находится в `systems/asus-b5402/`, прежде всего в
-[описании загрузки и Portage](../../systems/asus-b5402/system/boot-and-portage.md).
+[описании загрузки и Portage](../../systems/asus-b5402/system/boot-and-portage/).
 После завершения отдельных этапов подтверждённые результаты должны быть
 перенесены в системную документацию или общие guides.
 
 ## Документы
 
-- [Toolchain-праймер](toolchain-primer.md) — пять слоёв цепочки и фактическая
+- [Toolchain-праймер](toolchain-primer/) — пять слоёв цепочки и фактическая
   конфигурация машины;
-- [Гипотеза: -O2 против -O3](optimization-o2-o3.md) — дизайн Experiment B,
+- [Гипотеза: -O2 против -O3](optimization-o2-o3/) — дизайн Experiment B,
   критерии выбора пакетов, критерий решения;
-- [Методика бенчмарков](benchmark-methodology.md) — канонические правила
+- [Методика бенчмарков](benchmark-methodology/) — канонические правила
   измерений и интерпретационная рамка для всех B-гейтов;
-- [Бенчмарки -O2/-O3](o2-o3-benchmarks.md) — данные и результаты B1–B4;
-- [Журнал результатов](results.md) — записи по гейтам, итоги Experiment A и
+- [Бенчмарки -O2/-O3](o2-o3-benchmarks/) — данные и результаты B1–B4;
+- [Журнал результатов](results/) — записи по гейтам, итоги Experiment A и
   B, optimization policy decision;
-- [Исходный prompt для агента](agent-prompt.md) — historical orchestration
+- [Исходный prompt для агента](agent-prompt/) — historical orchestration
   prompt, а не актуальная инструкция выполнения Experiment A или B.
 
 ## Цели
@@ -116,7 +116,7 @@ libgcc_s
 > сняты, `env/no-lto-llvm` и `env/no-ccache` удалены; source
 > `dev-java/openjdk:17` заменён на `dev-java/openjdk-bin:25`. Действующее
 > состояние —
-> [systems/asus-b5402/system/boot-and-portage.md](../../systems/asus-b5402/system/boot-and-portage.md).
+> [systems/asus-b5402/system/boot-and-portage.md](../../systems/asus-b5402/system/boot-and-portage/).
 
 Аудит `package.env` показал 111 записей, связанных с
 `gcc-fallback`, `problem-llvm`, `llvm-22` или `no-lto-llvm`.
@@ -178,7 +178,7 @@ decode): O3 runtime ~1.2% быстрее, instructions ~1.8% меньше, `.tex
 фактическая ничья (~-0.17%), SHA-256 ~-0.5%, ChaCha20 ~-1%, `libcrypto`
 `.text` ~+2.6%. B4 (mesa 26.2.2, shader-db на Iris Xe, `-fno-lto` по package
 policy): измеримого runtime-преимущества O3 нет; крупные Mesa ELF ~+5% `.text`,
-binpkg +5.31%. Подробности — в [o2-o3-benchmarks.md](o2-o3-benchmarks.md).
+binpkg +5.31%. Подробности — в [o2-o3-benchmarks.md](o2-o3-benchmarks/).
 
 Тенденция по четырём классам workload (codec, compression/decompression,
 crypto, desktop/graphics): `-O3` во всех протестированных классах увеличивал

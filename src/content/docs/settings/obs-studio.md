@@ -26,7 +26,7 @@ Portage package + system FFmpeg/libraries
 
 На ASUS B5402 используется OBS Flatpak. Это состояние конкретной машины, а не
 универсальная рекомендация; подробности записаны в
-[системном разделе](../systems/asus-b5402/applications.md).
+[системном разделе](../../systems/asus-b5402/applications/).
 
 ## Installation models
 
@@ -97,7 +97,7 @@ OBS
 - WLR backend для этой конфигурации Niri не нужен.
 
 Маршрутизация backend'ов описана в
-[XDG Desktop Portals](../desktop/wayland-portals.md).
+[XDG Desktop Portals](../../desktop/wayland-portals/).
 
 В OBS добавь источник:
 
@@ -229,7 +229,7 @@ OBS log. Для native OBS дополнительно проверь `USE=screen
 ### Portal chooser не появляется
 
 Проверь routing и user services по инструкции
-[XDG Desktop Portals](../desktop/wayland-portals.md). Не добавляй случайные
+[XDG Desktop Portals](../../desktop/wayland-portals/). Не добавляй случайные
 Flatpak D-Bus overrides до установления причины.
 
 ### Hardware encoder отсутствует
@@ -254,8 +254,8 @@ hardware capability
 
 ## Related docs
 
-- [Flatpak](flatpak.md) — модель permissions и overrides.
-- [Niri](../desktop/niri.md) — запуск Wayland session.
-- [XDG Desktop Portals](../desktop/wayland-portals.md) — portal routing для Niri.
-- [Приложения ASUS B5402](../systems/asus-b5402/applications.md) — проверенное состояние машины.
+- [Flatpak](../flatpak/) — модель permissions и overrides.
+- [Niri](../../desktop/niri/) — запуск Wayland session.
+- [XDG Desktop Portals](../../desktop/wayland-portals/) — portal routing для Niri.
+- [Приложения ASUS B5402](../../systems/asus-b5402/applications/) — проверенное состояние машины.
 - [OBS Studio в Gentoo Packages](https://packages.gentoo.org/packages/media-video/obs-studio) — актуальные версии и USE-флаги.

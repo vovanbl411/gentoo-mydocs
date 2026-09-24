@@ -14,7 +14,10 @@
 - Формат: Markdown. Содержательная документация физически находится в
   `src/content/docs/` — это source of truth и содержимое сайта на Astro
   Starlight. `npm run build` запускается из корня репозитория и собирает
-  документы из `src/content/docs/`; CI и deployment отсутствуют.
+  документы из `src/content/docs/`. Deployment — GitHub Pages project site
+  (`https://vovanbl411.github.io/gentoo-mydocs/`) через
+  `.github/workflows/deploy.yml`; ссылочный контракт — в
+  `DOCUMENTATION_POLICY.md` §9. Отдельного CI/lint нет.
 - Цель: публиковать повторяемые руководства и отдельно вести состояние
   эталонной системы.
 - Аудитория: пользователи, уже знакомые с Gentoo/Linux, и автор репозитория.
@@ -54,7 +57,10 @@
 │
 ├── package.json              # npm-скрипты и зависимости сайта (Astro Starlight)
 ├── package-lock.json         # Зафиксированные версии зависимостей
-├── astro.config.mjs          # Конфиг Astro + Starlight; русский root locale
+├── astro.config.mjs          # Конфиг Astro + Starlight; site/base GitHub Pages,
+│                             # русский root locale
+├── .github/
+│   └── workflows/deploy.yml  # GitHub Pages deploy (push в main)
 ├── src/
 │   ├── content.config.ts     # Схема docs-коллекции: docsSchema() + наша metadata
 │   └── content/
@@ -153,6 +159,10 @@ current state, затем детали, history и verification. Перед су
 
 ### Соглашения по содержанию
 
+- **Внутренние ссылки в `src/content/docs/`**: route-relative маршруты сайта
+  (`../other-guide/`, `../../installation/base-system/`), не `.md` source
+  paths; на repository-level материалы (`CHECKPOINT.md`, `archive/`) — явные
+  GitHub URL. Подробности — `DOCUMENTATION_POLICY.md` §9.
 - **USE-флаги**: списком с обратным слэшем переноса строк.
 - **Пакеты Gentoo**: в формате `category/package`.
 - **Версии/слоты**: указывай актуальные (`LLVM 22`, `llvm_slot_22`). Установлены слоты 22 (основной) и 23 (ядро, пилот); слоты 21/24 удалены.

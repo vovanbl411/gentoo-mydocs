@@ -28,50 +28,50 @@ verified_on: [asus-b5402]
 
 ## Desktop
 
-- [Noctalia v5](desktop/noctalia.md) — установленная версия, источник пакета
+- [Noctalia v5](desktop/noctalia/) — установленная версия, источник пакета
   и локальная keyword-политика.
-- [Niri, порталы и GTK](desktop/environment.md) — записанное состояние
+- [Niri, порталы и GTK](desktop/environment/) — записанное состояние
   рабочего окружения и polkit-агент.
 
 ## Hardware
 
-- [ASUS ExpertBook B5402CBA](hardware/asus-expertbook.md) — драйверы ядра,
+- [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — драйверы ядра,
   TLP и батарея.
-- [Intel Alder Lake i7-1260P](hardware/cpu-optimization.md) — флаги
+- [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — флаги
   компиляции, планировщик, аппаратная безопасность.
-- [Intel Graphics](hardware/graphics.md) — i915/xe, Mesa, Vulkan.
-- [Второй NVMe и резервные копии](hardware/second-disk.md) — состояние диска
+- [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.
+- [Второй NVMe и резервные копии](hardware/second-disk/) — состояние диска
   проверено 2026-09-22, план применения не выполнен.
 
 ## Boot и Portage
 
-- [Загрузка и Portage](system/boot-and-portage.md) — toolchain,
+- [Загрузка и Portage](system/boot-and-portage/) — toolchain,
   оптимизация, package.env, ядро и UKI.
-- [Обновление BIOS/UEFI](system/bios-update.md) — проверенная процедура для
+- [Обновление BIOS/UEFI](system/bios-update/) — проверенная процедура для
   Secure Boot, `sbctl`, LUKS2 и TPM2.
 
 ## Хранилище
 
-- [Btrfs и Snapper](filesystem/layout-and-snapshots.md) — субволюмы, опции
+- [Btrfs и Snapper](filesystem/layout-and-snapshots/) — субволюмы, опции
   монтирования, лимиты снимков.
 
 ## Сеть
 
-- [NetworkManager, Docker и Libvirt](networking/networkmanager-and-libvirt.md)
+- [NetworkManager, Docker и Libvirt](networking/networkmanager-and-libvirt/)
   — Wi-Fi, nftables, mesh-VPN.
 
 ## Безопасность
 
-- [Политика doas](security/doas.md)
+- [Политика doas](security/doas/)
 
 ## Приложения
 
-- [Приложения](applications.md) — Firefox, Flatpak, OBS, AppImage.
+- [Приложения](applications/) — Firefox, Flatpak, OBS, AppImage.
 
 ## Общие руководства
 
-- [Noctalia v5 для Niri](../../desktop/noctalia-shell.md)
-- [Niri](../../desktop/niri.md)
+- [Noctalia v5 для Niri](../../desktop/noctalia-shell/)
+- [Niri](../../desktop/niri/)
 
 ## О полноте записей
 

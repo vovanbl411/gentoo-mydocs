@@ -11,7 +11,7 @@ verified_on: [asus-b5402]
 предоставляет компактную конфигурацию. Его policy задаётся в `/etc/doas.conf`.
 Руководство показывает базовый пример правил и основные команды. Фактическая
 policy ASUS B5402 находится в
-[системном разделе](../systems/asus-b5402/security/doas.md); точная системная
+[системном разделе](../../systems/asus-b5402/security/doas/); точная системная
 конфигурация здесь не дублируется.
 
 ## 1. Перед изменением
@@ -66,4 +66,4 @@ permit persist :wheel as root cmd snapper
 
 ## Related docs
 
-- [Фактическая policy doas на ASUS B5402](../systems/asus-b5402/security/doas.md)
+- [Фактическая policy doas на ASUS B5402](../../systems/asus-b5402/security/doas/)

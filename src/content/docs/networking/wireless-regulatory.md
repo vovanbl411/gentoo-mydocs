@@ -88,7 +88,7 @@ iw reg get
 
 ## Related docs
 
-- [NetworkManager + iwd](networkmanager-iwd.md) — выбор `iwd` как Wi-Fi
+- [NetworkManager + iwd](../networkmanager-iwd/) — выбор `iwd` как Wi-Fi
   backend для NetworkManager.
 
 ## References

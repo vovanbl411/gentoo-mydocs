@@ -15,13 +15,13 @@ Experiment B — **COMPLETE**: B1–B4 завершены, а optimization polic
 2026-09-21.
 
 Результаты измерений находятся в
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md), журнал и решение — в
-[results.md](results.md).
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/), журнал и решение — в
+[results.md](../results/).
 
 Остальная часть документа сохраняет исходную hypothesis и заранее заданный
 experimental design, по которым принималось решение. Это decision/experiment
 record; current production configuration находится в
-[системной документации](../../systems/asus-b5402/system/boot-and-portage.md).
+[системной документации](../../../systems/asus-b5402/system/boot-and-portage/).
 
 ## 1. Исходный вопрос и experimental baseline
 
@@ -79,7 +79,7 @@ runtime libraries, версия пакета и benchmark workload остают�
   cache, tmpfs, ccache).
 
 Канонические правила измерений и интерпретации вынесены в
-[benchmark-methodology.md](benchmark-methodology.md); новые methodology rules
+[benchmark-methodology.md](../benchmark-methodology/); новые methodology rules
 этот документ не добавляет.
 
 ## 4. Метрики
@@ -179,12 +179,12 @@ crypto, desktop/graphics):
 > benefit был небольшим, workload-specific, отсутствующим либо отрицательным.
 
 На этом основании optimization policy decision принято (2026-09-20) — см.
-«Критерий решения» ниже и [results.md](results.md).
+«Критерий решения» ниже и [results.md](../results/).
 
 Сводная таблица B1–B4, методика измерений (канонические правила и
 интерпретационная рамка) и полные данные — в
-[benchmark-methodology.md](benchmark-methodology.md) и
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md).
+[benchmark-methodology.md](../benchmark-methodology/) и
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/).
 
 Политика применена к `/etc/portage` 2026-09-20: `make.conf` и env-файлы
 переведены на `-O2`, resolver рассчитывается; полный rebuild `@world` под
@@ -237,9 +237,9 @@ OpenSSL и Mesa — без преимущества.
 
 ## Related records
 
-- [Статус LLVM 23 experiment](index.md)
-- [Каноническая методика benchmark](benchmark-methodology.md)
-- [Полные данные B1–B4](o2-o3-benchmarks.md)
-- [Журнал результатов и gates](results.md)
-- [Toolchain-праймер](toolchain-primer.md)
-- [Current system source of truth](../../systems/asus-b5402/system/boot-and-portage.md)
+- [Статус LLVM 23 experiment](../)
+- [Каноническая методика benchmark](../benchmark-methodology/)
+- [Полные данные B1–B4](../o2-o3-benchmarks/)
+- [Журнал результатов и gates](../results/)
+- [Toolchain-праймер](../toolchain-primer/)
+- [Current system source of truth](../../../systems/asus-b5402/system/boot-and-portage/)

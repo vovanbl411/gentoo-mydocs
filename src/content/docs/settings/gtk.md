@@ -8,7 +8,7 @@ verified_on: [asus-b5402]
 ---
 
 Конкретная конфигурация ASUS B5402 записана в
-[system document](../systems/asus-b5402/desktop/environment.md). Этот документ
+[system document](../../systems/asus-b5402/desktop/environment/). Этот документ
 описывает решение симптома, наблюдавшегося на проверенной машине; оно не
 объясняет все проблемы тем GTK.
 
@@ -183,6 +183,6 @@ GTK_THEME=adw-gtk3-dark <приложение> &
 
 ## Related docs
 
-- [Окружение ASUS B5402](../systems/asus-b5402/desktop/environment.md) — проверенное состояние машины.
-- [Noctalia](../desktop/noctalia-shell.md) — shell, генерирующий палитру.
-- [Niri](../desktop/niri.md) — Wayland-композитор.
+- [Окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/) — проверенное состояние машины.
+- [Noctalia](../../desktop/noctalia-shell/) — shell, генерирующий палитру.
+- [Niri](../../desktop/niri/) — Wayland-композитор.

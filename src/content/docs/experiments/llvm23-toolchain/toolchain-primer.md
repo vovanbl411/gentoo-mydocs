@@ -8,14 +8,14 @@ verified_on: [asus-b5402]
 ---
 
 Документ даёт mental model пяти независимых слоёв toolchain для эксперимента
-[LLVM 23](index.md): какие настройки менялись, а какие оставались
+[LLVM 23](../): какие настройки менялись, а какие оставались
 нетронутыми. Это conceptual reference, а не справочник по LLVM и не описание
 текущей конфигурации системы.
 
 Фактические значения ниже относятся к historical Gate A0 baseline, снятому
-2026-09-20 и записанному в [results.md](results.md). Current source of truth
+2026-09-20 и записанному в [results.md](../results/). Current source of truth
 системы находится в
-[документе о загрузке и Portage](../../systems/asus-b5402/system/boot-and-portage.md).
+[документе о загрузке и Portage](../../../systems/asus-b5402/system/boot-and-portage/).
 Permanent `env/llvm-23` и controlled rollout не являются содержанием этого
 primer.
 
@@ -170,7 +170,7 @@ Gate A3 доказал это на практике: `mesa_clc` собран Cla
 
 ## Related records
 
-- [Статус LLVM 23 experiment](index.md)
-- [Журнал результатов](results.md)
-- [Experiment B: -O2 против -O3](optimization-o2-o3.md)
-- [Current system source of truth](../../systems/asus-b5402/system/boot-and-portage.md)
+- [Статус LLVM 23 experiment](../)
+- [Журнал результатов](../results/)
+- [Experiment B: -O2 против -O3](../optimization-o2-o3/)
+- [Current system source of truth](../../../systems/asus-b5402/system/boot-and-portage/)

@@ -20,13 +20,13 @@ rebuild завершён; limited LLVM 23 rollout на последнем checkp
 
 Experiment record хранится здесь. Текущее production-состояние машины
 описывается отдельно в
-[`../../systems/asus-b5402/system/boot-and-portage.md`](../../systems/asus-b5402/system/boot-and-portage.md);
+[`../../systems/asus-b5402/system/boot-and-portage.md`](../../../systems/asus-b5402/system/boot-and-portage/);
 исторические значения ниже не являются inventory текущей системы.
 
 Нумерация: A — LLVM 22→23 (compatibility), B — -O2 vs -O3 (optimization),
-C — runtimes. План — в [README.md](index.md), ментальная модель слоёв — в
-[toolchain-primer.md](toolchain-primer.md), методология и данные B — в
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md).
+C — runtimes. План — в [README.md](../), ментальная модель слоёв — в
+[toolchain-primer.md](../toolchain-primer/), методология и данные B — в
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/).
 
 ## Статусы
 
@@ -63,7 +63,7 @@ B1 — benchmark result, а не validation gate: для O2/O3 статус «PA
 ### Исходная конфигурация
 
 Зафиксирована владельцем при подготовке эксперимента (см.
-[agent-prompt.md](agent-prompt.md)):
+[agent-prompt.md](../agent-prompt/)):
 
 ```text
 CC=clang CXX=clang++ AR=llvm-ar NM=llvm-nm RANLIB=llvm-ranlib
@@ -386,7 +386,7 @@ LLVM 22 libraries
 libstdc++ / libgcc_s
 ```
 
-Это ровно «две оси» из [toolchain-primer.md](toolchain-primer.md):
+Это ровно «две оси» из [toolchain-primer.md](../toolchain-primer/):
 версия компилятора и слот LLVM-библиотек независимы.
 
 > ⚠️ **Важный нюанс**: это доказано для данного конкретного ebuild и не должно
@@ -590,7 +590,7 @@ linker, CPU target, LTO mode, runtimes, версия пакета и workload о
 Единственная намеренная разница: `-O2` ↔ `-O3` при Clang 23 + LLD 23 +
 `-march=alderlake` + ThinLTO + GNU-рантайм. Сборки — через `--buildpkgonly` в
 отдельные PKGDIR. Ключевые числа (методология и полные данные — в
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md)):
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/)):
 
 ```text
 O3 runtime ≈ 1.2% быстрее (task-clock -1.19%, 4+4 прогона, P-core)
@@ -611,7 +611,7 @@ GNU-рантайм; сборки через `--buildpkgonly` в отдельны
 исходники ядра (include/kernel/mm/fs, ~53 MB tar → ~11 MB `.zst`); изоляция
 библиотек через `LD_LIBRARY_PATH` (O2-версия использует O2-`libzstd`,
 O3 — O3-`libzstd`). Ключевые числа (полные данные — в
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md)):
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/)):
 
 ```text
 O3 libzstd .text ≈ 9.2% больше
@@ -640,8 +640,8 @@ Benchmark: `openssl speed` (AES-256-CTR, SHA-256, ChaCha20; буфер 16 KiB,
 окно 10 c; `taskset -c 2`; 4+4 симметричных сэмпла на алгоритм; warm-up;
 `OPENSSL_CONF=/dev/null`). Time-based semantics: raw perf totals
 нормализованы на байт (методика — в
-[benchmark-methodology.md](benchmark-methodology.md)). Ключевые числа (полные
-данные — в [o2-o3-benchmarks.md](o2-o3-benchmarks.md)):
+[benchmark-methodology.md](../benchmark-methodology/)). Ключевые числа (полные
+данные — в [o2-o3-benchmarks.md](../o2-o3-benchmarks/)):
 
 ```text
 AES-256-CTR:  преимущества O3 нет (≈ -0.17%, статистическая ничья)
@@ -678,7 +678,7 @@ B1–B3 согласованы. Исправлены два устаревших
 статусные — числа не менялись.
 
 Консолидированное evidence (сводная таблица — § 8
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md)):
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/)):
 
 - **Code size — самый устойчивый результат**: `-O3` увеличил `.text` во всех
   измеренных ELF — библиотеки +2.6…+12.3%, CLI +1.4…+11.2%. Прямые измерения
@@ -697,7 +697,7 @@ B1–B3 согласованы. Исправлены два устаревших
   production-библиотеки.
 
 Соответствие критерию решения (§ 7
-[optimization-o2-o3.md](optimization-o2-o3.md)): условия кандидата
+[optimization-o2-o3.md](../optimization-o2-o3/)): условия кандидата
 `global -O2 + selective -O3` поддержаны — O2 заметно не проигрывает в рантайме
 (дефициты ≈ 1.2% на B1 и ≈ 1–2% на B2 compression, оба в пределах ~2%) и
 однородно выигрывает по code size. Кандидатов на точечный `-O3` пока нет:
@@ -716,7 +716,7 @@ B1–B3 согласованы. Исправлены два устаревших
 > нагрузки. Решение — за владельцем.
 
 Каноническая методика для будущих измерений (в том числе B4) зафиксирована в
-[benchmark-methodology.md](benchmark-methodology.md).
+[benchmark-methodology.md](../benchmark-methodology/).
 
 ### B4 — Mesa controlled A/B: COMPLETE
 
@@ -739,7 +739,7 @@ Alder Lake-P GT2 / Iris Xe [8086:46a6], real iris userspace driver; CPU 2
 O3, O2, O2, O3` — 4 measured samples на вариант; анализ по `cpu_core/*`.
 
 Ключевые числа (методология и полные данные — § 7
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md)):
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/)):
 
 ```text
 runtime:                      измеримого преимущества O3 нет
@@ -787,7 +787,7 @@ selective rules:  по итогам B1–B4 не создаются ни для 
 ```
 
 Основание — сводный результат B1–B4 (§ 8
-[o2-o3-benchmarks.md](o2-o3-benchmarks.md)): `-O3` во всех протестированных
+[o2-o3-benchmarks.md](../o2-o3-benchmarks/)): `-O3` во всех протестированных
 классах увеличивал code footprint, а runtime benefit был небольшим,
 workload-specific, отсутствующим либо отрицательным. Причины не создавать
 selective rules:
@@ -799,7 +799,7 @@ selective rules:
 
 Кандидат на точечный `-O3` в будущем должен подтверждаться собственным
 benchmark'ом по канонической методике
-([benchmark-methodology.md](benchmark-methodology.md)) — признак
+([benchmark-methodology.md](../benchmark-methodology/)) — признак
 «performance-sensitive» сам по себе недостаточен (вывод B2).
 
 ### Portage no-LTO exception cleanup — COMPLETE
@@ -807,7 +807,7 @@ benchmark'ом по канонической методике
 - **Дата**: 2026-09-21.
 - **Baseline**: 102 локальных назначения `no-lto-llvm` в `package.env` —
   остаток исторического compatibility-слоя (снапшот на старте эксперимента —
-  в [README.md](index.md)).
+  в [README.md](../)).
 - **Метод**: правила снимались контролируемыми batch'ами; каждый batch
   проверялся `emerge --buildpkgonly -1`.
 - **Результат**: все 102 overrides удалены; `env/no-lto-llvm`,
@@ -844,8 +844,8 @@ benchmark'ом по канонической методике
 конфигурационные ошибки, не связанные с optimization policy (iwd
 `ProtectKernelTunables`, дублирующийся polkit agent, transient-гонка
 NM/iwd). Зафиксированы в системной документации:
-[networking](../../systems/asus-b5402/networking/networkmanager-and-libvirt.md),
-[desktop](../../systems/asus-b5402/desktop/environment.md).
+[networking](../../../systems/asus-b5402/networking/networkmanager-and-libvirt/),
+[desktop](../../../systems/asus-b5402/desktop/environment/).
 
 ### Decision gate: env/llvm-23 — после optimization policy decision
 
@@ -879,9 +879,9 @@ NOT STARTED
 
 ## Связанные записи
 
-- [README.md](index.md) — overview и status эксперимента;
-- [toolchain-primer.md](toolchain-primer.md) — conceptual model;
-- [optimization-o2-o3.md](optimization-o2-o3.md) — decision record;
-- [benchmark-methodology.md](benchmark-methodology.md) — canonical methodology;
-- [o2-o3-benchmarks.md](o2-o3-benchmarks.md) — raw/derived benchmark record;
-- [`../../systems/asus-b5402/system/boot-and-portage.md`](../../systems/asus-b5402/system/boot-and-portage.md) — current system source of truth.
+- [README.md](../) — overview и status эксперимента;
+- [toolchain-primer.md](../toolchain-primer/) — conceptual model;
+- [optimization-o2-o3.md](../optimization-o2-o3/) — decision record;
+- [benchmark-methodology.md](../benchmark-methodology/) — canonical methodology;
+- [o2-o3-benchmarks.md](../o2-o3-benchmarks/) — raw/derived benchmark record;
+- [`../../systems/asus-b5402/system/boot-and-portage.md`](../../../systems/asus-b5402/system/boot-and-portage/) — current system source of truth.

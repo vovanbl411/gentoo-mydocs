@@ -181,4 +181,4 @@ systemctl reload apparmor
 
 ## Related docs
 
-- [Auditd в Gentoo Linux](auditd.md) — запись и анализ событий безопасности.
+- [Auditd в Gentoo Linux](../auditd/) — запись и анализ событий безопасности.

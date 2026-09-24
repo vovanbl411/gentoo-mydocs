@@ -46,7 +46,7 @@ add_drivers+=" nvme "
 ## Xe transition
 
 Переход GPU с `i915` на Xe не выполнялся. Целевая конфигурация и процедура
-находятся в [руководстве по Intel Graphics](../../../hardware/intel-graphics.md).
+находятся в [руководстве по Intel Graphics](../../../../hardware/intel-graphics/).
 
 ## Verification
 
@@ -56,4 +56,4 @@ add_drivers+=" nvme "
 
 ## Related docs
 
-- [Intel Graphics: драйвер Xe и Vulkan](../../../hardware/intel-graphics.md)
+- [Intel Graphics: драйвер Xe и Vulkan](../../../../hardware/intel-graphics/)

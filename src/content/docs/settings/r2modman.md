@@ -9,7 +9,7 @@ verified_on: [asus-b5402]
 
 Этот документ решает один сценарий: r2modman работает как host AppImage, а
 Steam установлен через Flatpak. Записанное состояние ASUS B5402 находится в
-[системном разделе](../systems/asus-b5402/applications.md).
+[системном разделе](../../systems/asus-b5402/applications/).
 
 ## Symptom
 
@@ -167,7 +167,7 @@ wrapper не объявляется лучшим вариантом для др�
 
 ## Related docs
 
-- [Flatpak](flatpak.md) — permissions и user overrides.
-- [Perplexity AppImage](perplexity.md) — общая интеграция AppImage в desktop.
-- [Приложения ASUS B5402](../systems/asus-b5402/applications.md) — проверенное состояние машины.
+- [Flatpak](../flatpak/) — permissions и user overrides.
+- [Perplexity AppImage](../perplexity/) — общая интеграция AppImage в desktop.
+- [Приложения ASUS B5402](../../systems/asus-b5402/applications/) — проверенное состояние машины.
 - [r2modman releases](https://github.com/ebkr/r2modmanPlus/releases) — текущие Linux artifacts.
