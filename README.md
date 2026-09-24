@@ -26,22 +26,22 @@ verified_on: [asus-b5402]
 
 ## С чего начать
 
-- [Поставить и настроить базовую систему](installation/base-system.md) —
+- [Поставить и настроить базовую систему](src/content/docs/installation/base-system.md) —
   toolchain, USE-флаги, ccache, lld.
-- [Посмотреть реальную конфигурацию ноутбука](systems/asus-b5402/README.md) —
+- [Посмотреть реальную конфигурацию ноутбука](src/content/docs/systems/asus-b5402/index.md) —
   записанное состояние эталонной машины.
-- [Настроить рабочий стол](desktop/niri.md) — Niri, Noctalia, порталы,
+- [Настроить рабочий стол](src/content/docs/desktop/niri.md) — Niri, Noctalia, порталы,
   приложения по умолчанию.
-- [Разобраться с загрузкой и защитой](installation/systemd-uki-setup.md) —
-  UKI через Dracut, [Secure Boot и TPM2](installation/secure-boot-tpm.md).
-- [Найти решение проблемы](troubleshooting/) — повторяемые разборы конкретных
+- [Разобраться с загрузкой и защитой](src/content/docs/installation/systemd-uki-setup.md) —
+  UKI через Dracut, [Secure Boot и TPM2](src/content/docs/installation/secure-boot-tpm.md).
+- [Найти решение проблемы](src/content/docs/troubleshooting/) — повторяемые разборы конкретных
   симптомов.
 
 ## Эталонная система
 
 ASUS ExpertBook B5402CBA (Intel Core i7-1260P, Alder Lake) — основная машина,
 на которой проверяются руководства. Её текущее состояние записано в
-[systems/asus-b5402/](systems/asus-b5402/README.md): Niri + Noctalia,
+[systems/asus-b5402/](src/content/docs/systems/asus-b5402/index.md): Niri + Noctalia,
 Clang/LLD, systemd-boot + UKI, Btrfs + Snapper, Secure Boot + TPM2.
 
 ## Визуальный обзор
@@ -56,76 +56,76 @@ Clang/LLD, systemd-boot + UKI, Btrfs + Snapper, Secure Boot + TPM2.
 
 | Раздел | Описание |
 |--------|----------|
-| [installation/base-system](installation/base-system.md) | Базовая настройка системы: LLVM toolchain, USE-флаги, ccache, lld |
-| [installation/systemd-uki-setup](installation/systemd-uki-setup.md) | Настройка Unified Kernel Image через Dracut |
-| [installation/secure-boot-tpm](installation/secure-boot-tpm.md) | Настройка Secure Boot и TPM 2.0 для автоматической расшифровки LUKS |
+| [installation/base-system](src/content/docs/installation/base-system.md) | Базовая настройка системы: LLVM toolchain, USE-флаги, ccache, lld |
+| [installation/systemd-uki-setup](src/content/docs/installation/systemd-uki-setup.md) | Настройка Unified Kernel Image через Dracut |
+| [installation/secure-boot-tpm](src/content/docs/installation/secure-boot-tpm.md) | Настройка Secure Boot и TPM 2.0 для автоматической расшифровки LUKS |
 
 ### 🖥️ Desktop Environment
 
 | Раздел | Описание |
 |--------|----------|
-| [desktop/niri](desktop/niri.md) | Тайловый Wayland-композитор Niri со скроллингом окон |
-| [desktop/noctalia-shell](desktop/noctalia-shell.md) | Нативная Wayland-оболочка Noctalia v5 для Niri |
-| [desktop/wayland-portals](desktop/wayland-portals.md) | Настройка XDG Desktop Portals для скринкастинга и диалогов |
-| [desktop/default-applications](desktop/default-applications.md) | Приложения по умолчанию, MIME-типы и URI-схемы через XDG |
+| [desktop/niri](src/content/docs/desktop/niri.md) | Тайловый Wayland-композитор Niri со скроллингом окон |
+| [desktop/noctalia-shell](src/content/docs/desktop/noctalia-shell.md) | Нативная Wayland-оболочка Noctalia v5 для Niri |
+| [desktop/wayland-portals](src/content/docs/desktop/wayland-portals.md) | Настройка XDG Desktop Portals для скринкастинга и диалогов |
+| [desktop/default-applications](src/content/docs/desktop/default-applications.md) | Приложения по умолчанию, MIME-типы и URI-схемы через XDG |
 
 ### 💾 Файловая система
 
 | Раздел | Описание |
 |--------|----------|
-| [filesystem/btrfs-setup](filesystem/btrfs-setup.md) | Структура субволюмов и опции монтирования |
-| [filesystem/snapper-backups](filesystem/snapper-backups.md) | Настройка автоматических снимков системы |
+| [filesystem/btrfs-setup](src/content/docs/filesystem/btrfs-setup.md) | Структура субволюмов и опции монтирования |
+| [filesystem/snapper-backups](src/content/docs/filesystem/snapper-backups.md) | Настройка автоматических снимков системы |
 
 ### 🔧 Железо
 
 | Раздел | Описание |
 |--------|----------|
-| [hardware/intel-graphics](hardware/intel-graphics.md) | Драйвер Intel Xe и Vulkan (ANV) |
+| [hardware/intel-graphics](src/content/docs/hardware/intel-graphics.md) | Драйвер Intel Xe и Vulkan (ANV) |
 
 ### 🌐 Сеть
 
 | Раздел | Описание |
 |--------|----------|
-| [networking/networkmanager-iwd](networking/networkmanager-iwd.md) | NetworkManager + iwd backend |
-| [networking/nftables-firewall](networking/nftables-firewall.md) | Настройка nftables файрвола |
-| [networking/wireless-regulatory](networking/wireless-regulatory.md) | Регуляторный домен для Wi-Fi |
+| [networking/networkmanager-iwd](src/content/docs/networking/networkmanager-iwd.md) | NetworkManager + iwd backend |
+| [networking/nftables-firewall](src/content/docs/networking/nftables-firewall.md) | Настройка nftables файрвола |
+| [networking/wireless-regulatory](src/content/docs/networking/wireless-regulatory.md) | Регуляторный домен для Wi-Fi |
 
 ### 🛡️ Безопасность
 
 | Раздел | Описание |
 |--------|----------|
-| [security/app-armor](security/app-armor.md) | Настройка AppArmor для ограничения приложений |
-| [security/auditd](security/auditd.md) | Система аудита событий безопасности |
-| [security/usbguard](security/usbguard.md) | Контроль USB-устройств и защита от BadUSB |
-| [security/kernel-hardening](security/kernel-hardening.md) | Защита ядра: sysctl, hardened flags |
-| [security/doas-configuration](security/doas-configuration.md) | Замена sudo на doas |
+| [security/app-armor](src/content/docs/security/app-armor.md) | Настройка AppArmor для ограничения приложений |
+| [security/auditd](src/content/docs/security/auditd.md) | Система аудита событий безопасности |
+| [security/usbguard](src/content/docs/security/usbguard.md) | Контроль USB-устройств и защита от BadUSB |
+| [security/kernel-hardening](src/content/docs/security/kernel-hardening.md) | Защита ядра: sysctl, hardened flags |
+| [security/doas-configuration](src/content/docs/security/doas-configuration.md) | Замена sudo на doas |
 
 ### ⚙️ Управление пакетами
 
 | Раздел | Описание |
 |--------|----------|
-| [managed/portage](managed/portage.md) | Полное руководство по Portage и emerge |
+| [managed/portage](src/content/docs/managed/portage.md) | Полное руководство по Portage и emerge |
 
 ### ⚡ Настройки
 
 | Раздел | Описание |
 |--------|----------|
-| [settings/gtk](settings/gtk.md) | Настройка GTK4 тем для Niri |
-| [settings/r2modman](settings/r2modman.md) | Интеграция r2modman со Steam (Flatpak) |
-| [settings/obs-studio](settings/obs-studio.md) | OBS Studio, FFmpeg и настройка кодеков |
-| [settings/perplexity](settings/perplexity.md) | Интеграция Perplexity AppImage в меню приложений |
-| [settings/firefox](settings/firefox.md) | Firefox: Clang, PGO, Wayland, Profile-sync-daemon |
-| [settings/flatpak](settings/flatpak.md) | Flatpak и Flatseal для изоляции приложений |
+| [settings/gtk](src/content/docs/settings/gtk.md) | Настройка GTK4 тем для Niri |
+| [settings/r2modman](src/content/docs/settings/r2modman.md) | Интеграция r2modman со Steam (Flatpak) |
+| [settings/obs-studio](src/content/docs/settings/obs-studio.md) | OBS Studio, FFmpeg и настройка кодеков |
+| [settings/perplexity](src/content/docs/settings/perplexity.md) | Интеграция Perplexity AppImage в меню приложений |
+| [settings/firefox](src/content/docs/settings/firefox.md) | Firefox: Clang, PGO, Wayland, Profile-sync-daemon |
+| [settings/flatpak](src/content/docs/settings/flatpak.md) | Flatpak и Flatseal для изоляции приложений |
 
 ### 🔍 Решение проблем
 
 | Раздел | Описание |
 |--------|----------|
-| [troubleshooting/android-usb-mtp](troubleshooting/android-usb-mtp.md) | Диагностика проблем USB/MTP при подключении Android-телефона |
-| [troubleshooting/docker-29-iptables-missing](troubleshooting/docker-29-iptables-missing.md) | Docker 29 не запускается из-за отсутствия команды `iptables` |
-| [troubleshooting/docker-libvirt-nftables](troubleshooting/docker-libvirt-nftables.md) | Решение конфликта Docker и Libvirt в nftables |
-| [troubleshooting/networkmanager-iwd-mac-randomization](troubleshooting/networkmanager-iwd-mac-randomization.md) | MAC-рандомизация с NetworkManager и iwd |
-| [troubleshooting/luks-tpm2-unlock-after-uki-rebuild](troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md) | Диагностика TPM2/PCR mismatch после изменений загрузочной цепочки |
+| [troubleshooting/android-usb-mtp](src/content/docs/troubleshooting/android-usb-mtp.md) | Диагностика проблем USB/MTP при подключении Android-телефона |
+| [troubleshooting/docker-29-iptables-missing](src/content/docs/troubleshooting/docker-29-iptables-missing.md) | Docker 29 не запускается из-за отсутствия команды `iptables` |
+| [troubleshooting/docker-libvirt-nftables](src/content/docs/troubleshooting/docker-libvirt-nftables.md) | Решение конфликта Docker и Libvirt в nftables |
+| [troubleshooting/networkmanager-iwd-mac-randomization](src/content/docs/troubleshooting/networkmanager-iwd-mac-randomization.md) | MAC-рандомизация с NetworkManager и iwd |
+| [troubleshooting/luks-tpm2-unlock-after-uki-rebuild](src/content/docs/troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md) | Диагностика TPM2/PCR mismatch после изменений загрузочной цепочки |
 
 ## ⚙️ Управление конфигурацией
 

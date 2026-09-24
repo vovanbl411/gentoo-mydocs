@@ -12,8 +12,7 @@ systemd и hardened-профиль, LLVM toolchain, Pure Wayland на Niri,
 systemd-boot + UKI, Btrfs + Snapper, Secure Boot и TPM 2.0. Примеры
 основаны на эталонной системе ASUS ExpertBook B5402.
 
-Сайт работает на Astro Starlight и находится в начале миграции:
-существующие руководства пока читаются в
-[репозитории на GitHub](https://github.com/vovanbl411/gentoo-mydocs).
-Эта страница — временная главная, полноценная навигация появится
-по мере переноса документов.
+Разделы руководств, состояние эталонной системы, troubleshooting и
+эксперименты перенесены сюда целиком — пользуйся навигацией слева.
+Repository-level материалы (policy, contributing, archive) остаются
+только в [репозитории на GitHub](https://github.com/vovanbl411/gentoo-mydocs).

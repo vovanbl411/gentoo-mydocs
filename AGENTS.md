@@ -11,9 +11,10 @@
 на эксплуатации ASUS ExpertBook B5402 (Intel Core i7-1260P, Alder Lake).
 
 - Язык: **русский** (технические термины часто на английском).
-- Формат: Markdown; источником правды остаются существующие `.md`-каталоги.
-  Для сайта добавлена минимальная инфраструктура Astro Starlight
-  (`npm run build` из `src/content/docs/`); CI и deployment отсутствуют.
+- Формат: Markdown. Содержательная документация физически находится в
+  `src/content/docs/` — это source of truth и содержимое сайта на Astro
+  Starlight. `npm run build` запускается из корня репозитория и собирает
+  документы из `src/content/docs/`; CI и deployment отсутствуют.
 - Цель: публиковать повторяемые руководства и отдельно вести состояние
   эталонной системы.
 - Аудитория: пользователи, уже знакомые с Gentoo/Linux, и автор репозитория.
@@ -41,7 +42,7 @@
 
 ```text
 .
-├── README.md                 # Главная страница и навигация
+├── README.md                 # GitHub entry point и навигация
 ├── DOCUMENTATION_POLICY.md   # Контракт структуры и метаданных
 ├── CONTRIBUTING.md           # Правила подготовки изменений
 ├── DOCUMENTATION_INVENTORY.md # Инвентаризация перед реструктуризацией
@@ -57,73 +58,41 @@
 ├── src/
 │   ├── content.config.ts     # Схема docs-коллекции: docsSchema() + наша metadata
 │   └── content/
-│       └── docs/
-│           └── index.md      # Временная POC-страница (Gate 1), не навигация сайта
+│       └── docs/             # Source of truth содержательной документации
+│           ├── index.md      # Landing page сайта
+│           ├── installation/ # Установка и загрузка
+│           │   ├── base-system.md
+│           │   ├── systemd-uki-setup.md
+│           │   └── secure-boot-tpm.md
+│           ├── desktop/      # Рабочее окружение
+│           │   ├── default-applications.md
+│           │   ├── niri.md
+│           │   ├── noctalia-shell.md
+│           │   └── wayland-portals.md
+│           ├── filesystem/   # btrfs-setup.md, snapper-backups.md
+│           ├── hardware/     # intel-graphics.md
+│           ├── networking/   # networkmanager-iwd, nftables-firewall,
+│           │                 # wireless-regulatory
+│           ├── security/     # app-armor, auditd, doas-configuration,
+│           │                 # kernel-hardening, usbguard
+│           ├── managed/      # portage.md
+│           ├── settings/     # firefox, perplexity, flatpak, gtk,
+│           │                 # obs-studio, r2modman
+│           ├── troubleshooting/ # android-usb-mtp, docker-29-iptables-missing,
+│           │                 # docker-libvirt-nftables, luks-tpm2-unlock-after-uki-rebuild,
+│           │                 # networkmanager-iwd-mac-randomization
+│           ├── systems/      # Эталонные системы
+│           │   └── asus-b5402/
+│           │       ├── index.md
+│           │       ├── applications.md
+│           │       └── desktop/, filesystem/, hardware/,
+│           │           networking/, security/, system/
+│           └── experiments/  # Незавершённые исследования и проверки
+│               ├── llvm23-toolchain/
+│               └── elan-fingerprint-04f3-0c77/
 │
-├── installation/             # Установка и загрузка
-│   ├── base-system.md        # make.conf, toolchain, USE-флаги
-│   ├── systemd-uki-setup.md  # Ядро, Dracut, UKI, systemd-boot
-│   └── secure-boot-tpm.md    # sbctl, Secure Boot, TPM2 + LUKS2
-│
-├── desktop/                  # Рабочее окружение
-│   ├── default-applications.md
-│   ├── niri.md               # Конфиг Niri (KDL), greetd/tuigreet
-│   ├── noctalia-shell.md     # Noctalia v5 для Niri
-│   └── wayland-portals.md    # XDG Desktop Portals
-│
-├── filesystem/               # Файловая система
-│   ├── btrfs-setup.md        # Btrfs layout, mount options, CoW
-│   └── snapper-backups.md    # Snapper: конфиги, хуки, таймеры
-│
-├── hardware/                 # Железо
-│   └── intel-graphics.md     # Общее руководство Intel Xe / i915
-│
-├── networking/               # Сеть
-│   ├── networkmanager-iwd.md # NetworkManager + iwd
-│   ├── nftables-firewall.md  # Базовый desktop firewall
-│   └── wireless-regulatory.md# Регуляторный домен Wi-Fi
-│
-├── security/                 # Безопасность
-│   ├── app-armor.md
-│   ├── auditd.md
-│   ├── doas-configuration.md
-│   ├── kernel-hardening.md
-│   └── usbguard.md
-│
-├── managed/                  # Управление пакетами
-│   └── portage.md            # Большое руководство по Portage
-│
-├── settings/                 # Прикладные настройки
-│   ├── firefox.md
-│   ├── perplexity.md         # Интеграция Perplexity AppImage
-│   ├── flatpak.md
-│   ├── gtk.md
-│   ├── obs-studio.md
-│   └── r2modman.md
-│
-├── experiments/              # Незавершённые исследования и проверки
-│   ├── llvm23-toolchain/
-│   └── elan-fingerprint-04f3-0c77/
-│
-├── systems/                  # Состояние эталонных систем
-│   └── asus-b5402/
-│       ├── README.md
-│       ├── applications.md
-│       ├── desktop/
-│       ├── filesystem/
-│       ├── hardware/
-│       ├── networking/
-│       ├── security/
-│       └── system/
-│
-├── troubleshooting/          # Повторяемые решения проблем
-│   ├── android-usb-mtp.md
-│   ├── docker-29-iptables-missing.md
-│   ├── docker-libvirt-nftables.md
-│   ├── luks-tpm2-unlock-after-uki-rebuild.md
-│   └── networkmanager-iwd-mac-randomization.md
-│
-├── archive/                  # Исторические материалы, не для применения
+├── archive/                  # Исторические материалы, не для применения,
+│                             # вне Starlight
 │
 ├── .codex/                   # Служебный контекст для агентов
 │   ├── project-context.md
@@ -276,8 +245,8 @@ systemd-cryptenroll
 
 ## 6. Известные проблемы и нерешённые вопросы
 
-- `settings/obs-studio.md` требует технической проверки; состояние установки
-  вынесено в системный раздел.
+- `src/content/docs/settings/obs-studio.md` требует технической проверки;
+  состояние установки вынесено в системный раздел.
 - `.gitignore`, `.kilocodemodes`, `.markdownlint.json` имеют executable bit.
 - `.markdownlint.json` игнорируется `.gitignore`.
 - Автоматических проверок в CI нет. Локальный `npm run build` (Astro Starlight)
