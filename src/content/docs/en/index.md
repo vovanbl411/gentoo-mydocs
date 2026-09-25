@@ -12,10 +12,6 @@ and the hardened profile, an LLVM toolchain, Pure Wayland on Niri,
 systemd-boot + UKI, Btrfs + Snapper, Secure Boot and TPM 2.0. The
 examples are based on a real reference system, an ASUS ExpertBook B5402.
 
-The English translation is a work in progress: this `/en/` section is
-filled in page by page, and pages that have not been translated yet
-fall back to the Russian originals.
-
 The guide sections, the reference system state, troubleshooting notes
 and experiments all live here — use the navigation on the left.
 Repository-level materials (policy, contributing, archive) remain only
