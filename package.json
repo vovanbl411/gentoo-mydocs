@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "check:i18n": "node scripts/check-i18n-sync.mjs",
+    "build": "npm run check:i18n && astro build",
     "preview": "astro preview"
   },
   "dependencies": {

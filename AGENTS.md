@@ -213,6 +213,19 @@ find . -path './.git' -prune -o -name '*.md' -type f -print
 rg -n "TODO|FIXME|WIP|чернов|draft|TBD|устар|deprecated|XXX" -S . --glob '!/.git/**'
 ```
 
+### i18n sync guard
+
+После изменения пользовательских документов запускай:
+
+```bash
+npm run check:i18n
+```
+
+Guard входит и в `npm run build`. Если checker сообщает stale EN
+translation — синхронизируй перевод; либо, если перевод больше нельзя
+поддерживать корректно, удали EN-копию и осознанно вернись к Starlight
+fallback. Не обходи checker: FAIL — это блокер изменения.
+
 ### Использование sub-агентов
 
 Для широкого анализа, аудита, проверки связей между файлами — используй sub-агентов (`explore`).

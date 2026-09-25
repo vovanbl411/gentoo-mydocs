@@ -88,6 +88,7 @@ verified_on: [asus-b5402]
 ```bash
 git status --short --branch
 git diff --check
+npm run check:i18n
 ```
 
 Если `markdownlint-cli2` установлен, запусти его только для изменённых
