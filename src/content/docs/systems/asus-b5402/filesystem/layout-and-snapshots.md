@@ -3,7 +3,7 @@ title: Btrfs и Snapper на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-22"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -28,6 +28,7 @@ verified_on: [asus-b5402]
 @var_cache
 @distfiles
 @ccache
+@sccache
 @portage_tree
 @docker
 @libvirt
@@ -43,7 +44,8 @@ verified_on: [asus-b5402]
 
 | Субволюм | Точка монтирования | Назначение |
 |---|---|---|
-| `@ccache` | `/var/tmp/ccache` | кэш компилятора; `nodatacow` на каталоге подтверждён |
+| `@ccache` | `/var/tmp/ccache` | кэш C/C++ compiler через ccache (50G); `nodatacow` на каталоге подтверждён |
+| `@sccache` | `/var/tmp/sccache` | кэш Rust через sccache (20G); владелец `portage:portage`, режим `drwxrwsr-x`, установлен NoCoW attribute |
 | `@portage_tmp` | `/var/tmp/portage-disk` | временные файлы тяжёлых сборок |
 | `@distfiles` | `/var/cache/distfiles` | исходные коды пакетов |
 | `@var_cache` | `/var/cache` | прочий системный кэш |
@@ -84,6 +86,9 @@ SPACE_LIMIT=0.8
 
 - Btrfs перепроверен по живому выводу `findmnt` 2026-09-22; субволюмы
   подтверждены монтированием 2026-09-12.
+- `@sccache` и `/var/tmp/sccache` проверены 2026-09-25: параметры монтирования
+  Btrfs — `rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2`;
+  каталог принадлежит `portage:portage`, NoCoW attribute установлен.
 - `/var/tmp/portage` (tmpfs 16 GiB) подтверждён 2026-09-12.
 - Snapper проверен по конфигу `/etc/snapper/configs/root` 2026-09-22.
 - Отсутствие Portage-хука проверено по `/etc/portage/bashrc` 2026-09-22.

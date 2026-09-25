@@ -3,7 +3,7 @@ title: Btrfs and Snapper on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-22"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -28,6 +28,7 @@ Subvolumes:
 @var_cache
 @distfiles
 @ccache
+@sccache
 @portage_tree
 @docker
 @libvirt
@@ -43,7 +44,8 @@ Portage's build storage is kept outside the snapshotted root:
 
 | Subvolume | Mount point | Purpose |
 |---|---|---|
-| `@ccache` | `/var/tmp/ccache` | compiler cache; `nodatacow` on the directory is confirmed |
+| `@ccache` | `/var/tmp/ccache` | C/C++ compiler cache via ccache (50G); `nodatacow` on the directory is confirmed |
+| `@sccache` | `/var/tmp/sccache` | Rust cache via sccache (20G); owned by `portage:portage`, mode `drwxrwsr-x`, with the NoCoW attribute set |
 | `@portage_tmp` | `/var/tmp/portage-disk` | temporary files for large builds |
 | `@distfiles` | `/var/cache/distfiles` | package source archives |
 | `@var_cache` | `/var/cache` | other system cache |
@@ -85,6 +87,9 @@ for `emerge`.
 
 - Btrfs was rechecked against live `findmnt` output on 2026-09-22; subvolumes
   were confirmed by their mounts on 2026-09-12.
+- `@sccache` and `/var/tmp/sccache` were checked on 2026-09-25: Btrfs mount
+  options are `rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2`;
+  the directory is owned by `portage:portage` and has the NoCoW attribute set.
 - `/var/tmp/portage` (16 GiB tmpfs) was confirmed on 2026-09-12.
 - Snapper was checked against `/etc/snapper/configs/root` on 2026-09-22.
 - The absence of a Portage hook was checked in `/etc/portage/bashrc` on

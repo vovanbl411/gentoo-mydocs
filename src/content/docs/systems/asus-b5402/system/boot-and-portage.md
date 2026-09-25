@@ -3,7 +3,7 @@ title: Загрузка и Portage на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-22"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -36,12 +36,35 @@ verified_on: [asus-b5402]
   2026-09-11).
 - `GOFLAGS` удалён 2026-09-11 как не влияющий на сборки: `go-env.eclass`
   задаёт собственный `GOFLAGS` и сам добавляет `-buildmode=pie`.
-- Для повторных сборок используется глобальный ccache; BOLT отключён.
+- Для C/C++ используется глобальный ccache; BOLT отключён.
+- Кэширование разделено по языку: C/C++ использует глобальный `ccache`, Rust
+  — глобальный для Portage `RUSTC_WRAPPER=/usr/bin/sccache`. Каталог
+  `/var/tmp/sccache` имеет лимит `20G`; значения `RUSTC_WRAPPER`, `SCCACHE_DIR`,
+  `SCCACHE_CACHE_SIZE` и `SCCACHE_SERVER_UDS` подтверждены через
+  `portageq envvar`.
+- Постоянный сервер запускает `sccache-portage.service` от `portage:portage`.
+  Сервис включён и активен; он работает в foreground под контролем systemd
+  (`SCCACHE_IDLE_TIMEOUT=0`, `SCCACHE_START_SERVER=1`, `SCCACHE_NO_DAEMON=1`).
+  Portage подключается к нему через Unix domain socket
+  `/var/tmp/sccache/sccache.sock`: при глобальном `FEATURES=network-sandbox`
+  TCP localhost не подходил для build namespace и мог приводить к отдельным
+  краткоживущим server instances со статистикой, остававшейся нулевой.
+- **Приёмка sccache 0.16.0** (`emerge --buildpkgonly -1 dev-util/sccache`):
+  cold build — 160,40 с, 151 cache miss; warm build — 94,65 с, все 151
+  cacheable компиляции попали в кэш (147 Rust, 4 Assembler). Экономия
+  wall-clock составила 65,75 с (около 41%; примерно 1,69×). После обеих
+  сборок cumulative hit rate — 50% (151 miss и 151 hit). В cold build были
+  также 34 non-cacheable calls, включая 29 вызовов с причиной `crate-type`;
+  это ускорение cacheable compiler work, а не всех фаз Portage. Решение:
+  оставить sccache в production с лимитом `20G`; пересматривать размер только
+  по накопленной production статистике. Remote storage и distributed
+  compilation не используются. ccache для C/C++ остаётся отдельной policy.
 - **Замер ccache после интенсивного периода сборок (2026-09-25):** 234 108
   из 328 009 вызовов были cacheable (71,37%); 50 581 попадание (21,61% от
   cacheable calls), из них 23 474 direct и 27 107 preprocessed. Не cacheable —
-  93 897 вызовов; зарегистрировано 4 ошибки. Каталог занимал 47G из лимита
-  50G (99,90%); выполнено 276 очисток. **Решение:** оставить глобальный
+  93 897 вызовов; зарегистрировано 4 ошибки. Каталог занимал 47G по `du -sh`;
+  ccache сообщал 50,0/50,0 GB локального хранилища (99,90%), выполнено 276
+  очисток. **Решение:** оставить глобальный
   ccache включённым
   и сохранить лимит 50G без изменений; размер можно пересмотреть после
   периода обычных обновлений.

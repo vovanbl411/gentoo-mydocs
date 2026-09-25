@@ -3,7 +3,7 @@ title: Базовая настройка системы (Base System)
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-20"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -14,7 +14,7 @@ verified_on: [asus-b5402]
 - тулчейн LLVM/Clang/LLD;
 - `-O2` + ThinLTO как optimization baseline;
 - явный CPU target (`-march=<microarchitecture>`);
-- ccache для повторных сборок;
+- ccache для C/C++ и sccache для Rust;
 - USE-policy в сторону Wayland, systemd и security (tpm, secureboot,
   apparmor, hardened).
 
@@ -42,7 +42,8 @@ sudo используется легковесный doas.
 
 ## 1. Настройка тулчейна (`/etc/portage/make.conf`)
 
-Ниже приведён профиль со стеком LLVM, глобальным линкером LLD и ccache.
+Ниже приведён профиль со стеком LLVM, глобальным линкером LLD и кэшами
+компиляции: ccache для C/C++ и sccache для Rust.
 
 ```makefile
 # Глобальный тулчейн LLVM
@@ -74,7 +75,7 @@ CGO_CFLAGS="${CFLAGS}"
 CGO_CXXFLAGS="${CXXFLAGS}"
 CGO_LDFLAGS="${LDFLAGS}"
 
-# ccache настройки (сжатие включено по умолчанию)
+# C/C++ compiler cache (сжатие включено по умолчанию)
 FEATURES="${FEATURES} ccache"
 CCACHE_DIR="/var/tmp/ccache"
 CCACHE_SIZE="50G"
@@ -108,6 +109,28 @@ GENTOO_MIRRORS="https://mirror.yandex.ru/gentoo-distfiles/ \
 SECUREBOOT_SIGN_KEY="/var/lib/sbctl/keys/db/db.key"
 SECUREBOOT_SIGN_CERT="/var/lib/sbctl/keys/db/db.pem"
 ```
+
+### Rust cache (sccache)
+
+Для Rust sccache подключается через `RUSTC_WRAPPER` и требует работающий
+sccache server. Способ запуска и transport зависят от конфигурации хоста.
+Значения ниже — фактическая policy ASUS B5402: сервер работает под systemd,
+а Portage подключается к нему через Unix domain socket. Это проверенная
+реализация для этой машины, а не обязательная конфигурация для любого
+Gentoo-хоста.
+
+Файл: `/etc/portage/make.conf`
+
+```makefile
+RUSTC_WRAPPER="/usr/bin/sccache"
+SCCACHE_DIR="/var/tmp/sccache"
+SCCACHE_CACHE_SIZE="20G"
+SCCACHE_SERVER_UDS="/var/tmp/sccache/sccache.sock"
+```
+
+На ASUS B5402 постоянный сервер — `sccache-portage.service`, запущенный от
+`portage:portage`; подробности и результаты cold/warm acceptance приведены в
+[системном разделе](../../systems/asus-b5402/system/boot-and-portage/).
 
 > **Примечание**: optimization baseline — глобальный `-O2`; ThinLTO остаётся
 > там, где package/ebuild policy его допускает. `-O3` допускается только

@@ -3,7 +3,7 @@ title: Boot and Portage on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-22"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -37,12 +37,35 @@ verified_on: [asus-b5402]
   was removed on 2026-09-11).
 - `GOFLAGS` was removed on 2026-09-11 because it did not affect builds:
   `go-env.eclass` sets its own `GOFLAGS` and adds `-buildmode=pie` itself.
-- Global ccache is used for repeated builds; BOLT is disabled.
+- Global ccache is used for C/C++ builds; Rust uses the global
+  Portage `RUSTC_WRAPPER=/usr/bin/sccache`. The cache directory is
+  `/var/tmp/sccache` with a `20G` limit. `portageq envvar` confirmed
+  `RUSTC_WRAPPER`, `SCCACHE_DIR`, `SCCACHE_CACHE_SIZE`, and
+  `SCCACHE_SERVER_UDS`.
+- The persistent server runs as `portage:portage` under
+  `sccache-portage.service`. The service is enabled and active; it runs in the
+  foreground under systemd (`SCCACHE_IDLE_TIMEOUT=0`, `SCCACHE_START_SERVER=1`,
+  `SCCACHE_NO_DAEMON=1`). Portage connects over the Unix domain socket
+  `/var/tmp/sccache/sccache.sock`: with global `FEATURES=network-sandbox`, TCP
+  localhost was unsuitable for the build namespace and could result in
+  short-lived server instances whose statistics remained at zero.
+- **sccache 0.16.0 acceptance** (`emerge --buildpkgonly -1
+  dev-util/sccache`): the cold build took 160.40 s and had 151 cache misses;
+  the warm build took 94.65 s, with cache hits for all 151 cacheable
+  compilations (147 Rust, 4 Assembler). Wall-clock time fell by 65.75 s (about
+  41%, or roughly 1.69×). The cumulative hit rate after both builds was 50%
+  (151 misses and 151 hits). The cold build also had 34 non-cacheable calls,
+  including 29 with reason `crate-type`; sccache speeds up cacheable compiler
+  work, not every Portage phase. Decision: keep sccache in production with the
+  `20G` limit and reconsider its size only after production statistics
+  accumulate. Remote storage and distributed compilation are not used.
+  ccache remains a separate policy for C/C++. BOLT is disabled.
 - **ccache measurement after an intensive build period (2026-09-25):**
   234,108 of 328,009 calls were cacheable (71.37%); there were 50,581 hits
   (21.61% of cacheable calls), including 23,474 direct and 27,107
   preprocessed hits. There were 93,897 uncacheable calls and 4 errors. The
-  cache directory used 47G of its 50G limit (99.90%), with 276 cleanups.
+  cache directory used 47G according to `du -sh`; ccache reported 50.0/50.0 GB
+  of local storage (99.90%), with 276 cleanups.
   **Decision:** keep global ccache enabled
   and leave the 50G limit unchanged; the size can be reconsidered after a
   period of ordinary updates.

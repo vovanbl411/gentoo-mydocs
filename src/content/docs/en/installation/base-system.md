@@ -3,7 +3,7 @@ title: Base system configuration
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-20"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -14,7 +14,7 @@ An example of a base Portage configuration for Gentoo:
 - an LLVM/Clang/LLD toolchain;
 - `-O2` + ThinLTO as the optimization baseline;
 - an explicit CPU target (`-march=<microarchitecture>`);
-- ccache for repeated builds;
+- ccache for C/C++ and sccache for Rust;
 - a USE policy leaning towards Wayland, systemd and security (tpm,
   secureboot, apparmor, hardened).
 
@@ -43,8 +43,8 @@ sure to adapt it to your hardware and software set:
 
 ## 1. Toolchain setup (`/etc/portage/make.conf`)
 
-Below is a profile with the LLVM stack, the global LLD linker and
-ccache.
+Below is a profile with the LLVM stack, the global LLD linker, and compiler
+caches: ccache for C/C++ and sccache for Rust.
 
 ```makefile
 # Глобальный тулчейн LLVM
@@ -76,7 +76,7 @@ CGO_CFLAGS="${CFLAGS}"
 CGO_CXXFLAGS="${CXXFLAGS}"
 CGO_LDFLAGS="${LDFLAGS}"
 
-# ccache настройки (сжатие включено по умолчанию)
+# C/C++ compiler cache (compression is enabled by default)
 FEATURES="${FEATURES} ccache"
 CCACHE_DIR="/var/tmp/ccache"
 CCACHE_SIZE="50G"
@@ -110,6 +110,28 @@ GENTOO_MIRRORS="https://mirror.yandex.ru/gentoo-distfiles/ \
 SECUREBOOT_SIGN_KEY="/var/lib/sbctl/keys/db/db.key"
 SECUREBOOT_SIGN_CERT="/var/lib/sbctl/keys/db/db.pem"
 ```
+
+### Rust cache (sccache)
+
+For Rust, sccache is connected through `RUSTC_WRAPPER` and requires a running
+sccache server. The launch method and transport depend on the host
+configuration. The values below are the actual ASUS B5402 policy: systemd
+runs the server and Portage connects through a Unix domain socket. This is
+the implementation verified on that machine, not a required setup for every
+Gentoo host.
+
+File: `/etc/portage/make.conf`
+
+```makefile
+RUSTC_WRAPPER="/usr/bin/sccache"
+SCCACHE_DIR="/var/tmp/sccache"
+SCCACHE_CACHE_SIZE="20G"
+SCCACHE_SERVER_UDS="/var/tmp/sccache/sccache.sock"
+```
+
+On the ASUS B5402, the persistent server is `sccache-portage.service`, running
+as `portage:portage`. Details and cold/warm acceptance results are in
+[the system section](../../systems/asus-b5402/system/boot-and-portage/).
 
 > **Note**: the optimization baseline is global `-O2`; ThinLTO remains
 > where the package/ebuild policy allows it. `-O3` is allowed only

@@ -24,7 +24,8 @@
   LLVM 23.1.1 — им намеренно собирается ядро (env `kernel-llvm`, пилот);
   слоты 21/24 удалены; `rust-bin-1.97.1`; BOLT отложен.
 - **make.conf** (политика 2026-09-20): `-O2`/ThinLTO с исключениями
-  `package.env`, явный `-mno-*`, `MAKEOPTS="-j14 -l10"`, ccache глобально.
+  `package.env`, явный `-mno-*`, `MAKEOPTS="-j14 -l10"`; глобальная
+  compiler-cache policy: ccache для C/C++ и sccache для Rust.
   Замена `-O3` → `-O2` применена 2026-09-20 в `make.conf` и env-файлах
   (`kernel-llvm` уже был `-O2`);
   `portageq envvar CFLAGS CXXFLAGS` подтверждает `-O2 -flto=thin`, resolver
@@ -128,8 +129,9 @@
   `package.use/30-graphics-desktop` и `keywords/90-prospective`.
 - `savedconfig/sys-kernel/linux-firmware-20260916` не применяется (USE
   `savedconfig` выключен); судьба файла не решена.
-- ccache: размер cache можно пересмотреть после периода обычных обновлений;
-  текущие 50G оставлены без изменений.
+- ccache: лимит C/C++ cache — 50G; размер можно пересмотреть после периода
+  обычных обновлений. sccache для Rust — 20G; размер менять только по
+  накопленной production статистике.
 - LLVM 23: перевод пакетов, когда ebuild'ы потребителей объявят
   `llvm_slot_23`.
 - Optimization policy (решение 2026-09-20, Experiment B COMPLETE):
@@ -185,6 +187,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-09-25 | Завершён rollout sccache для Rust: `dev-util/sccache-0.16.0`, глобальный `RUSTC_WRAPPER=/usr/bin/sccache`, каталог `/var/tmp/sccache` на отдельном Btrfs subvolume `@sccache`, лимит 20G. Постоянный foreground daemon — enabled/active `sccache-portage.service` от `portage:portage`, transport — Unix domain socket `/var/tmp/sccache/sccache.sock` (TCP localhost не подходит для Portage с `FEATURES=network-sandbox`). Controlled production acceptance: cold/warm — 160.40s → 94.65s; 151 misses → 151 hits (147 Rust, 4 Assembler), около 41% меньше wall-clock; cacheable Rust compiler work ускоряется, non-cacheable crate types остаются. Решение: оставить sccache в production; лимит 20G пересматривать по накопленной production статистике. Remote storage и distributed compilation не используются; ccache для C/C++ остаётся независимой policy. |
 | 2026-09-25 | Проверен production ccache после интенсивного периода сборок, включавшего смену optimization/toolchain policy, `--buildpkgonly`-проверки и полный rebuild `@world`: 234 108/328 009 cacheable calls (71,37%), 50 581 hits (21,61%: 23 474 direct, 27 107 preprocessed), 183 527 misses, 93 897 uncacheable calls, 4 errors. Каталог — 47G; локальное хранилище 50,0/50,0 GB (99,90%), 276 cleanups. Решение: оставить глобальный ccache включённым как практически полезный; лимит 50G и конфигурацию не менять. Размер можно пересмотреть после периода обычных обновлений. |
 | 2026-09-25 | Исправлена запись Gate 5B.6 по фактическому workflow run #10: `check:i18n` PASS, build/deploy success, 105 pages, Pagefind/sitemap success; на тот момент было 52 RU, 44 EN и 8 fallback, включая 13/13 English-страниц `systems/asus-b5402/`. Все 8 оставшихся fallback-страниц находились в `experiments/`, а production artifact содержал стандартное untranslated notice. Предыдущий локальный вывод об отсутствии notice был ошибочным. Gate 5B.6 CLOSED на commit `14324042a9dc23009439aaf4f5610ac1b2de1c6c`. Gate 5B.7 CLOSED локально; вся i18n-фаза CLOSED. Deployment и workflow для Gate 5B.7 не выполнялись. |
 | 2026-09-25 | Gate 5B.7 CLOSED; i18n-фаза CLOSED — созданы 8 EN-переводов для `experiments/`; metadata и структура пар совпадают, русские источники не менялись. Удалён устаревший статусный абзац на EN landing page о незавершённом переводе. Для таблиц и исторических данных подтверждена числовая и структурная parity; команды, output и identifiers сохранены. Cyrillic scan нашёл только literal verification output в `results.md`. `npm run check:i18n` — PASS: 52 RU / 52 EN / 0 fallback; build — 105 HTML pages; Pagefind — 52 RU + 52 EN fragments; sitemap — 104 уникальных locale URL. Все 52 EN routes имеют `lang="en"`; language picker ведёт к RU-counterpart; rendered fallback notice отсутствует. Проверены 5350 внутренних ссылок из EN-страниц: нет отсутствующих targets, locale escapes или broken fragments; Markdown-ссылки не содержат hardcoded `/en/` и `.md`. `git diff --check` — PASS. Изменения локальные: Gate 5B.7 CLOSED по локальному acceptance; deployment, commit/push и workflow для него не выполнялись. |
