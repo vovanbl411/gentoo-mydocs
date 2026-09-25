@@ -169,6 +169,22 @@ current state, затем детали, history и verification. Перед су
 - **Скриншоты**: только в `README.md`.
 - **Ссылки**: внешние — на Gentoo Wiki, GitHub, официальную документацию; внутренние — из `README.md`.
 
+### Переводы (English / i18n)
+
+Подробности — `DOCUMENTATION_POLICY.md` §10. Кратко:
+
+- Русский — primary/source technical language; English-переводы лежат
+  в `src/content/docs/en/` с зеркальными путями.
+- При существенном semantic change русский документ и существующий
+  `en/`-перевод обновляются вместе (или перевод осознанно удаляется
+  в пользу fallback).
+- Не переводить commands/config identifiers/пути/версии — только prose
+  и reader-facing labels.
+- Отсутствие English-перевода лучше stale/incomplete перевода: штатный
+  Starlight fallback — нормальное состояние.
+- Не создавать массовый English mirror автоматически — это отдельная
+  задача, а не побочный эффект правки.
+
 ### Повторяющиеся шаблоны
 
 - «Файл: `<path>`» перед конфигом.
