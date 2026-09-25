@@ -37,7 +37,15 @@ verified_on: [asus-b5402]
   was removed on 2026-09-11).
 - `GOFLAGS` was removed on 2026-09-11 because it did not affect builds:
   `go-env.eclass` sets its own `GOFLAGS` and adds `-buildmode=pie` itself.
-- ccache is used for repeated builds; BOLT is disabled.
+- Global ccache is used for repeated builds; BOLT is disabled.
+- **ccache measurement after an intensive build period (2026-09-25):**
+  234,108 of 328,009 calls were cacheable (71.37%); there were 50,581 hits
+  (21.61% of cacheable calls), including 23,474 direct and 27,107
+  preprocessed hits. There were 93,897 uncacheable calls and 4 errors. The
+  cache directory used 47G of its 50G limit (99.90%), with 276 cleanups.
+  **Decision:** keep global ccache enabled
+  and leave the 50G limit unchanged; the size can be reconsidered after a
+  period of ordinary updates.
 
 ## Optimization
 

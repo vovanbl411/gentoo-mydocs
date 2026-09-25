@@ -128,8 +128,8 @@
   `package.use/30-graphics-desktop` и `keywords/90-prospective`.
 - `savedconfig/sys-kernel/linux-firmware-20260916` не применяется (USE
   `savedconfig` выключен); судьба файла не решена.
-- ccache: замер hit rate — окно середина октября…начало ноября 2026
-  (`--zero-stats` от 2026-09-12).
+- ccache: размер cache можно пересмотреть после периода обычных обновлений;
+  текущие 50G оставлены без изменений.
 - LLVM 23: перевод пакетов, когда ebuild'ы потребителей объявят
   `llvm_slot_23`.
 - Optimization policy (решение 2026-09-20, Experiment B COMPLETE):
@@ -185,6 +185,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-09-25 | Проверен production ccache после интенсивного периода сборок, включавшего смену optimization/toolchain policy, `--buildpkgonly`-проверки и полный rebuild `@world`: 234 108/328 009 cacheable calls (71,37%), 50 581 hits (21,61%: 23 474 direct, 27 107 preprocessed), 183 527 misses, 93 897 uncacheable calls, 4 errors. Каталог — 47G; локальное хранилище 50,0/50,0 GB (99,90%), 276 cleanups. Решение: оставить глобальный ccache включённым как практически полезный; лимит 50G и конфигурацию не менять. Размер можно пересмотреть после периода обычных обновлений. |
 | 2026-09-25 | Исправлена запись Gate 5B.6 по фактическому workflow run #10: `check:i18n` PASS, build/deploy success, 105 pages, Pagefind/sitemap success; на тот момент было 52 RU, 44 EN и 8 fallback, включая 13/13 English-страниц `systems/asus-b5402/`. Все 8 оставшихся fallback-страниц находились в `experiments/`, а production artifact содержал стандартное untranslated notice. Предыдущий локальный вывод об отсутствии notice был ошибочным. Gate 5B.6 CLOSED на commit `14324042a9dc23009439aaf4f5610ac1b2de1c6c`. Gate 5B.7 CLOSED локально; вся i18n-фаза CLOSED. Deployment и workflow для Gate 5B.7 не выполнялись. |
 | 2026-09-25 | Gate 5B.7 CLOSED; i18n-фаза CLOSED — созданы 8 EN-переводов для `experiments/`; metadata и структура пар совпадают, русские источники не менялись. Удалён устаревший статусный абзац на EN landing page о незавершённом переводе. Для таблиц и исторических данных подтверждена числовая и структурная parity; команды, output и identifiers сохранены. Cyrillic scan нашёл только literal verification output в `results.md`. `npm run check:i18n` — PASS: 52 RU / 52 EN / 0 fallback; build — 105 HTML pages; Pagefind — 52 RU + 52 EN fragments; sitemap — 104 уникальных locale URL. Все 52 EN routes имеют `lang="en"`; language picker ведёт к RU-counterpart; rendered fallback notice отсутствует. Проверены 5350 внутренних ссылок из EN-страниц: нет отсутствующих targets, locale escapes или broken fragments; Markdown-ссылки не содержат hardcoded `/en/` и `.md`. `git diff --check` — PASS. Изменения локальные: Gate 5B.7 CLOSED по локальному acceptance; deployment, commit/push и workflow для него не выполнялись. |
 | 2026-09-25 | Локально добавлены 12 EN-переводов для `systems/asus-b5402/`. Metadata, заголовки, code fences, таблицы и цели ссылок совпадают с RU-источниками; семантика команд и конфигураций сохранена, Cyrillic scan пустой. `npm run check:i18n` — PASS: 52 RU / 44 EN / 8 fallback; все fallback-страницы находятся в `experiments/`. Сборка — PASS: 105 HTML-страниц; Pagefind сообщает 52 RU + 52 EN страницы, sitemap содержит 104 locale URL. Все 13 ASUS routes собраны с `lang="en"`, английскими заголовками и переключателем на соответствующую RU-страницу; 50 внутренних ссылок остаются в `/en/`, ASUS fallback-целей нет. Тогдашняя локальная диагностика двух fallback-страниц `experiments/` ошибочно заключила, что стандартного untranslated notice в artifact нет. Workflow run #10 подтвердил обратное: notice присутствовал, а Gate 5B.6 был CLOSED. RU-источники не менялись. |
