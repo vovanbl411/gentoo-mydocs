@@ -179,7 +179,8 @@ current state, затем детали, history и verification. Перед су
   `en/`-перевод обновляются вместе (или перевод осознанно удаляется
   в пользу fallback).
 - Не переводить commands/config identifiers/пути/версии — только prose
-  и reader-facing labels.
+  и reader-facing labels. Reader-facing комментарии внутри code blocks
+  переводимы без изменения семантики; literal output и config values — нет.
 - Отсутствие English-перевода лучше stale/incomplete перевода: штатный
   Starlight fallback — нормальное состояние.
 - Не создавать массовый English mirror автоматически — это отдельная
