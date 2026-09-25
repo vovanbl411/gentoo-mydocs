@@ -3,7 +3,7 @@ title: Btrfs structure and subvolumes
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-22"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -66,14 +66,15 @@ One possible variant:
 | `@var_cache` | `/var/cache` | system cache |
 | `@distfiles` | `/var/cache/distfiles` | package source files |
 | `@ccache` | `/var/tmp/ccache` | C/C++ compiler cache |
+| `@sccache` | `/var/tmp/sccache` | Rust compiler cache via sccache |
 | `@portage_tree` | `/var/db/repos/gentoo` | Gentoo tree |
 | `@docker` | `/var/lib/docker` | Docker container data |
 | `@libvirt` | `/var/lib/libvirt` | KVM/QEMU virtual machine images |
 | `@portage_tmp` | `/var/tmp/portage-disk` | temporary files of heavy builds |
 
 Do not copy this list wholesale unless you need it. For example, separate
-Docker, libvirt or ccache subvolumes are only needed when the corresponding
-workload is actually used.
+Docker, libvirt, ccache or sccache subvolumes are only needed when the
+corresponding workload is actually used.
 
 ## Mount options
 
@@ -120,6 +121,7 @@ example such data includes:
 2. Docker images and database volumes;
 3. compilation temporary files in `/var/tmp/portage-disk`;
 4. constantly rewritten ccache objects in `/var/tmp/ccache`.
+5. the Rust cache via sccache in `/var/tmp/sccache`.
 
 This is a list of workloads from the example, not a requirement to disable
 CoW on every subvolume with the same name.
@@ -142,6 +144,9 @@ doas chattr +C /var/tmp/portage-disk
 
 # For ccache
 doas chattr +C /var/tmp/ccache
+
+# For sccache
+doas chattr +C /var/tmp/sccache
 
 # For an existing empty Docker database volume, if there is one
 doas chattr +C /var/lib/docker/volumes/my_db_volume/_data

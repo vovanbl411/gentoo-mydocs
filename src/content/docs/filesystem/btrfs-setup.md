@@ -3,7 +3,7 @@ title: Структура Btrfs и субволюмы
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-22"
+last_verified: "2026-09-25"
 verified_on: [asus-b5402]
 ---
 
@@ -65,13 +65,14 @@ Btrfs-specific mount options: большинство таких параметр
 | `@var_cache` | `/var/cache` | системный кэш |
 | `@distfiles` | `/var/cache/distfiles` | исходные коды пакетов |
 | `@ccache` | `/var/tmp/ccache` | кэш компилятора C/C++ |
+| `@sccache` | `/var/tmp/sccache` | кэш компилятора Rust через sccache |
 | `@portage_tree` | `/var/db/repos/gentoo` | дерево Gentoo |
 | `@docker` | `/var/lib/docker` | данные контейнеров Docker |
 | `@libvirt` | `/var/lib/libvirt` | образы виртуальных машин KVM/QEMU |
 | `@portage_tmp` | `/var/tmp/portage-disk` | временные файлы тяжёлых сборок |
 
 Не копируй этот список целиком без необходимости. Например, отдельные
-субволюмы Docker, libvirt или ccache нужны только при использовании
+субволюмы Docker, libvirt, ccache или sccache нужны только при использовании
 соответствующей нагрузки.
 
 ## Mount options
@@ -119,6 +120,7 @@ Btrfs по умолчанию использует Copy-on-Write (CoW). Это �
 2. образы и тома баз данных Docker;
 3. временные файлы компиляции в `/var/tmp/portage-disk`;
 4. постоянно перезаписываемые объекты ccache в `/var/tmp/ccache`.
+5. кэш Rust через sccache в `/var/tmp/sccache`.
 
 Это список нагрузок из примера, а не требование отключать CoW на каждом
 одноимённом субволюме.
@@ -141,6 +143,9 @@ doas chattr +C /var/tmp/portage-disk
 
 # Для ccache
 doas chattr +C /var/tmp/ccache
+
+# Для sccache
+doas chattr +C /var/tmp/sccache
 
 # Для существующего пустого тома БД в Docker, если он есть
 doas chattr +C /var/lib/docker/volumes/my_db_volume/_data
