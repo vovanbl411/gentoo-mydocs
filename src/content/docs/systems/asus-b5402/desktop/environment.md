@@ -21,6 +21,9 @@ verified_on: [asus-b5402]
 - Polkit agent: ровно один процесс
   `polkit-gnome-authentication-agent-1`; конфликт дублирующихся агентов
   устранён.
+- Fingerprint: Noctalia lockscreen, greetd login и polkit authentication
+  проверены 2026-09-27. Парольный fallback polkit проверен; fallback greetd
+  отдельно не проверялся.
 
 Сессия, systemd user targets, portals и polkit-агент сверены с живой системой
 2026-09-23. GTK theme в этом аудите заново не проверялась.
@@ -119,3 +122,4 @@ Niri как systemd session поднимает через `xdg-desktop-autostart
 - [Niri](../../../../desktop/niri/)
 - [XDG Desktop Portals](../../../../desktop/wayland-portals/)
 - [GTK4 и палитра Noctalia](../../../../settings/gtk/)
+- [ELAN fingerprint на ASUS B5402](../../hardware/fingerprint/)

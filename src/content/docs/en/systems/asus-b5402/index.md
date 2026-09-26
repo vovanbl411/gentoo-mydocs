@@ -46,6 +46,8 @@ the general instructions.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.
 - [Second NVMe and backups](hardware/second-disk/) — the disk state was
   verified on 2026-09-22; the plan has not been applied.
+- [ELAN fingerprint reader](hardware/fingerprint/) — operation and local
+  integrations were verified on 2026-09-27.
 
 ## Boot and Portage
 

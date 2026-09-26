@@ -42,6 +42,8 @@ verified_on: [asus-b5402]
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.
 - [Второй NVMe и резервные копии](hardware/second-disk/) — состояние диска
   проверено 2026-09-22, план применения не выполнен.
+- [Сканер отпечатков ELAN](hardware/fingerprint/) — работа и локальные
+  интеграции проверены 2026-09-27.
 
 ## Boot и Portage
 

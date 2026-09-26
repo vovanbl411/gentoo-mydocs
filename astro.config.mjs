@@ -52,9 +52,15 @@ export default defineConfig({
 					],
 				},
 				{
-					slug: 'hardware/intel-graphics',
 					label: 'Оборудование',
 					translations: { en: 'Hardware' },
+					items: [
+						{ slug: 'hardware/intel-graphics', label: 'Intel Graphics' },
+						{
+							slug: 'hardware/elan-fingerprint-04f3-0c77',
+							label: 'ELAN fingerprint 04f3:0c77',
+						},
+					],
 				},
 				{
 					label: 'Сеть',
@@ -116,7 +122,6 @@ export default defineConfig({
 					collapsed: true,
 					items: [
 						{ label: 'LLVM 23 toolchain', items: [{ autogenerate: { directory: 'experiments/llvm23-toolchain' } }] },
-						{ label: 'ELAN fingerprint 04f3:0c77', items: [{ autogenerate: { directory: 'experiments/elan-fingerprint-04f3-0c77' } }] },
 					],
 				},
 			],

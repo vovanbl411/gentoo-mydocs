@@ -21,6 +21,9 @@ verified_on: [asus-b5402]
 - Polkit agent: exactly one
   `polkit-gnome-authentication-agent-1` process; the duplicate-agent conflict
   has been resolved.
+- Fingerprint: Noctalia lockscreen, greetd login, and polkit authentication
+  were verified on 2026-09-27. polkit password fallback was checked; greetd
+  fallback was not tested separately.
 
 The session, systemd user targets, portals, and polkit agent were checked
 against the live system on 2026-09-23. The GTK theme was not checked again in
@@ -119,3 +122,4 @@ Sources: [polkit — polkitbackendinteractiveauthority.c](https://gitlab.freedes
 - [Niri](../../../../desktop/niri/)
 - [XDG Desktop Portals](../../../../desktop/wayland-portals/)
 - [GTK4 and the Noctalia palette](../../../../settings/gtk/)
+- [ELAN fingerprint on ASUS B5402](../../hardware/fingerprint/)
