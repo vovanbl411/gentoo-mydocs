@@ -1,5 +1,5 @@
 ---
-title: ELAN fingerprint reader on ASUS ExpertBook B5402
+title: Сканер отпечатков ELAN на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: current
@@ -7,43 +7,43 @@ last_verified: "2026-09-27"
 verified_on: [asus-b5402]
 ---
 
-## Current state
+## Текущее состояние
 
-- Sensor: `04f3:0c77 Elan Microelectronics Corp. ELAN:ARM-M4`; USB interface
-  is Vendor Specific Class, interface 0, with no kernel driver.
-- Installed packages: `dev-libs/libgusb-0.4.9`,
+- Сканер: `04f3:0c77 Elan Microelectronics Corp. ELAN:ARM-M4`; USB-интерфейс
+  класса Vendor Specific Class, интерфейс 0, без драйвера ядра.
+- Установленные пакеты: `dev-libs/libgusb-0.4.9`,
   `sys-auth/libfprint-1.94.7`, `sys-auth/fprintd-1.94.3-r1`.
-- Portage patches: `/etc/portage/patches/sys-auth/libfprint-1.94.7/`, using
-  the full 11-patch `patches/series` from Alexys829's patchset.
-- `fprintd` discovery, `right-index-finger` enrollment, and subsequent
-  verification: PASS.
-- Noctalia v5 lockscreen fingerprint unlock: PASS.
-- greetd fingerprint login: PASS.
-- doas fingerprint authentication: PASS.
-- polkit fingerprint authentication and password fallback: PASS.
-- Shared `system-auth` was not modified; PAM integration is local to the
-  relevant service files. Noctalia uses its own `fprintd`/D-Bus integration.
+- Патчи Portage: `/etc/portage/patches/sys-auth/libfprint-1.94.7/`; применена
+  полная серия из 11 патчей `patches/series` от Alexys829.
+- Обнаружение устройства через `fprintd`, запись `right-index-finger` и
+  последующая проверка: успешно.
+- Разблокировка экрана Noctalia v5 по отпечатку: успешно.
+- Вход через greetd по отпечатку: успешно.
+- Аутентификация `doas` по отпечатку: успешно.
+- Аутентификация polkit по отпечатку и парольный fallback: успешно.
+- Общий `system-auth` не менялся; PAM настроен локально для соответствующих
+  сервисов. Noctalia использует собственную интеграцию с `fprintd`/D-Bus.
 
-The state above was checked on 2026-09-27. The greetd password fallback was
-not separately runtime-tested.
+Указанное состояние проверено 2026-09-27. Парольный fallback greetd отдельно
+во время работы не проверялся.
 
-## Verification evidence
+## Результаты проверки
 
-The doas audit record showed fingerprint authentication success; the local
-account name is replaced here with a placeholder:
+Запись auditd подтверждает успешную аутентификацию через отпечаток в doas;
+имя локальной учётной записи заменено шаблоном:
 
 ```text
 op=PAM:authentication grantors=pam_fprintd acct="<user>" exe="/usr/bin/doas" res=success
 ```
 
-## Known observation
+## Известное наблюдение
 
-After a failed fingerprint match, listing returned
-`Slot 0 returned status 0xff while listing`. With this firmware and patchset,
-the failed listing avoids returning an incomplete set that could make
-`fprintd` delete local fingerprints. The enrolled print remained available,
-and later verification matched. This did not block operation.
+После неудачного совпадения отпечатка при запросе списка появлялось сообщение
+`Slot 0 returned status 0xff while listing`. С этой прошивкой и patchset такой
+сбой не позволяет вернуть неполный список, из-за которого `fprintd` мог бы
+удалить локальные отпечатки. Записанный отпечаток сохранился, а последующая
+проверка завершилась совпадением. Это не мешало работе.
 
-## Related docs
+## Связанные документы
 
-- [ELAN 04f3:0c77 Gentoo guide](../../../../hardware/elan-fingerprint-04f3-0c77/)
+- [Руководство по ELAN 04f3:0c77 в Gentoo](../../../../hardware/elan-fingerprint-04f3-0c77/)

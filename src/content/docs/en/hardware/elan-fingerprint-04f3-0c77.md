@@ -48,18 +48,29 @@ applies it during a normal Portage build. The directory is scoped to
 /etc/portage/patches/sys-auth/libfprint-1.94.7/
 ```
 
-Clone the patchset, inspect `patches/series`, and confirm it lists all 11
-patches in the supplied order. Copy the complete contents of `patches/`,
-including `series`, into the version-scoped Portage directory:
+Clone the patchset and use `patches/series` as the file list and ordering.
+Portage does not read this list: `eapply_user` applies `.patch` and `.diff`
+files in POSIX lexicographic filename order. Add a two-digit numeric prefix to
+each copied patch so filename order matches `series`:
 
 ```bash
 git clone https://github.com/Alexys829/elan-0c77-libfprint.git /tmp/elan-0c77-libfprint
-cat /tmp/elan-0c77-libfprint/patches/series
-doas install -d /etc/portage/patches/sys-auth/libfprint-1.94.7
-doas cp -a /tmp/elan-0c77-libfprint/patches/. /etc/portage/patches/sys-auth/libfprint-1.94.7/
+patch_dir=/tmp/elan-0c77-libfprint/patches
+portage_patch_dir=/etc/portage/patches/sys-auth/libfprint-1.94.7
+doas install -d "$portage_patch_dir"
+n=0
+while IFS= read -r entry || [ -n "$entry" ]; do
+  case "$entry" in ''|\#*) continue ;; esac
+  n=$((n + 1))
+  patch_file=${entry##*/}
+  prefix=$(printf '%02d' "$n")
+  doas install -m 0644 "$patch_dir/$patch_file" "$portage_patch_dir/$prefix-$patch_file"
+done < "$patch_dir/series"
+find "$portage_patch_dir" -maxdepth 1 -type f -name '[0-9][0-9]-*.patch' -printf '%f\n' | sort
 ```
 
-Keep the order from `patches/series`. The tested build applied the full series
+The output should contain exactly 11 `.patch` files with two-digit numeric
+prefixes `01-` through `11-`. The tested build applied the full series
 successfully. No upstream commit SHA is recorded here.
 
 Rebuild the package through Portage:

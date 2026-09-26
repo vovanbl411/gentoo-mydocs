@@ -29,8 +29,8 @@ not separately runtime-tested.
 
 ## Verification evidence
 
-The doas audit record showed fingerprint authentication success; the local
-account name is replaced here with a placeholder:
+The doas audit record confirms successful fingerprint authentication; the local
+account name is replaced with a placeholder:
 
 ```text
 op=PAM:authentication grantors=pam_fprintd acct="<user>" exe="/usr/bin/doas" res=success

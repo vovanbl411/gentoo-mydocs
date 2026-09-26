@@ -47,19 +47,30 @@ doas emerge --ask dev-libs/libgusb sys-auth/libfprint sys-auth/fprintd
 /etc/portage/patches/sys-auth/libfprint-1.94.7/
 ```
 
-Склонируй patchset, проверь `patches/series` и убедись, что там перечислены
-все 11 патчей в исходном порядке. Скопируй всё содержимое `patches/`, включая
-`series`, в версионный каталог Portage:
+Склонируй patchset и используй `patches/series` как список и порядок файлов.
+Portage не читает этот список: `eapply_user` применяет `.patch` и `.diff` в
+POSIX lexicographic filename order. Поэтому при копировании добавь к каждому
+патчу двухзначный числовой префикс, сохраняя порядок из `series`:
 
 ```bash
 git clone https://github.com/Alexys829/elan-0c77-libfprint.git /tmp/elan-0c77-libfprint
-cat /tmp/elan-0c77-libfprint/patches/series
-doas install -d /etc/portage/patches/sys-auth/libfprint-1.94.7
-doas cp -a /tmp/elan-0c77-libfprint/patches/. /etc/portage/patches/sys-auth/libfprint-1.94.7/
+patch_dir=/tmp/elan-0c77-libfprint/patches
+portage_patch_dir=/etc/portage/patches/sys-auth/libfprint-1.94.7
+doas install -d "$portage_patch_dir"
+n=0
+while IFS= read -r entry || [ -n "$entry" ]; do
+  case "$entry" in ''|\#*) continue ;; esac
+  n=$((n + 1))
+  patch_file=${entry##*/}
+  prefix=$(printf '%02d' "$n")
+  doas install -m 0644 "$patch_dir/$patch_file" "$portage_patch_dir/$prefix-$patch_file"
+done < "$patch_dir/series"
+find "$portage_patch_dir" -maxdepth 1 -type f -name '[0-9][0-9]-*.patch' -printf '%f\n' | sort
 ```
 
-Сохрани порядок из `patches/series`. Проверенная сборка успешно применила
-полную серию. Конкретный upstream commit SHA здесь не зафиксирован.
+В выводе ожидаются ровно 11 файлов `.patch` с двухзначными числовыми
+префиксами `01-`…`11-`. Проверенная сборка успешно применила полную серию.
+Конкретный upstream commit SHA здесь не зафиксирован.
 
 Пересобери пакет через Portage:
 
