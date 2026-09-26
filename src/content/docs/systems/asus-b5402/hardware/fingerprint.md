@@ -21,6 +21,9 @@ verified_on: [asus-b5402]
 - Вход через greetd по отпечатку: успешно.
 - Аутентификация `doas` по отпечатку: успешно.
 - Аутентификация polkit по отпечатку и парольный fallback: успешно.
+- KeePassXC Linux Quick Unlock через polkit/отпечаток: PASS. Для текущего
+  `app-admin/keepassxc-2.8.0_pre20260629-r1` нужен однострочный патч Portage,
+  привязанный к версии пакета, для регистрации D-Bus metatype.
 - Общий `system-auth` не менялся; PAM настроен локально для соответствующих
   сервисов. Noctalia использует собственную интеграцию с `fprintd`/D-Bus.
 
@@ -47,3 +50,4 @@ op=PAM:authentication grantors=pam_fprintd acct="<user>" exe="/usr/bin/doas" res
 ## Связанные документы
 
 - [Руководство по ELAN 04f3:0c77 в Gentoo](../../../../hardware/elan-fingerprint-04f3-0c77/)
+- [KeePassXC Quick Unlock: ошибка polkit/D-Bus](../../../../troubleshooting/keepassxc-quick-unlock-polkit/)

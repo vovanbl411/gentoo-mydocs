@@ -21,6 +21,9 @@ verified_on: [asus-b5402]
 - greetd fingerprint login: PASS.
 - doas fingerprint authentication: PASS.
 - polkit fingerprint authentication and password fallback: PASS.
+- KeePassXC Linux Quick Unlock through polkit/fingerprint: PASS. The current
+  `app-admin/keepassxc-2.8.0_pre20260629-r1` needs a version-scoped one-line
+  D-Bus metatype registration patch.
 - Shared `system-auth` was not modified; PAM integration is local to the
   relevant service files. Noctalia uses its own `fprintd`/D-Bus integration.
 
@@ -47,3 +50,4 @@ and later verification matched. This did not block operation.
 ## Related docs
 
 - [ELAN 04f3:0c77 Gentoo guide](../../../../hardware/elan-fingerprint-04f3-0c77/)
+- [KeePassXC Quick Unlock polkit/D-Bus fix](../../../../troubleshooting/keepassxc-quick-unlock-polkit/)
