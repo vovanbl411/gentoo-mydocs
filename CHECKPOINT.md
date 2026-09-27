@@ -12,7 +12,7 @@
 | Дата последнего аудита | 2026-09-22 — live-system review (ядро, boot/UKI, graphics, polkit); `/etc/portage` целиком — 2026-09-14; baseline системы — 2026-09-10 |
 | Ветка | `main` |
 | Рабочее дерево | Starlight adaptation: Gates 1–5B.7 CLOSED; вся i18n-фаза CLOSED. Gate 5B.2 — commit `ab44d0be14fb36519d93412286767af885d898c7`, workflow run #6: `check:i18n` PASS, build/deploy success, 105 pages, Pagefind/sitemap success (15 EN / 37 fallback). Gate 5B.3 — commit `80ecddba621047594eeb0a9e4520e7589232ac3c`, workflow run #7: `check:i18n` PASS, build/deploy success, 105 pages, Pagefind/sitemap success (20 EN / 32 fallback). Gate 5B.4 CLOSED — commit `519bc6ef1501bbae48d67ae375c23654a9cfa48d`, workflow run #8: `check:i18n` PASS, build/deploy success, 105 pages, Pagefind/sitemap success (27 EN / 25 fallback). Gate 5B.5 CLOSED — commit `a19853f816e7019768e521ee3103dba15ec091b1`, workflow run #9: `check:i18n` PASS, build/deploy success, 105 pages, Pagefind/sitemap success (32 EN / 20 fallback). Gate 5B.6 CLOSED — commit `14324042a9dc23009439aaf4f5610ac1b2de1c6c`, workflow run #10: `check:i18n` PASS, build/deploy success, 105 pages, Pagefind/sitemap success (44 EN / 8 fallback; `systems/asus-b5402/` — 13/13 English). Gate 5B.7 CLOSED по локальному acceptance: 52 RU / 52 EN / 0 fallback; build generated 105 pages, Pagefind and sitemap succeeded. Deployment и workflow для Gate 5B.7 не выполнялись |
-| Система | Gentoo, ядро `7.2.7-bdsm`, BIOS `B5402CBA.314`, systemd-boot + UKI, Secure Boot + TPM2 (авторазблокировка LUKS реально проверена 2026-09-14) |
+| Система | Gentoo, ядро `7.2.8-bdsm`, BIOS `B5402CBA.314`, systemd-boot + UKI, Secure Boot + TPM2 (авторазблокировка LUKS реально проверена 2026-09-14) |
 | Аппаратура | ASUS ExpertBook B5402, i7-1260P (Alder Lake) |
 
 ---
@@ -82,9 +82,10 @@
 - **Загрузка**: systemd-boot + UKI (генератор — Dracut, `dracut-cpio`); LSM
   через `lsm=` (без `security=apparmor`); cmdline дополнен
   `audit_backlog_limit=8192` (2026-09-14).
-- **Ядро**: текущее — `7.2.7-bdsm` (обновлено 2026-09-22, загрузка успешная —
-  это подтверждённая загрузка, а не regression-тест всех подсистем).
-  Установлены `gentoo-kernel-7.2.7` и `-7.2.6`, `installkernel-68-r1`;
+- **Ядро**: текущее — `7.2.8-bdsm` (подтверждено 2026-09-27 при проверке Xe
+  и возврате на `i915`; это не regression-тест всех подсистем).
+  На 2026-09-22 были установлены `gentoo-kernel-7.2.7` и `-7.2.6`,
+  `installkernel-68-r1`;
   UKI-генератор — Dracut (`/etc/kernel/install.conf`: `layout=uki`,
   `initrd_generator=dracut`, `uki_generator=dracut`). Savedconfig — rolling
   `gentoo-kernel` + версионные `7.2.6`/`7.2.7` + `linux-firmware-20260916`
@@ -187,6 +188,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-09-27 | Xe acceptance на ASUS B5402 с `7.2.8-bdsm`: PCI binding, DMC/GuC/HuC firmware и сессия Niri/Wayland — PASS. При обычной работе плавность хуже, чем на `i915`; `xe.enable_psr2_sel_fetch=0` заметного улучшения не дал. Rollback выполнен, нормальная плавность восстановилась; production остаётся на `i915`. Experiment CLOSED. |
 | 2026-09-27 | KeePassXC Linux Quick Unlock через polkit/fingerprint подтверждён на ASUS B5402. Ошибка snapshot `QMap<QString,QString>` исправлена локальным version-scoped Portage patch для `app-admin/keepassxc-2.8.0_pre20260629-r1`; runtime audit подтвердил `pam_fprintd` и action `org.keepassxc.KeePassXC.unlockDatabase`. Это запись отдельной проверки, не новый аудит системы. |
 | 2026-09-27 | ELAN `04f3:0c77` fingerprint work завершён и перенесён в документацию: `sys-auth/libfprint-1.94.7` собран Portage с полным 11-патчевым patchset в `/etc/portage/patches/sys-auth/libfprint-1.94.7/`; `fprintd` discovery, enrollment и verification — PASS. Noctalia, greetd fingerprint login, doas fingerprint и polkit fingerprint/password fallback — PASS. Общий `system-auth` не изменялся; PAM-интеграции локальны. Это запись только указанной проверки, не полный аудит системы. |
 | 2026-09-25 | Завершён rollout sccache для Rust: `dev-util/sccache-0.16.0`, глобальный `RUSTC_WRAPPER=/usr/bin/sccache`, каталог `/var/tmp/sccache` на отдельном Btrfs subvolume `@sccache`, лимит 20G. Постоянный foreground daemon — enabled/active `sccache-portage.service` от `portage:portage`, transport — Unix domain socket `/var/tmp/sccache/sccache.sock` (TCP localhost не подходит для Portage с `FEATURES=network-sandbox`). Controlled production acceptance: cold/warm — 160.40s → 94.65s; 151 misses → 151 hits (147 Rust, 4 Assembler), около 41% меньше wall-clock; cacheable Rust compiler work ускоряется, non-cacheable crate types остаются. Решение: оставить sccache в production; лимит 20G пересматривать по накопленной production статистике. Remote storage и distributed compilation не используются; ccache для C/C++ остаётся независимой policy. |

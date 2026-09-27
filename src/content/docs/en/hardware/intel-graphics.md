@@ -3,19 +3,19 @@ title: "Intel graphics stack: migrating from i915 to Xe"
 kind: guide
 scope: general
 status: draft
-last_verified: "2026-09-23"
+last_verified: "2026-09-27"
 verified_on: [asus-b5402]
 ---
 
 ## Goal and current state
 
-This document describes the preparation for moving an Intel GPU from the
-current `i915` kernel driver to the target `xe`. The presence of the `xe`
-module or a configured Mesa stack does not confirm that the GPU is bound to
-`xe`: the actually bound kernel driver must be checked separately.
+This document describes switching an Intel GPU from the `i915` kernel driver
+to `xe`. The presence of the `xe` module or a configured Mesa stack does not
+confirm that the GPU is bound to `xe`: the actually bound kernel driver must
+be checked separately.
 
-On the ASUS B5402 the migration has not been performed yet. The current
-state of this machine is recorded in
+Xe was tested on the ASUS B5402, after which the machine returned to `i915`.
+The current state of this machine is recorded in
 [the system section](../../systems/asus-b5402/hardware/graphics/); its values
 are not a universal configuration for every Intel GPU.
 
@@ -60,7 +60,7 @@ current ASUS B5402 state.
 
 ## Switching and a Dracut example
 
-The existing example shows an intermediate state before the switch: `i915`
+The example shows a working `i915` configuration: `i915`
 is added to the initramfs, and forced `xe` loading is disabled.
 
 File: `/etc/dracut.conf.d/10-drivers.conf`
@@ -89,12 +89,11 @@ GPU. Perform the migration in this order:
 6. Keep a working `i915` fallback.
 7. After the reboot, check `Kernel driver in use`.
 
-For the ASUS B5402 PCI ID `46a6`, the pair would look like
-`xe.force_probe=46a6 i915.force_probe=!46a6`. Current upstream Linux marks
-Alder Lake-P as requiring a force probe for Xe, but the sources of the
-specific local kernel `7.2.7-bdsm` were not checked in this audit. So first
-confirm the requirement in this version instead of adding the parameters
-automatically.
+For the ASUS B5402 PCI ID `46a6`, the pair
+`xe.force_probe=46a6 i915.force_probe=!46a6` was tested on `7.2.8-bdsm`.
+In upstream Linux 7.2.8 sources, the Alder Lake-P descriptor `adl_p_desc`
+still has `.require_force_probe = true`. Check the requirement in the sources
+for any other device or kernel.
 
 After this check, `force_drivers+=" xe "` can be enabled for early Xe
 loading. Do not remove `i915` from the initramfs until a working fallback
@@ -139,6 +138,21 @@ presentation or Niri stability. After the switch, test rendering, latency
 and interactive behavior, frame presentation, suspend/resume, external
 displays and Niri session stability in practice.
 
+## Result on ASUS B5402
+
+On `7.2.8-bdsm`, Xe bound to PCI `8086:46a6` after applying
+`xe.force_probe=46a6 i915.force_probe=!46a6` and loading Xe early through
+Dracut. The check showed `Kernel driver in use: xe`; DMC, GuC, and HuC loaded
+from `sys-kernel/linux-firmware-20260916`, and the Niri/Wayland session
+worked. The firmware check passed. The smoothness test during normal use led
+to a rollback: the display consistently felt less smooth with Xe than with
+`i915`. Disabling PSR2
+selective fetch with `xe.enable_psr2_sel_fetch=0` brought no noticeable
+improvement. Normal smoothness returned after switching back to `i915`.
+This result applies to this machine; Xe performance on other GPUs needs
+separate testing. Details are in the
+[system document](../../systems/asus-b5402/hardware/graphics/).
+
 ## Verification after the switch
 
 After booting, check:
@@ -158,8 +172,8 @@ loaded.
 
 ## Rollback
 
-If after the switch the system does not boot or the graphical session fails
-to start:
+If after the switch the system does not boot, the graphical session fails to
+start, or its operation does not pass testing:
 
 1. If kernel parameters were added, remove or undo both:
    `xe.force_probe=<PCI-ID>` and `i915.force_probe=!<PCI-ID>`.
