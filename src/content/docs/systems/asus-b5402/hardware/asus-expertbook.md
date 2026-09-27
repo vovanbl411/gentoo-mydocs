@@ -3,7 +3,7 @@ title: Специфика ASUS ExpertBook B5402CBA
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-14"
+last_verified: "2026-09-27"
 verified_on: [asus-b5402]
 ---
 
@@ -33,11 +33,25 @@ verified_on: [asus-b5402]
 Файл: `/etc/tlp.d/99-custom.conf`
 
 ```conf
-# Ограничение заряда для ASUS
+# Ограничение заряда для ASUS ExpertBook (BAT1)
 STOP_CHARGE_THRESH_BAT1=80
+
+# Intel HWP dynamic boost: повышает отзывчивость после I/O wakeups.
+# Включён для обычных AC/BAT профилей, отключён в power-saving profile.
+CPU_HWP_DYN_BOOST_ON_AC=1
+CPU_HWP_DYN_BOOST_ON_BAT=1
+CPU_HWP_DYN_BOOST_ON_SAV=0
 ```
 
 Не задавать этот порог отдельно через UPower или напрямую через sysfs.
+
+При `intel_pstate` в режиме `active` динамическим HWP boost управляет TLP:
+он включён для обычных профилей AC/BAT ради отзывчивости после I/O wakeups
+и намеренно отключён для `power-saver`. Для этого не используются отдельные
+параметры командной строки ядра, systemd-юнит или прямая запись в sysfs.
+Текущие значения:
+`scaling_driver=intel_pstate`, `scaling_governor=powersave`,
+`energy_performance_preference=balance_performance`.
 
 ## Поддержка ASUS в ядре (Kconfig)
 
@@ -88,6 +102,17 @@ doas tlp-stat -b
 На 2026-09-14 `tlp-stat -b` подтверждает активный плагин `natacpi (asus_wmi)`,
 значение `charge_control_end_threshold = 80` и состояние `Not charging` при
 заряде 80.3%.
+
+После `tlp start` 2026-09-27 выбран профиль `performance/AC (auto)`;
+`tlp-stat -c` показывает, что все три `CPU_HWP_DYN_BOOST_*` значения читаются
+из `/etc/tlp.d/99-custom.conf`. Проверка активного значения:
+
+```bash
+cat /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
+```
+
+Ожидаемый и подтверждённый вывод: `1`. Сохранение значения после reboot
+отдельно не проверялось.
 
 ## Related docs
 
