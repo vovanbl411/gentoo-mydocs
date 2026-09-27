@@ -90,6 +90,10 @@
   `initrd_generator=dracut`, `uki_generator=dracut`). Savedconfig — rolling
   `gentoo-kernel` + версионные `7.2.6`/`7.2.7` + `linux-firmware-20260916`
   (проверено 2026-09-22).
+- **Управление памятью (2026-09-27)**: zram (`ram / 2`, `zstd`, priority 100);
+  `vm.swappiness=100` закреплён в `/etc/sysctl.d/99-memory.conf` и подтверждён
+  в runtime. MGLRU `0x0007`, `vm.vfs_cache_pressure=100` и THP
+  `always`/`madvise` оставлены без изменений; zswap не используется.
 - **Ядро 7.2.5 — пересборка 2026-09-14 (историческая запись)**:
   `RT_GROUP_SCHED_DEFAULT_DISABLED=y`
   (rtkit получил realtime, RR 99), `BT_HIDP=m`, `uinput` в

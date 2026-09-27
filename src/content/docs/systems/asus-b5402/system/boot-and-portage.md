@@ -3,7 +3,7 @@ title: Загрузка и Portage на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-25"
+last_verified: "2026-09-27"
 verified_on: [asus-b5402]
 ---
 
@@ -20,6 +20,21 @@ verified_on: [asus-b5402]
 | UKI-генератор | Dracut — `ukify` в generation path не входит |
 | Корень | LUKS2 → TPM2-разблокировка → Btrfs-субволюм `@` |
 | Portage env | 4 файла `env/`, 3 файла `package.env/` |
+
+## Управление памятью
+
+`zram-generator` создаёт `/dev/zram0` по настройкам
+`/etc/systemd/zram-generator.conf`: `zram-size = ram / 2` (сейчас 11.5 GiB
+при 24 GiB RAM), сжатие `zstd`, swap priority `100`. `zswap` не используется.
+
+В `/etc/sysctl.d/99-memory.conf` задано `vm.swappiness = 100`: для swap в RAM
+принята равная относительная стоимость reclaim анонимной памяти через swap и
+файлового кэша. Это не процент занятой RAM и не порог начала swap; значение
+`100` не объявляется универсальным оптимумом. `vm.vfs_cache_pressure = 100`
+оставлено без изменений. MGLRU включён (`0x0007`); THP остаётся в режимах
+`enabled = always` и `defrag = madvise`.
+
+Состояние проверено 2026-09-27 по конфигурации, `sysctl`, `swapon` и sysfs.
 
 ## Toolchain
 
