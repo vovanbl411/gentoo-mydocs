@@ -23,13 +23,20 @@ verified_on: [asus-b5402]
   `2.8.0-snapshot`); включён встроенный backup перед сохранением базы:
   timestamped `.kdbx` в `~/Backups/KeePassXC/` (directory mode `0700`).
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` (собственный
-  OAuth Desktop client, scope `drive.file`); backups KeePassXC вручную
-  доставляются в `gdrive:Backups/KeePassXC/`.
+  OAuth Desktop client, scope `drive.file`; publishing status приложения —
+  пока *Testing*); backups KeePassXC вручную доставляются в
+  `gdrive:Backups/KeePassXC/` без удаления на remote.
 
 Записи перенесены из общих руководств и сверены с системой 2026-09-22.
-Записи KeePassXC и rclone проверены отдельно 2026-09-28: реальный backup
-KDBX доставлен в Google Drive и скачан обратно byte-identical (`cmp`,
-SHA-256 — PASS). Остальные приложения 2026-09-28 повторно не проверялись.
+Записи KeePassXC и rclone проверены отдельно 2026-09-28: OAuth Desktop
+client работает, remote `gdrive:` работает, реальный backup KDBX доставлен
+в Google Drive и скачан обратно byte-identical (`cmp`, SHA-256 — PASS).
+Остаточные шаги live-конфигурации: перевести OAuth-приложение из *Testing*
+в *In production*, обязательно переподключить авторизацию
+(`rclone config reconnect gdrive:`) и повторить минимальную проверку
+transport: list remote, upload test file, read, deletefile. До этого
+долговременная схема доставки не считается завершённой. Остальные
+приложения 2026-09-28 повторно не проверялись.
 
 ## Firefox
 
@@ -41,9 +48,13 @@ SHA-256 — PASS). Остальные приложения 2026-09-28 повто
 
 - OBS: package policy и настройки порта-стека остаются планом.
 - Perplexity: перенос конфигурации в chezmoi остаётся планом.
-- KeePassXC backups: production rotation локальной 90-day истории,
-  automation доставки и синхронизация с телефоном не реализованы; Google
-  Drive используется как append-only destination.
+- KeePassXC backups: завершение схемы требует перевести OAuth-приложение из
+  *Testing* в *In production*, обязательно переподключить авторизацию и
+  выполнить минимальную проверку transport; далее — production rotation
+  локальной 90-day истории, design и
+  implementation automation доставки, синхронизация с телефоном; доставка
+  в Google Drive идёт без удаления — rotation/удаление на remote
+  намеренно не выполняются.
 
 ## Общие руководства
 

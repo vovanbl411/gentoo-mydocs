@@ -24,14 +24,20 @@ verified_on: [asus-b5402]
   enabled: timestamped `.kdbx` files in `~/Backups/KeePassXC/` (directory
   mode `0700`).
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` (a dedicated
-  OAuth Desktop client, scope `drive.file`); KeePassXC backups are
-  delivered manually to `gdrive:Backups/KeePassXC/`.
+  OAuth Desktop client, scope `drive.file`; the app's publishing status is
+  still *Testing*); KeePassXC backups are delivered manually to
+  `gdrive:Backups/KeePassXC/` without deletions on the remote.
 
 The entries were moved from the general guides and checked against the system
 on 2026-09-22. The KeePassXC and rclone entries were verified separately on
-2026-09-28: a real KDBX backup was uploaded to Google Drive and downloaded
-back byte-identical (`cmp`, SHA-256 — PASS). The other applications were not
-re-checked on 2026-09-28.
+2026-09-28: the OAuth Desktop client works, the `gdrive:` remote works, and
+a real KDBX backup was uploaded to Google Drive and downloaded back
+byte-identical (`cmp`, SHA-256 — PASS). Remaining live-configuration steps
+are to switch the OAuth app from *Testing* to *In production*, reconnect the
+authorization (`rclone config reconnect gdrive:`), and repeat the minimal
+transport validation: list the remote, upload a test file, read it, and
+deletefile. Until then the long-term delivery scheme is not considered
+complete. The other applications were not re-checked on 2026-09-28.
 
 ## Firefox
 
@@ -43,9 +49,13 @@ re-checked on 2026-09-28.
 
 - OBS: the package policy and portal-stack settings remain planned.
 - Perplexity: moving the configuration into chezmoi remains planned.
-- KeePassXC backups: production rotation of the local 90-day history,
-  delivery automation, and phone sync are not implemented; Google Drive is
-  used as an append-only destination.
+- KeePassXC backups: completing the scheme requires switching the OAuth app
+  from *Testing* to *In production*, reconnecting the authorization, and
+  running the minimal transport validation; next are production rotation
+  of the local 90-day history, the design and implementation of delivery
+  automation, and phone sync; delivery to
+  Google Drive goes without deletions — remote rotation/deletion is
+  deliberately not performed.
 
 ## General guides
 

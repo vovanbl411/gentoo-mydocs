@@ -14,9 +14,14 @@ machine is lost, the database is recoverable from the local directory and
 from the cloud, and delivery to the cloud never deletes old copies.
 
 The scheme applies to any system with KeePassXC and rclone; automation
-(timers, rotation) is deliberately out of scope here. The full procedure was
-verified on the ASUS ExpertBook B5402 on 2026-09-28 (KeePassXC
-2.8.0-snapshot); the recorded machine state is in
+(timers, rotation) is deliberately out of scope here.
+
+On the ASUS ExpertBook B5402, the following were verified on 2026-09-28:
+local timestamped KeePassXC backups, directory mode `0700`, the `gdrive:`
+remote with a dedicated OAuth Desktop client and the `drive.file` scope, and
+a real KDBX upload and download with identical bytes. The OAuth app is still
+in *Testing*. Switching it to *In production* and authorizing again afterward
+are still pending. The recorded machine state is in
 [the system section](../../systems/asus-b5402/applications/).
 
 ## Architecture
@@ -26,7 +31,7 @@ KeePassXC
   ↓ built-in backup before saving the database
 ~/Backups/KeePassXC/           timestamped .kdbx, directory mode 0700
   ↓ rclone copy / copyto (manual)
-gdrive:Backups/KeePassXC/      append-only backup destination
+gdrive:Backups/KeePassXC/      backup destination, delivery without deletion
 ```
 
 The key decision: Google Drive is a destination for backups, not a live
@@ -51,29 +56,60 @@ Pinning a specific version is not needed.
 ## A dedicated OAuth client in Google Cloud
 
 rclone can work with the project's built-in client_id, but it is shared by
-all rclone users and subject to a shared rate limit. A dedicated OAuth
-client from a personal Google Cloud project gives you a dedicated quota and
-limits the OAuth consent to your own account. The project itself is free;
-only the Drive storage counts against the account quota.
+all rclone users and subject to a shared rate limit. According to the rclone
+documentation, the shared Google Drive client_id is being retired and will
+stop working during 2026, so a dedicated OAuth client in a personal Google
+Cloud project under your control is needed for a new setup. It also uses a
+separate project quota.
 
 Steps in [Google Cloud Console](https://console.cloud.google.com/):
 
 1. Create a project (for example, `rclone-backups`).
 2. Enable the **Google Drive API** (APIs & Services → Library).
-3. Configure the **OAuth consent screen**: user type *External*; for
-   personal use it is enough to add your own Google account as a test user
-   (audience) and not publish the app.
-4. Create an **OAuth client ID** (Credentials → Create credentials): the
+3. Configure the **OAuth consent screen**: user type *External*.
+4. Under **Data Access**, declare the minimum scope:
+   `https://www.googleapis.com/auth/drive.file`. Do not add the full `drive`
+   scope.
+5. Create an **OAuth client ID** (Credentials → Create credentials): the
    application type is *Desktop app*.
-5. Copy the client ID and client secret — they will be needed in
+6. Copy the client ID and client secret — they will be needed in
    `rclone config`.
+7. Switch the app to the publishing status *In production* (the Publish app
+   button).
 
-Google renames console menu items from time to time; what matters is one
-thing: a Desktop OAuth client attached to your own project and account.
+If **Publish app** is unavailable and Google requires App domain
+information, fill in the required Branding fields: **Application home
+page**, **Privacy policy URL**, and **Authorized domain**. These fields are
+not required in every case.
 
-> **Important**: never publish the client ID, the client secret, and even
-> more so the contents of `rclone.conf` with the OAuth token — anywhere,
-> including issues and documentation. The examples below use placeholders.
+Do not leave the app in the *Testing* status: for an External app in
+Testing, refresh tokens for Google API scopes expire after 7 days — that is
+unacceptable for a long-term backup. In *In production* this 7-day
+limitation does not apply. Formal OAuth verification is not required for
+personal use. *External* / *In production* is technically available to
+other Google accounts; personal use describes the operational use case, not
+an audience restriction.
+
+Use a dedicated client because rclone's shared `client_id` is being retired
+in 2026, and the project and client are under your control. The client uses
+a separate project quota.
+
+If an existing configuration was authorized while the app was in
+*Testing*, reconnect it after switching the app to *In production*:
+`rclone config reconnect gdrive:`. Then repeat the minimal transport
+validation in the next section: run `rclone lsf`, upload a test file, read
+it with `rclone cat`, and delete it with `rclone deletefile`.
+For a fresh install, no separate reconnect is needed when the initial
+authorization happens after **Publish app**.
+
+Google renames console menu items from time to time; create a Desktop OAuth
+client in a project you control and switch the app to *In production*.
+
+> **Important**: never publish the contents of `rclone.conf` and the OAuth
+> token (including the refresh token), and do not commit the client secret.
+> The client ID is not a credential at the OAuth token level, but there is
+> no reason to publish a real project identifier in this repository. The
+> examples below use placeholders.
 
 ## The gdrive remote
 
@@ -151,32 +187,43 @@ Before trusting the remote with a real database, run a test on a plain
 text file:
 
 ```bash
-echo "rclone gdrive test" > /tmp/rclone-gdrive-test.txt
-rclone copyto /tmp/rclone-gdrive-test.txt gdrive:Backups/KeePassXC/rclone-gdrive-test.txt
-rclone cat gdrive:Backups/KeePassXC/rclone-gdrive-test.txt   # rclone gdrive test
-rclone delete gdrive:Backups/KeePassXC/rclone-gdrive-test.txt
-rm /tmp/rclone-gdrive-test.txt
+echo "rclone gdrive test" > /tmp/rclone-test.txt
+rclone lsf gdrive:Backups/KeePassXC
+rclone copyto /tmp/rclone-test.txt gdrive:Backups/KeePassXC/rclone-test.txt
+rclone cat gdrive:Backups/KeePassXC/rclone-test.txt   # rclone gdrive test
+rclone deletefile gdrive:Backups/KeePassXC/rclone-test.txt
+rm /tmp/rclone-test.txt
 ```
 
-`rclone cat` must return the written line, and `rclone delete` must remove
-the test object. This tests the transport, not the database.
+`rclone cat` must return the written line, and `rclone deletefile` must
+remove the test object (`deletefile` removes one specific file; `delete`
+works on the whole path). This tests the transport, not the database.
 
 ## Local KeePassXC backups
 
 Create the backup directory accessible only to your user:
 
 ```bash
-mkdir -m 700 -p ~/Backups/KeePassXC
-stat -c '%a' ~/Backups/KeePassXC   # expected: 700
+mkdir -p ~/Backups/KeePassXC
+chmod 700 ~/Backups/KeePassXC
+stat -c '%a %U:%G %n' ~/Backups/KeePassXC
+# expected: 700 <user>:<user> /home/<user>/Backups/KeePassXC
 ```
+
+The `chmod` is a separate command because `mkdir -m` does not change the
+permissions of a directory that already exists: if the directory was
+created earlier with wider permissions, `mkdir -m 700 -p` will not fix
+them.
 
 In KeePassXC, enable the built-in backup before saving the database:
 **Tools → Application Settings → Basic → Backup database file before
 saving**, plus the backup destination path field (wording differs in the
 Russian localization — follow the meaning of the setting).
 
-The field requires an absolute path; do not rely on `~` or `$HOME`
-expansion in it. Use an explicit path to your home and a filename template:
+KeePassXC supports both absolute and relative paths in the backup
+destination field. This scheme deliberately uses an explicit absolute path
+so that the destination does not depend on the working database directory.
+The filename template:
 
 ```text
 /home/<user>/Backups/KeePassXC/{DB_FILENAME}-{TIME:yyyy-MM-dd_HH-mm-ss}.kdbx
@@ -186,12 +233,14 @@ expansion in it. Use an explicit path to your home and a filename template:
 timestamp of the copy in the given format.
 
 Verification: change any entry in the database and save it — a separate
-timestamped `.kdbx` appears in the directory:
+timestamped `.kdbx` appears in the directory. Database names may contain
+spaces and apostrophes, so use quoted variables in the commands:
 
 ```bash
 ls -l ~/Backups/KeePassXC
-file ~/Backups/KeePassXC/<timestamped-backup>.kdbx
-# <timestamped-backup>.kdbx: Keepass password database 2.x KDBX
+backup_name="database-2026-09-28_21-49-42.kdbx"   # your file name
+file "$HOME/Backups/KeePassXC/$backup_name"
+# database-2026-09-28_21-49-42.kdbx: Keepass password database 2.x KDBX
 ```
 
 ## Manual delivery to Google Drive
@@ -206,13 +255,18 @@ rclone copy ~/Backups/KeePassXC gdrive:Backups/KeePassXC
 One specific backup under the same name:
 
 ```bash
-rclone copyto ~/Backups/KeePassXC/<timestamped-backup>.kdbx \
-  gdrive:Backups/KeePassXC/<timestamped-backup>.kdbx
+backup_name="database-2026-09-28_21-49-42.kdbx"   # your file name
+rclone copyto \
+  "$HOME/Backups/KeePassXC/$backup_name" \
+  "gdrive:Backups/KeePassXC/$backup_name"
 ```
 
-`rclone copy`/`copyto` do not delete files in the destination — old remote
-copies stay in place. This is a deliberate choice: Google Drive is
-append-only here.
+`rclone copy`/`copyto` do not delete files in the destination: routine
+delivery does not touch destination-only copies, and timestamped file names
+keep the old versions. Remote deletion and rotation are deliberately not
+performed right now — this is the operational policy of the scheme, not a
+technical property of the storage: the Google Drive remote can modify and
+delete the objects it created.
 
 ## Verification: restoring from the cloud
 
@@ -220,13 +274,13 @@ Download the remote copy to a temporary file and compare it with the local
 one:
 
 ```bash
-rclone copyto gdrive:Backups/KeePassXC/<timestamped-backup>.kdbx \
-  /tmp/<timestamped-backup>.verify.kdbx
-cmp -s ~/Backups/KeePassXC/<timestamped-backup>.kdbx \
-  /tmp/<timestamped-backup>.verify.kdbx && echo "cmp: PASS"
-sha256sum ~/Backups/KeePassXC/<timestamped-backup>.kdbx \
-  /tmp/<timestamped-backup>.verify.kdbx
-rm /tmp/<timestamped-backup>.verify.kdbx
+backup_name="database-2026-09-28_21-49-42.kdbx"   # your file name
+verify_file=$(mktemp /tmp/keepassxc-verify.XXXXXX.kdbx)
+rclone copyto "gdrive:Backups/KeePassXC/$backup_name" "$verify_file"
+cmp -s "$HOME/Backups/KeePassXC/$backup_name" "$verify_file" \
+  && echo "cmp: PASS"
+sha256sum "$HOME/Backups/KeePassXC/$backup_name" "$verify_file"
+rm "$verify_file"
 ```
 
 The PASS criteria: the sizes are equal, `cmp` prints `cmp: PASS`, and the
@@ -242,7 +296,7 @@ database — there is no reason to copy them into documentation or notes.
 The decisions made:
 
 - local history: keep backups from the last 90 days;
-- Google Drive: append-only, no remote rotation.
+- Google Drive: delivery without deletion; no remote rotation.
 
 Implementation status as of 2026-09-28:
 
@@ -261,7 +315,7 @@ Implementation status as of 2026-09-28:
 |----------|--------------------|
 | `rclone mount`, FUSE, VFS cache | Google Drive is not a live filesystem for an open database: the cache layer and desynchronization add a failure mode that does not exist when copying closed files. |
 | A permanently mounted Drive | Same, plus the database must not be opened from a network “disk”. |
-| `rclone sync` | `sync` deletes destination files that are missing at the source — it breaks the append-only history. |
+| `rclone sync` | `sync` deletes destination files that are missing at the source — it removes old remote copies and breaks the delivery-without-deletion scheme. |
 | Git/GitHub as live KDBX sync | A binary secret in a VCS widens the propagation surface and provides no version history inside the database. |
 
 ## Limitations and next stages
@@ -269,27 +323,34 @@ Implementation status as of 2026-09-28:
 Not implemented and deliberately not described here (separate next stages):
 
 - production rotation of the local 90-day history;
-- delivery automation, for example a systemd user timer for rclone;
+- delivery automation — a separate design stage; no decision on a specific
+  method has been made (a systemd user timer is only an example of a
+  possible option);
 - syncing the database with a phone.
 
 ## Troubleshooting and rollback
 
 - rclone reports an expired or invalid token — re-issue the authorization:
   `rclone config reconnect gdrive:`.
-- Frequent `429` responses (rate limit) — a sign of going through the
-  shared built-in client_id; check that the remote uses your own OAuth
-  client.
+- `429` responses (rate limit) mean the Google Drive API quota/rate limit
+  has been hit and can occur for various reasons. Check the rclone error
+  text, the project quotas in the Cloud Console, and that the remote uses
+  your own OAuth client rather than the shared built-in client_id.
 - `rclone.conf` permissions wider than `600` — fix them:
   `chmod 600 ~/.config/rclone/rclone.conf`.
 
 Rollback:
 
-- locally — turn off the backup setting in KeePassXC; the
-  `~/Backups/KeePassXC` directory can be removed entirely if you want;
-- remote — `rclone purge gdrive:Backups/KeePassXC` deletes the whole
-  directory in Google Drive with all backup copies; run it only
-  deliberately. Removing the remote from the configuration
-  (`rclone config delete gdrive`) does not touch the files in Drive.
+- in KeePassXC, turn off the automatic backup if it is no longer needed;
+  the local `~/Backups/KeePassXC` directory can be removed separately if
+  you want;
+- remove the `gdrive` remote from the local rclone configuration
+  (`rclone config delete gdrive`) only if you really do not need it —
+  removing the remote from the configuration does not touch the files in
+  Google Drive;
+- the backup files in `gdrive:Backups/KeePassXC/` stay in Drive until you
+  decide to delete them separately; the regular rollback of the setup does
+  not delete them.
 
 ## Related docs
 
@@ -298,7 +359,12 @@ Rollback:
 
 ## References
 
-- [rclone: Google Drive](https://rclone.org/drive/) — the backend, scopes, your own client_id.
-- [rclone docs](https://rclone.org/docs/) — the `copy`, `copyto`, `mkdir`, `delete`, `config` commands.
+- [rclone: Google Drive](https://rclone.org/drive/) — the backend, scopes,
+  your own client_id; the shared client_id retirement during 2026.
+- [rclone docs](https://rclone.org/docs/) — the `copy`, `copyto`, `mkdir`,
+  `deletefile`, `config` commands.
+- [Google: OAuth 2.0](https://developers.google.com/identity/protocols/oauth2) —
+  refresh token expiration: Testing — 7 days, In production — no such
+  limitation.
 - [net-misc/rclone](https://packages.gentoo.org/packages/net-misc/rclone) — the Gentoo package.
 - [KeePassXC](https://github.com/keepassxreboot/keepassxc) — the upstream project.
