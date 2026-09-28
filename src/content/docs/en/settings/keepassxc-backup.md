@@ -16,14 +16,15 @@ from the cloud, and delivery to the cloud never deletes old copies.
 The scheme applies to any system with KeePassXC and rclone; automation
 (timers, rotation) is deliberately out of scope here.
 
-On the ASUS ExpertBook B5402, the following were verified on 2026-09-29:
-local timestamped KeePassXC backups, directory mode `0700`, the `gdrive:`
-remote with a dedicated OAuth Desktop client and the `drive.file` scope, and
-a real KDBX upload and download with identical bytes. The OAuth app is
-*In production*, the existing remote was re-authorized, and post-reauth
-transport validation passed: listing, uploading a temporary text object,
-reading the expected content, deleting it, and listing again to confirm its
-absence. The recorded machine state is in
+On the ASUS ExpertBook B5402, local timestamped KeePassXC backups, directory
+mode `0700`, the `gdrive:` remote with a dedicated OAuth Desktop client and
+the `drive.file` scope, and a real KDBX upload and download with identical
+bytes were verified on 2026-09-28. On 2026-09-29, the OAuth app moved to
+*In production*, the existing remote was re-authorized
+(`rclone config reconnect gdrive:` — PASS), and post-reauth transport
+validation passed: listing, uploading a temporary text object, reading the
+expected content, deleting it, and listing again to confirm its absence.
+The recorded machine state is in
 [the system section](../../systems/asus-b5402/applications/).
 
 ## Architecture

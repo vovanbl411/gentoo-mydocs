@@ -35,9 +35,9 @@ verified_on: [asus-b5402]
 client и remote `gdrive:` работают; приложение находится в *In production*,
 remote `gdrive:` повторно авторизован командой
 `rclone config reconnect gdrive:` (PASS), post-reauth transport validation
-— PASS. Реальный backup KDBX ранее
-доставлен и скачан обратно byte-identical (`cmp`, SHA-256 — PASS). Остальные
-приложения 2026-09-28 повторно не проверялись.
+— PASS. Реальный backup KDBX доставлен и скачан обратно byte-identical
+2026-09-28 (`cmp`, SHA-256 — PASS). Остальные приложения 2026-09-29 повторно
+не проверялись.
 
 ## Firefox
 

@@ -36,10 +36,9 @@ on 2026-09-22. The KeePassXC and rclone entries were verified separately on
 2026-09-29: the OAuth Desktop client works, the app is *In production*, and
 the `gdrive:` remote was re-authorized with
 `rclone config reconnect gdrive:` (PASS). Post-reauth transport validation
-passed. A real KDBX backup had
-previously been uploaded to Google Drive and downloaded back byte-identical
-(`cmp`, SHA-256 — PASS). The other applications were not re-checked on
-2026-09-28.
+passed. A real KDBX backup was uploaded to Google Drive and downloaded back
+byte-identical on 2026-09-28 (`cmp`, SHA-256 — PASS). The other applications
+were not re-checked on 2026-09-29.
 
 ## Firefox
 

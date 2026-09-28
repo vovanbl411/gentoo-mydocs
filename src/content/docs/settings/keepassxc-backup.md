@@ -16,13 +16,14 @@ Google Drive через rclone. Результат: при повреждени�
 Схема применима на любой системе с KeePassXC и rclone; автоматизация
 (таймеры, rotation) здесь сознательно не рассматривается.
 
-На ASUS ExpertBook B5402 2026-09-29 проверены локальные timestamped
+На ASUS ExpertBook B5402 2026-09-28 проверены локальные timestamped
 backups KeePassXC, права каталога `0700`, remote `gdrive:` с собственным
 OAuth Desktop client и scope `drive.file`, а также загрузка и скачивание
-реального KDBX без изменения байтов. OAuth-приложение находится в статусе
-*In production*, существующий remote повторно авторизован, а post-reauth
-transport validation пройдена: list, upload временного текстового объекта,
-read с ожидаемым содержимым, deletefile и повторный list без этого объекта.
+реального KDBX без изменения байтов. 2026-09-29 OAuth-приложение переведено
+в статус *In production*, существующий remote повторно авторизован
+(`rclone config reconnect gdrive:` — PASS), а post-reauth transport
+validation прошла: list, upload временного текстового объекта, read с
+ожидаемым содержимым, deletefile и повторный list без этого объекта.
 Текущее состояние машины записано в
 [системном разделе](../../systems/asus-b5402/applications/).
 
