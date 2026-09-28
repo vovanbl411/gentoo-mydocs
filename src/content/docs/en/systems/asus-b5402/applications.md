@@ -3,7 +3,7 @@ title: Applications on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-28"
+last_verified: "2026-09-29"
 verified_on: [asus-b5402]
 ---
 
@@ -23,21 +23,23 @@ verified_on: [asus-b5402]
   `2.8.0-snapshot`); the built-in backup before saving the database is
   enabled: timestamped `.kdbx` files in `~/Backups/KeePassXC/` (directory
   mode `0700`).
-- rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` (a dedicated
-  OAuth Desktop client, scope `drive.file`; the app's publishing status is
-  still *Testing*); KeePassXC backups are delivered manually to
-  `gdrive:Backups/KeePassXC/` without deletions on the remote.
+- rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` with a dedicated
+  OAuth Desktop client and the `drive.file` scope; the app's publishing
+  status is *In production*. The existing remote was re-authorized, and
+  post-reauth transport validation (list, upload, read, deletefile, and
+  confirmation that the temporary object is absent) passed on 2026-09-29.
+  KeePassXC backups are delivered manually to `gdrive:Backups/KeePassXC/`
+  without deletions on the remote.
 
 The entries were moved from the general guides and checked against the system
 on 2026-09-22. The KeePassXC and rclone entries were verified separately on
-2026-09-28: the OAuth Desktop client works, the `gdrive:` remote works, and
-a real KDBX backup was uploaded to Google Drive and downloaded back
-byte-identical (`cmp`, SHA-256 — PASS). Remaining live-configuration steps
-are to switch the OAuth app from *Testing* to *In production*, reconnect the
-authorization (`rclone config reconnect gdrive:`), and repeat the minimal
-transport validation: list the remote, upload a test file, read it, and
-deletefile. Until then the long-term delivery scheme is not considered
-complete. The other applications were not re-checked on 2026-09-28.
+2026-09-29: the OAuth Desktop client works, the app is *In production*, and
+the `gdrive:` remote was re-authorized with
+`rclone config reconnect gdrive:` (PASS). Post-reauth transport validation
+passed. A real KDBX backup had
+previously been uploaded to Google Drive and downloaded back byte-identical
+(`cmp`, SHA-256 — PASS). The other applications were not re-checked on
+2026-09-28.
 
 ## Firefox
 
@@ -49,13 +51,12 @@ complete. The other applications were not re-checked on 2026-09-28.
 
 - OBS: the package policy and portal-stack settings remain planned.
 - Perplexity: moving the configuration into chezmoi remains planned.
-- KeePassXC backups: completing the scheme requires switching the OAuth app
-  from *Testing* to *In production*, reconnecting the authorization, and
-  running the minimal transport validation; next are production rotation
-  of the local 90-day history, the design and implementation of delivery
-  automation, and phone sync; delivery to
-  Google Drive goes without deletions — remote rotation/deletion is
-  deliberately not performed.
+- KeePassXC backups: the next stage is production implementation of the local
+  90-day rotation, followed by delivery automation design and implementation,
+  then phone sync. Delivery automation is not implemented; a systemd user
+  timer is only an example of a possible option. Delivery to Google Drive
+  goes without deletions — remote rotation/deletion is deliberately not
+  performed.
 
 ## General guides
 

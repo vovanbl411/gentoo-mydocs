@@ -160,16 +160,16 @@
   --tpm2-pcrs=7 --wipe-slot=tpm2 /dev/nvme1n1p2`.
 - Косметика прошивки ASUS, принятая как есть: ACPI `WIST`/`CNVW`,
   `ucsi_acpi` «bogus connector», ddcutil-retries, sixaxis-строка bluetoothd.
-- KeePassXC backups: на live-конфигурации перевести OAuth-приложение из
-  Testing в In production, обязательно переподключить авторизацию
-  (`rclone config reconnect gdrive:`) и повторить минимальную проверку
-  transport (list, upload, read, deletefile); до этого шага automation
-  доставки не считать готовой. Далее — production design и implementation
+- KeePassXC backups: OAuth production gate CLOSED — приложение в статусе
+  In production, remote `gdrive:` повторно авторизован командой
+  `rclone config reconnect gdrive:` (PASS), post-reauth transport validation
+  (list, upload, read, deletefile, проверка отсутствия временного объекта)
+  пройдена 2026-09-29. Следующий этап — production implementation
   локальной 90-day rotation (алгоритм проверен только на тестовых файлах в
   изолированном каталоге), затем отдельно design/implementation automation
   доставки и синхронизация с телефоном. Доставка в Google Drive идёт без
-  удалений (rclone copy); rotation/удаление на remote намеренно не
-  выполняются до отдельного решения.
+  удалений (`rclone copy`); rotation/удаление на remote намеренно не
+  выполняются.
 
 ---
 
@@ -202,7 +202,7 @@
 
 | Дата | Событие |
 |------|---------|
-| 2026-09-28 | Зафиксирована схема резервных копий KeePassXC: встроенные timestamped local backups в `~/Backups/KeePassXC` (`0700`) плюс ручная доставка через rclone в Google Drive (`gdrive:Backups/KeePassXC/`, собственный OAuth Desktop client, scope `drive.file`). Проверено: локальные timestamped backups и режим `0700`, OAuth Desktop client и remote `gdrive:`, реальный KDBX загружен и скачан обратно — byte-identical (размер, `cmp`, SHA-256) PASS. OAuth-приложение ещё в Testing: переход в In production, обязательное переподключение авторизации (`rclone config reconnect gdrive:`) и повторная минимальная проверка transport (list, upload, read, deletefile) остаются pending; до этого automation доставки не считать готовой. Решение по retention: локально 90 дней; доставка в Google Drive идёт без удалений (rotation/удаление на remote намеренно не выполняются). Rotation проверена только на тестовых файлах в изолированном временном каталоге; production rotation, design automation доставки и phone sync — следующие отдельные этапы. Создан общий guide `settings/keepassxc-backup.md` (+ EN), обновлены `systems/asus-b5402/applications.md` (+ EN). Секреты, hash и имя базы не публикуются. Это запись указанной проверки, не новый аудит системы. |
+| 2026-09-29 | OAuth production gate для KeePassXC backups закрыт: Google OAuth app переведён в In production; опубликованы минимальные homepage/privacy policy на `https://rclone.9fans.uk/` и `https://rclone.9fans.uk/privacy/` в отдельном public repository `https://github.com/vovanbl411/rclone-oauth-pages`. Branding site служит только OAuth homepage/privacy surface, не участвует в transport и не хранит KDBX, OAuth tokens или backup data. Существующий `gdrive:` повторно авторизован (`rclone config reconnect gdrive:` — PASS); post-reauth list, загрузка временного текстового объекта, чтение с ожидаемым содержимым, удаление и повторный list без объекта — PASS. Local backups, `0700`, `drive.file`, ручная доставка и ранее проверенная byte-identical передача реального KDBX остаются без изменений. Следующий этап — production implementation локальной 90-day rotation; автоматизация доставки и phone sync не реализованы, remote rotation/deletion намеренно не выполняются. Секреты, hash и имя базы не публикуются. Это запись указанной проверки, не новый аудит системы. |
 | 2026-09-27 | Xe acceptance на ASUS B5402 с `7.2.8-bdsm`: PCI binding, DMC/GuC/HuC firmware и сессия Niri/Wayland — PASS. При обычной работе плавность хуже, чем на `i915`; `xe.enable_psr2_sel_fetch=0` заметного улучшения не дал. Rollback выполнен, нормальная плавность восстановилась; production остаётся на `i915`. Experiment CLOSED. |
 | 2026-09-27 | KeePassXC Linux Quick Unlock через polkit/fingerprint подтверждён на ASUS B5402. Ошибка snapshot `QMap<QString,QString>` исправлена локальным version-scoped Portage patch для `app-admin/keepassxc-2.8.0_pre20260629-r1`; runtime audit подтвердил `pam_fprintd` и action `org.keepassxc.KeePassXC.unlockDatabase`. Это запись отдельной проверки, не новый аудит системы. |
 | 2026-09-27 | ELAN `04f3:0c77` fingerprint work завершён и перенесён в документацию: `sys-auth/libfprint-1.94.7` собран Portage с полным 11-патчевым patchset в `/etc/portage/patches/sys-auth/libfprint-1.94.7/`; `fprintd` discovery, enrollment и verification — PASS. Noctalia, greetd fingerprint login, doas fingerprint и polkit fingerprint/password fallback — PASS. Общий `system-auth` не изменялся; PAM-интеграции локальны. Это запись только указанной проверки, не полный аудит системы. |

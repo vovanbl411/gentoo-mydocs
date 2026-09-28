@@ -3,7 +3,7 @@ title: Приложения ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-28"
+last_verified: "2026-09-29"
 verified_on: [asus-b5402]
 ---
 
@@ -22,20 +22,21 @@ verified_on: [asus-b5402]
 - KeePassXC — native Gentoo (`app-admin/keepassxc`, runtime
   `2.8.0-snapshot`); включён встроенный backup перед сохранением базы:
   timestamped `.kdbx` в `~/Backups/KeePassXC/` (directory mode `0700`).
-- rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` (собственный
-  OAuth Desktop client, scope `drive.file`; publishing status приложения —
-  пока *Testing*); backups KeePassXC вручную доставляются в
+- rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` с собственным
+  OAuth Desktop client и scope `drive.file`; publishing status приложения —
+  *In production*. Remote `gdrive:` повторно авторизован командой
+  `rclone config reconnect gdrive:` (PASS); post-reauth transport validation
+  (list, upload, read, deletefile, проверка отсутствия временного объекта) —
+  PASS 2026-09-29. KeePassXC backups вручную доставляются в
   `gdrive:Backups/KeePassXC/` без удаления на remote.
 
 Записи перенесены из общих руководств и сверены с системой 2026-09-22.
-Записи KeePassXC и rclone проверены отдельно 2026-09-28: OAuth Desktop
-client работает, remote `gdrive:` работает, реальный backup KDBX доставлен
-в Google Drive и скачан обратно byte-identical (`cmp`, SHA-256 — PASS).
-Остаточные шаги live-конфигурации: перевести OAuth-приложение из *Testing*
-в *In production*, обязательно переподключить авторизацию
-(`rclone config reconnect gdrive:`) и повторить минимальную проверку
-transport: list remote, upload test file, read, deletefile. До этого
-долговременная схема доставки не считается завершённой. Остальные
+Записи KeePassXC и rclone проверены отдельно 2026-09-29: OAuth Desktop
+client и remote `gdrive:` работают; приложение находится в *In production*,
+remote `gdrive:` повторно авторизован командой
+`rclone config reconnect gdrive:` (PASS), post-reauth transport validation
+— PASS. Реальный backup KDBX ранее
+доставлен и скачан обратно byte-identical (`cmp`, SHA-256 — PASS). Остальные
 приложения 2026-09-28 повторно не проверялись.
 
 ## Firefox
@@ -48,13 +49,12 @@ transport: list remote, upload test file, read, deletefile. До этого
 
 - OBS: package policy и настройки порта-стека остаются планом.
 - Perplexity: перенос конфигурации в chezmoi остаётся планом.
-- KeePassXC backups: завершение схемы требует перевести OAuth-приложение из
-  *Testing* в *In production*, обязательно переподключить авторизацию и
-  выполнить минимальную проверку transport; далее — production rotation
-  локальной 90-day истории, design и
-  implementation automation доставки, синхронизация с телефоном; доставка
-  в Google Drive идёт без удаления — rotation/удаление на remote
-  намеренно не выполняются.
+- KeePassXC backups: следующий этап — production implementation локальной
+  90-day rotation; далее — design и implementation automation доставки,
+  затем синхронизация с телефоном. Delivery automation не реализована;
+  systemd user timer — только пример возможного варианта. Доставка в Google
+  Drive идёт без удаления — rotation/удаление на remote намеренно не
+  выполняются.
 
 ## Общие руководства
 

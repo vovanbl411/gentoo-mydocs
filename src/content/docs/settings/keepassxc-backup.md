@@ -3,7 +3,7 @@ title: Резервные копии KeePassXC в Google Drive через rclone
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-28"
+last_verified: "2026-09-29"
 verified_on: [asus-b5402]
 ---
 
@@ -16,12 +16,14 @@ Google Drive через rclone. Результат: при повреждени�
 Схема применима на любой системе с KeePassXC и rclone; автоматизация
 (таймеры, rotation) здесь сознательно не рассматривается.
 
-На ASUS ExpertBook B5402 2026-09-28 проверены локальные timestamped
+На ASUS ExpertBook B5402 2026-09-29 проверены локальные timestamped
 backups KeePassXC, права каталога `0700`, remote `gdrive:` с собственным
 OAuth Desktop client и scope `drive.file`, а также загрузка и скачивание
-реального KDBX без изменения байтов. OAuth-приложение пока в статусе
-*Testing*. Переход в *In production* и новая авторизация после него ещё
-не выполнены. Текущее состояние машины записано в
+реального KDBX без изменения байтов. OAuth-приложение находится в статусе
+*In production*, существующий remote повторно авторизован, а post-reauth
+transport validation пройдена: list, upload временного текстового объекта,
+read с ожидаемым содержимым, deletefile и повторный list без этого объекта.
+Текущее состояние машины записано в
 [системном разделе](../../systems/asus-b5402/applications/).
 
 ## Architecture
@@ -80,6 +82,13 @@ OAuth client в Google Cloud project под твоим контролем. Эт�
 information, заполни требуемые поля Branding: **Application home page**,
 **Privacy policy URL** и **Authorized domain**. Эти поля не обязательны во
 всех случаях.
+
+Для OAuth branding опубликован отдельный минимальный статический сайт:
+[homepage](https://rclone.9fans.uk/) и [privacy policy](https://rclone.9fans.uk/privacy/).
+Его [исходный код](https://github.com/vovanbl411/rclone-oauth-pages)
+находится в отдельном публичном репозитории GitHub. Сайт служит только
+публичными страницами homepage и privacy policy OAuth-приложения: он не
+проксирует rclone и не хранит KDBX, OAuth tokens или другие backup data.
 
 Не оставляй приложение в статусе *Testing*: у External-приложения в
 Testing refresh token для Google API scopes истекает через 7 дней — для
@@ -292,7 +301,7 @@ rm "$verify_file"
 - локальная история: хранить backups за последние 90 дней;
 - Google Drive: доставка без удаления; rotation на remote не применяется.
 
-Статус реализации на 2026-09-28:
+Статус реализации на 2026-09-29:
 
 - алгоритм локальной 90-day rotation проверен на тестовых файлах в
   изолированном временном каталоге и работает;
@@ -357,5 +366,6 @@ rm "$verify_file"
 - [Google: OAuth 2.0](https://developers.google.com/identity/protocols/oauth2) —
   refresh token expiration: Testing — 7 дней, In production — без этого
   ограничения.
+- [rclone OAuth branding site source](https://github.com/vovanbl411/rclone-oauth-pages) — исходный код статического OAuth homepage/privacy site.
 - [net-misc/rclone](https://packages.gentoo.org/packages/net-misc/rclone) — пакет в Gentoo.
 - [KeePassXC](https://github.com/keepassxreboot/keepassxc) — upstream-проект.
