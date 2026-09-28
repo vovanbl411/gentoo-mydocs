@@ -160,6 +160,11 @@
   --tpm2-pcrs=7 --wipe-slot=tpm2 /dev/nvme1n1p2`.
 - Косметика прошивки ASUS, принятая как есть: ACPI `WIST`/`CNVW`,
   `ucsi_acpi` «bogus connector», ddcutil-retries, sixaxis-строка bluetoothd.
+- KeePassXC backups: следующий технический этап — production design и
+  implementation локальной 90-day rotation (алгоритм проверен только на
+  тестовых файлах в изолированном каталоге), затем отдельно automation
+  доставки (systemd user timer) и синхронизация с телефоном. Google Drive —
+  append-only, remote rotation не планируется до отдельного решения.
 
 ---
 
@@ -192,6 +197,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-09-28 | Зафиксирована схема резервных копий KeePassXC: встроенные timestamped local backups в `~/Backups/KeePassXC` (`0700`) плюс ручная доставка через rclone в Google Drive (`gdrive:Backups/KeePassXC/`, собственный OAuth Desktop client, scope `drive.file`). Реальный KDBX загружен и скачан обратно — byte-identical (размер, `cmp`, SHA-256) PASS. Решение по retention: локально 90 дней, Google Drive — append-only. Rotation проверена только на тестовых файлах в изолированном временном каталоге; production rotation, automation (systemd user timer) и phone sync — следующие отдельные этапы. Создан общий guide `settings/keepassxc-backup.md` (+ EN), обновлены `systems/asus-b5402/applications.md` (+ EN). Секреты, hash и имя базы не публикуются. Это запись указанной проверки, не новый аудит системы. |
 | 2026-09-27 | Xe acceptance на ASUS B5402 с `7.2.8-bdsm`: PCI binding, DMC/GuC/HuC firmware и сессия Niri/Wayland — PASS. При обычной работе плавность хуже, чем на `i915`; `xe.enable_psr2_sel_fetch=0` заметного улучшения не дал. Rollback выполнен, нормальная плавность восстановилась; production остаётся на `i915`. Experiment CLOSED. |
 | 2026-09-27 | KeePassXC Linux Quick Unlock через polkit/fingerprint подтверждён на ASUS B5402. Ошибка snapshot `QMap<QString,QString>` исправлена локальным version-scoped Portage patch для `app-admin/keepassxc-2.8.0_pre20260629-r1`; runtime audit подтвердил `pam_fprintd` и action `org.keepassxc.KeePassXC.unlockDatabase`. Это запись отдельной проверки, не новый аудит системы. |
 | 2026-09-27 | ELAN `04f3:0c77` fingerprint work завершён и перенесён в документацию: `sys-auth/libfprint-1.94.7` собран Portage с полным 11-патчевым patchset в `/etc/portage/patches/sys-auth/libfprint-1.94.7/`; `fprintd` discovery, enrollment и verification — PASS. Noctalia, greetd fingerprint login, doas fingerprint и polkit fingerprint/password fallback — PASS. Общий `system-auth` не изменялся; PAM-интеграции локальны. Это запись только указанной проверки, не полный аудит системы. |
