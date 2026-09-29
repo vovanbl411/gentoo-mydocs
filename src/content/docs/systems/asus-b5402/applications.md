@@ -23,16 +23,21 @@ verified_on: [asus-b5402]
   `2.8.0-snapshot`); включён встроенный backup перед сохранением базы:
   timestamped `.kdbx` в `~/Backups/KeePassXC/` (directory mode `0700`).
   Local 90-day rotation установлена как
-  `~/.local/bin/keepassxc-backup-rotate`; production destructive acceptance
-  — PASS 2026-09-29. По умолчанию script делает dry-run; удаление выполняется
-  только при явном `--apply`, запуск пока ручной.
+  `~/.local/bin/keepassxc-backup-rotate`; production acceptance — PASS
+  2026-09-29. Ежедневная автоматизация также установлена и принята (PASS):
+  wrapper `~/.local/bin/keepassxc-backup-run`, user service и timer
+  `keepassxc-backup.service` / `keepassxc-backup.timer`, systemd --user,
+  20:00 local time, `Persistent=true`, `Linger=no`. Timer включён и был
+  `active (waiting)` при acceptance; прямой wrapper и service прошли,
+  failure-path подтвердил пропуск rotation при ошибке доставки. Доставка в
+  Google Drive выполняется без удаления на remote.
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` с собственным
   OAuth Desktop client и scope `drive.file`; publishing status приложения —
   *In production*. Remote `gdrive:` повторно авторизован командой
   `rclone config reconnect gdrive:` (PASS); post-reauth transport validation
   (list, upload, read, deletefile, проверка отсутствия временного объекта) —
-  PASS 2026-09-29. KeePassXC backups вручную доставляются в
-  `gdrive:Backups/KeePassXC/` без удаления на remote.
+  PASS 2026-09-29. Wrapper ежедневно доставляет top-level `*.kdbx` в
+  `gdrive:Backups/KeePassXC/` без удаления файлов на remote.
 
 Записи перенесены из общих руководств и сверены с системой 2026-09-22.
 Записи KeePassXC и rclone проверены отдельно 2026-09-29: OAuth Desktop
@@ -40,11 +45,13 @@ client и remote `gdrive:` работают; приложение находит
 remote `gdrive:` повторно авторизован командой
 `rclone config reconnect gdrive:` (PASS), post-reauth transport validation
 — PASS. Реальный backup KDBX доставлен и скачан обратно byte-identical
-2026-09-28 (`cmp`, SHA-256 — PASS). Production acceptance local rotation
-пройден 2026-09-29: default dry-run сохранил candidate, `--apply` удалил
-только expired test KDBX; non-KDBX control и реальный KDBX сохранились,
-SHA-256 реального KDBX до/после совпал. Rotation запускается вручную,
-расписания нет. Остальные приложения 2026-09-29 повторно не проверялись.
+2026-09-28 (`cmp`, SHA-256 — PASS). Приёмочные проверки local rotation и
+daily automation завершились успешно 2026-09-29: прямой wrapper и service
+отработали, журнал подтвердил доставку до rotation, а контролируемая ошибка
+доставки — пропуск rotation. Timer включён и находился в состоянии
+`active (waiting)`; доставка на remote не удаляет файлы. Phone sync остаётся
+следующим отдельным этапом. Остальные приложения 2026-09-29 повторно не
+проверялись.
 
 ## Firefox
 
@@ -56,11 +63,9 @@ SHA-256 реального KDBX до/после совпал. Rotation запу�
 
 - OBS: package policy и настройки порта-стека остаются планом.
 - Perplexity: перенос конфигурации в chezmoi остаётся планом.
-- KeePassXC backups: следующий этап — design и implementation automation
-  вызова local rotation и доставки; scheduler пока не выбран. Затем —
-  синхронизация с телефоном. Доставка в Google Drive идёт без удаления —
-  rotation/удаление на remote намеренно не выполняются. См. [руководство по
-  KeePassXC backups](../../../settings/keepassxc-backup/).
+- KeePassXC backups: следующий отдельный этап — синхронизация с телефоном.
+  Доставка в Google Drive идёт без удаления; remote rotation не выполняется.
+  См. [руководство по KeePassXC backups](../../../settings/keepassxc-backup/).
 
 ## Общие руководства
 

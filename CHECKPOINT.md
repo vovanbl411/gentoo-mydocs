@@ -164,13 +164,17 @@
   In production, remote `gdrive:` повторно авторизован командой
   `rclone config reconnect gdrive:` (PASS), post-reauth transport validation
   (list, upload, read, deletefile, проверка отсутствия временного объекта)
-  пройдена 2026-09-29. Production local 90-day rotation CLOSED / PASS:
-  `~/.local/bin/keepassxc-backup-rotate`; по умолчанию dry-run, удаление
-  только с явным `--apply`, срок определяется по mtime. Rotation запускается
-  вручную; scheduler и automation вызова rotation/доставки остаются pending,
-  конкретный scheduler не выбран. Доставка в Google Drive выполняется через
-  `rclone copy` без удаления; rotation/удаление на remote не выполняются.
-  Phone sync остаётся отдельным следующим этапом.
+  пройдена 2026-09-29. Production local 90-day rotation CLOSED /
+  PASS: `~/.local/bin/keepassxc-backup-rotate`; default — dry-run, удаление
+  только через `--apply`, критерий возраста — mtime. Daily delivery/rotation
+  automation CLOSED / PASS: wrapper `~/.local/bin/keepassxc-backup-run`,
+  systemd --user service `~/.config/systemd/user/keepassxc-backup.service`
+  и timer `~/.config/systemd/user/keepassxc-backup.timer`, ежедневно в 20:00
+  local time, `Persistent=true`, `Linger=no`. Workflow защищён одним
+  non-blocking flock на время доставки и rotation; delivery всегда идёт
+  первой, при её ошибке rotation пропускается. Remote использует `rclone copy`
+  без удаления; автоматических retry нет. Phone sync — следующий отдельный
+  этап.
 
 ---
 
@@ -203,6 +207,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-09-29 | Daily KeePassXC delivery/rotation automation CLOSED / PASS: wrapper, systemd --user service and timer installed; schedule 20:00 local, `Persistent=true`, `Linger=no`. Direct wrapper and service PASS; journal confirmed delivery before rotation; controlled delivery failure skipped rotation. Timer enabled and `active (waiting)`. Workflow uses one lock and `rclone copy` without remote deletion; phone sync is the next separate stage. |
 | 2026-09-29 | OAuth production gate для KeePassXC backups закрыт: Google OAuth app переведён в In production; опубликованы минимальные homepage/privacy policy на `https://rclone.9fans.uk/` и `https://rclone.9fans.uk/privacy/` в отдельном public repository `https://github.com/vovanbl411/rclone-oauth-pages`. Branding site служит только OAuth homepage/privacy surface, не участвует в transport и не хранит KDBX, OAuth tokens или backup data. Существующий `gdrive:` повторно авторизован (`rclone config reconnect gdrive:` — PASS); post-reauth list, загрузка временного текстового объекта, чтение с ожидаемым содержимым, удаление и повторный list без объекта — PASS. Local backups, `0700`, `drive.file`, ручная доставка и ранее проверенная byte-identical передача реального KDBX остаются без изменений. Следующий этап — production implementation локальной 90-day rotation; автоматизация доставки и phone sync не реализованы, remote rotation/deletion намеренно не выполняются. Секреты, hash и имя базы не публикуются. Это запись указанной проверки, не новый аудит системы. |
 | 2026-09-29 | Production acceptance локальной 90-day rotation — CLOSED / PASS. Первый dry-run на production-каталоге показал 0 candidates. Для controlled acceptance создан expired dummy KDBX и старый non-KDBX control: dry-run обнаружил один candidate и сохранил оба файла; `--apply` удалил только expired dummy KDBX. Non-KDBX control сохранился, production KDBX остался на месте, его SHA-256 до/после совпал. Destructive path — PASS; имена файлов и hash не публикуются. Механизм установлен как `~/.local/bin/keepassxc-backup-rotate`, default — dry-run, удаление только через `--apply`, критерий возраста — mtime. Запуск пока ручной; scheduler и delivery automation не реализованы, remote deletion не выполняется, phone sync остаётся pending. |
 | 2026-09-28 | Проверена схема KeePassXC backups: локальные timestamped backups в `~/Backups/KeePassXC/` с directory mode `0700`; dedicated OAuth Desktop client, remote `gdrive:` и scope `drive.file`; реальный KDBX загружен в Google Drive и скачан обратно byte-identical (размер, `cmp`, SHA-256 — PASS). OAuth app оставался в Testing; переход в In production, reconnect существующего remote и post-reauth transport validation оставались pending. Принята local retention target 90 days; production rotation, delivery automation и phone sync оставались pending. Доставка в Google Drive — без удалений, remote rotation/deletion не выполняются. Секреты, hash и имя базы не публикуются. Это запись проверки на указанную дату. |
