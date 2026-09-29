@@ -22,7 +22,10 @@ verified_on: [asus-b5402]
 - KeePassXC — native Gentoo (`app-admin/keepassxc`, runtime
   `2.8.0-snapshot`); the built-in backup before saving the database is
   enabled: timestamped `.kdbx` files in `~/Backups/KeePassXC/` (directory
-  mode `0700`).
+  mode `0700`). Local 90-day rotation is installed as
+  `~/.local/bin/keepassxc-backup-rotate`; production destructive acceptance
+  passed on 2026-09-29. The script defaults to dry-run; deletion requires
+  the explicit `--apply` argument, and it is run manually for now.
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` with a dedicated
   OAuth Desktop client and the `drive.file` scope; the app's publishing
   status is *In production*. The existing remote was re-authorized, and
@@ -37,7 +40,11 @@ on 2026-09-22. The KeePassXC and rclone entries were verified separately on
 the `gdrive:` remote was re-authorized with
 `rclone config reconnect gdrive:` (PASS). Post-reauth transport validation
 passed. A real KDBX backup was uploaded to Google Drive and downloaded back
-byte-identical on 2026-09-28 (`cmp`, SHA-256 — PASS). The other applications
+byte-identical on 2026-09-28 (`cmp`, SHA-256 — PASS). Production acceptance
+of local rotation passed on 2026-09-29: the default dry-run preserved the
+candidate, and `--apply` deleted only the expired test KDBX; the non-KDBX
+control and real KDBX remained, and the real KDBX SHA-256 matched before and
+after. Rotation is run manually; there is no schedule. The other applications
 were not re-checked on 2026-09-29.
 
 ## Firefox
@@ -50,12 +57,12 @@ were not re-checked on 2026-09-29.
 
 - OBS: the package policy and portal-stack settings remain planned.
 - Perplexity: moving the configuration into chezmoi remains planned.
-- KeePassXC backups: the next stage is production implementation of the local
-  90-day rotation, followed by delivery automation design and implementation,
-  then phone sync. Delivery automation is not implemented; a systemd user
-  timer is only an example of a possible option. Delivery to Google Drive
-  goes without deletions — remote rotation/deletion is deliberately not
-  performed.
+- KeePassXC backups: the next stage is design and implementation of
+  automation for invoking local rotation and delivering backups; no scheduler
+  has been selected. Phone sync follows. Delivery to Google Drive goes
+  without deletions — remote rotation/deletion is deliberately not
+  performed. See the [KeePassXC backup
+  guide](../../../settings/keepassxc-backup/).
 
 ## General guides
 

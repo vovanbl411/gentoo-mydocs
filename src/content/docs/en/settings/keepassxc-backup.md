@@ -13,8 +13,9 @@ Google Drive via rclone. The result: if the live database is damaged or the
 machine is lost, the database is recoverable from the local directory and
 from the cloud, and delivery to the cloud never deletes old copies.
 
-The scheme applies to any system with KeePassXC and rclone; automation
-(timers, rotation) is deliberately out of scope here.
+The scheme applies to any system with KeePassXC and rclone. Local 90-day
+rotation is part of the accepted setup; automation and timers are out of
+scope here and have not been implemented.
 
 On the ASUS ExpertBook B5402, local timestamped KeePassXC backups, directory
 mode `0700`, the `gdrive:` remote with a dedicated OAuth Desktop client and
@@ -24,7 +25,9 @@ bytes were verified on 2026-09-28. On 2026-09-29, the OAuth app moved to
 (`rclone config reconnect gdrive:` — PASS), and post-reauth transport
 validation passed: listing, uploading a temporary text object, reading the
 expected content, deleting it, and listing again to confirm its absence.
-The recorded machine state is in
+Production acceptance of local rotation also passed on 2026-09-29:
+`~/.local/bin/keepassxc-backup-rotate` is installed and was checked against
+the production directory. The recorded machine state is in
 [the system section](../../systems/asus-b5402/applications/).
 
 ## Architecture
@@ -311,14 +314,154 @@ The decisions made:
 
 Implementation status as of 2026-09-29:
 
-- the local 90-day rotation algorithm was verified on test files in an
-  isolated temporary directory and works;
-- the rotation has not been applied to the real `~/Backups/KeePassXC` and
-  is not automated — the production implementation is the next separate
-  stage.
+- production rotation is implemented as
+  `~/.local/bin/keepassxc-backup-rotate` and was accepted on 2026-09-29
+  (PASS);
+- retention is 90 days by mtime: only top-level regular files matching
+  `*.kdbx` in `~/Backups/KeePassXC/` are considered; files aged 90 days or
+  more are expired;
+- running without arguments performs a dry-run; deletion requires the
+  explicit `--apply` argument;
+- before processing, the script checks that `HOME` is set, the directory
+  exists and is not a symlink, its owner and mode are correct (`0700`), the
+  cutoff was calculated, and the directory scan succeeded. A failed check
+  prevents deletion;
+- the first invocation is safe and deletes nothing. Running with `--apply`
+  actually deletes expired local KDBX files found by the scan;
+- controlled production acceptance confirmed that dry-run preserved the
+  candidate, `--apply` deleted only that expired KDBX, the non-KDBX control
+  remained, and the real KDBX was unchanged by SHA-256;
+- the mechanism is run manually. Scheduler and delivery automation are not
+  implemented; there is no remote deletion.
 
-> ⚠️ **Important nuance**: until the rotation is implemented, the local
-> directory and the remote grow without bound. Track the size manually.
+> ⚠️ **Important nuance**: the local retention mechanism exists but is run
+> manually for now. Without running it with `--apply`, the local directory
+> will keep growing. The remote also keeps growing under the accepted policy:
+> remote deletion and rotation are deliberately not performed.
+
+### Installing and running local rotation
+
+Save the following script as
+`~/.local/bin/keepassxc-backup-rotate`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+readonly backup_dir="${HOME:?HOME is not set}/Backups/KeePassXC"
+readonly retention_days=90
+
+usage() {
+    printf 'Usage: %s [--apply]\n' "${0##*/}"
+    printf 'Default: dry-run. --apply deletes matching backup files.\n'
+}
+
+apply=false
+
+if (($# > 1)); then
+    usage >&2
+    exit 2
+fi
+
+case "${1:-}" in
+    "")
+        ;;
+    --apply)
+        apply=true
+        ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
+
+fail() {
+    printf 'FAIL: %s\n' "$*" >&2
+    exit 1
+}
+
+[[ -d "$backup_dir" ]] || fail "backup directory does not exist"
+[[ ! -L "$backup_dir" ]] || fail "backup directory must not be a symlink"
+
+[[ "$(stat -c '%u' -- "$backup_dir")" == "$(id -u)" ]] \
+    || fail "backup directory is not owned by the current user"
+
+[[ "$(stat -c '%a' -- "$backup_dir")" == "700" ]] \
+    || fail "backup directory mode is not 700"
+
+cutoff="$(date -d "${retention_days} days ago" '+%Y-%m-%d %H:%M:%S')" \
+    || fail "cannot calculate retention cutoff"
+
+[[ -n "$cutoff" ]] || fail "retention cutoff is empty"
+
+candidate_list="$(mktemp)"
+trap 'rm -f "$candidate_list"' EXIT
+
+if ! find "$backup_dir" \
+    -maxdepth 1 \
+    -type f \
+    -name '*.kdbx' \
+    ! -newermt "$cutoff" \
+    -print0 > "$candidate_list"
+then
+    fail "cannot scan backup directory"
+fi
+
+mapfile -d '' -t candidates < "$candidate_list"
+
+printf 'Backup directory: %s\n' "$backup_dir"
+printf 'Retention: %d days\n' "$retention_days"
+printf 'Cutoff: %s\n' "$cutoff"
+printf 'Candidates: %d\n' "${#candidates[@]}"
+
+i=0
+for file in "${candidates[@]}"; do
+    ((i += 1))
+    printf '#%d ' "$i"
+    stat -c 'mtime=%y size=%s bytes' -- "$file"
+done
+
+if ! $apply; then
+    printf 'DRY-RUN: no files deleted\n'
+    exit 0
+fi
+
+if ((${#candidates[@]} == 0)); then
+    printf 'PASS: no expired backups to delete\n'
+    exit 0
+fi
+
+rm -- "${candidates[@]}"
+
+for file in "${candidates[@]}"; do
+    [[ ! -e "$file" ]] || fail "candidate still exists after deletion"
+done
+
+printf 'PASS: deleted %d expired backup(s)\n' "${#candidates[@]}"
+```
+
+Create the user command directory and set the script mode:
+
+```bash
+mkdir -p ~/.local/bin
+chmod 700 ~/.local/bin/keepassxc-backup-rotate
+```
+
+Commands:
+
+```bash
+~/.local/bin/keepassxc-backup-rotate
+~/.local/bin/keepassxc-backup-rotate --apply
+```
+
+The first invocation prints the candidate count and each candidate's mtime
+and size, but deletes nothing. The second performs the same checks and
+deletes the expired local `.kdbx` files it finds.
 
 ## What is deliberately not used
 
@@ -331,13 +474,12 @@ Implementation status as of 2026-09-29:
 
 ## Limitations and next stages
 
-Not implemented and deliberately not described here (separate next stages):
+The remaining separate stages are:
 
-- production rotation of the local 90-day history;
-- delivery automation — a separate design stage; no decision on a specific
-  method has been made (a systemd user timer is only an example of a
-  possible option);
-- syncing the database with a phone.
+- automation for invoking local rotation and delivering backups — a separate
+  design stage; no scheduler has been selected (a systemd user timer is only
+  an example of a possible option);
+- syncing the database with a phone after the automation work.
 
 ## Troubleshooting and rollback
 

@@ -22,6 +22,10 @@ verified_on: [asus-b5402]
 - KeePassXC — native Gentoo (`app-admin/keepassxc`, runtime
   `2.8.0-snapshot`); включён встроенный backup перед сохранением базы:
   timestamped `.kdbx` в `~/Backups/KeePassXC/` (directory mode `0700`).
+  Local 90-day rotation установлена как
+  `~/.local/bin/keepassxc-backup-rotate`; production destructive acceptance
+  — PASS 2026-09-29. По умолчанию script делает dry-run; удаление выполняется
+  только при явном `--apply`, запуск пока ручной.
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` с собственным
   OAuth Desktop client и scope `drive.file`; publishing status приложения —
   *In production*. Remote `gdrive:` повторно авторизован командой
@@ -36,8 +40,11 @@ client и remote `gdrive:` работают; приложение находит
 remote `gdrive:` повторно авторизован командой
 `rclone config reconnect gdrive:` (PASS), post-reauth transport validation
 — PASS. Реальный backup KDBX доставлен и скачан обратно byte-identical
-2026-09-28 (`cmp`, SHA-256 — PASS). Остальные приложения 2026-09-29 повторно
-не проверялись.
+2026-09-28 (`cmp`, SHA-256 — PASS). Production acceptance local rotation
+пройден 2026-09-29: default dry-run сохранил candidate, `--apply` удалил
+только expired test KDBX; non-KDBX control и реальный KDBX сохранились,
+SHA-256 реального KDBX до/после совпал. Rotation запускается вручную,
+расписания нет. Остальные приложения 2026-09-29 повторно не проверялись.
 
 ## Firefox
 
@@ -49,12 +56,11 @@ remote `gdrive:` повторно авторизован командой
 
 - OBS: package policy и настройки порта-стека остаются планом.
 - Perplexity: перенос конфигурации в chezmoi остаётся планом.
-- KeePassXC backups: следующий этап — production implementation локальной
-  90-day rotation; далее — design и implementation automation доставки,
-  затем синхронизация с телефоном. Delivery automation не реализована;
-  systemd user timer — только пример возможного варианта. Доставка в Google
-  Drive идёт без удаления — rotation/удаление на remote намеренно не
-  выполняются.
+- KeePassXC backups: следующий этап — design и implementation automation
+  вызова local rotation и доставки; scheduler пока не выбран. Затем —
+  синхронизация с телефоном. Доставка в Google Drive идёт без удаления —
+  rotation/удаление на remote намеренно не выполняются. См. [руководство по
+  KeePassXC backups](../../../settings/keepassxc-backup/).
 
 ## Общие руководства
 

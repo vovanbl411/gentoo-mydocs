@@ -13,8 +13,9 @@ Google Drive через rclone. Результат: при повреждени�
 машины база восстановима из локального каталога и из облака, а доставка в
 облако не удаляет старые копии.
 
-Схема применима на любой системе с KeePassXC и rclone; автоматизация
-(таймеры, rotation) здесь сознательно не рассматривается.
+Схема применима на любой системе с KeePassXC и rclone. Локальная 90-day
+rotation входит в принятую схему; automation и timers здесь не
+рассматриваются и пока не реализованы.
 
 На ASUS ExpertBook B5402 2026-09-28 проверены локальные timestamped
 backups KeePassXC, права каталога `0700`, remote `gdrive:` с собственным
@@ -24,7 +25,9 @@ OAuth Desktop client и scope `drive.file`, а также загрузка и с
 (`rclone config reconnect gdrive:` — PASS), а post-reauth transport
 validation прошла: list, upload временного текстового объекта, read с
 ожидаемым содержимым, deletefile и повторный list без этого объекта.
-Текущее состояние машины записано в
+2026-09-29 production acceptance локальной rotation завершён (PASS):
+`~/.local/bin/keepassxc-backup-rotate` установлен и проверен на production
+каталоге. Актуальное состояние машины см. в
 [системном разделе](../../systems/asus-b5402/applications/).
 
 ## Architecture
@@ -304,14 +307,153 @@ rm "$verify_file"
 
 Статус реализации на 2026-09-29:
 
-- алгоритм локальной 90-day rotation проверен на тестовых файлах в
-  изолированном временном каталоге и работает;
-- к реальному `~/Backups/KeePassXC` rotation ещё не применялась и не
-  автоматизирована — production implementation это следующий отдельный
-  этап.
+- production rotation реализована как
+  `~/.local/bin/keepassxc-backup-rotate` и принята 2026-09-29 (PASS);
+- retention — 90 дней по mtime: проверяются только regular files `*.kdbx`
+  верхнего уровня `~/Backups/KeePassXC/`; файлы возрастом 90 дней и старше
+  считаются просроченными;
+- запуск без аргументов выполняет dry-run; удаление требует явного
+  `--apply`;
+- перед обработкой script проверяет заданный `HOME`, существование
+  каталога, отсутствие symlink, владельца и mode `0700`, вычисление cutoff
+  и успешное сканирование каталога. При ошибке проверок удаление не
+  выполняется;
+- первый запуск безопасен и ничего не удаляет. Запуск с `--apply` реально
+  удаляет найденные просроченные локальные KDBX-файлы;
+- controlled production acceptance подтвердил dry-run с сохранением
+  candidate, удаление только этого expired KDBX через `--apply`, сохранность
+  non-KDBX control и неизменность реального KDBX по SHA-256;
+- механизм запускается вручную. Scheduler/delivery automation ещё не
+  реализованы; удаления на remote нет.
 
-> ⚠️ **Важный нюанс**: пока rotation не внедрена, локальный каталог и remote
-> растут неограниченно. Следи за размером вручную.
+> ⚠️ **Важный нюанс**: local retention mechanism уже существует, но пока
+> запускается вручную. Без запуска с `--apply` локальный каталог продолжит
+> расти. Remote продолжает расти по принятой политике: remote deletion и
+> rotation намеренно не выполняются.
+
+### Установка и запуск local rotation
+
+Сохрани следующий script в
+`~/.local/bin/keepassxc-backup-rotate`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+readonly backup_dir="${HOME:?HOME is not set}/Backups/KeePassXC"
+readonly retention_days=90
+
+usage() {
+    printf 'Usage: %s [--apply]\n' "${0##*/}"
+    printf 'Default: dry-run. --apply deletes matching backup files.\n'
+}
+
+apply=false
+
+if (($# > 1)); then
+    usage >&2
+    exit 2
+fi
+
+case "${1:-}" in
+    "")
+        ;;
+    --apply)
+        apply=true
+        ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
+
+fail() {
+    printf 'FAIL: %s\n' "$*" >&2
+    exit 1
+}
+
+[[ -d "$backup_dir" ]] || fail "backup directory does not exist"
+[[ ! -L "$backup_dir" ]] || fail "backup directory must not be a symlink"
+
+[[ "$(stat -c '%u' -- "$backup_dir")" == "$(id -u)" ]] \
+    || fail "backup directory is not owned by the current user"
+
+[[ "$(stat -c '%a' -- "$backup_dir")" == "700" ]] \
+    || fail "backup directory mode is not 700"
+
+cutoff="$(date -d "${retention_days} days ago" '+%Y-%m-%d %H:%M:%S')" \
+    || fail "cannot calculate retention cutoff"
+
+[[ -n "$cutoff" ]] || fail "retention cutoff is empty"
+
+candidate_list="$(mktemp)"
+trap 'rm -f "$candidate_list"' EXIT
+
+if ! find "$backup_dir" \
+    -maxdepth 1 \
+    -type f \
+    -name '*.kdbx' \
+    ! -newermt "$cutoff" \
+    -print0 > "$candidate_list"
+then
+    fail "cannot scan backup directory"
+fi
+
+mapfile -d '' -t candidates < "$candidate_list"
+
+printf 'Backup directory: %s\n' "$backup_dir"
+printf 'Retention: %d days\n' "$retention_days"
+printf 'Cutoff: %s\n' "$cutoff"
+printf 'Candidates: %d\n' "${#candidates[@]}"
+
+i=0
+for file in "${candidates[@]}"; do
+    ((i += 1))
+    printf '#%d ' "$i"
+    stat -c 'mtime=%y size=%s bytes' -- "$file"
+done
+
+if ! $apply; then
+    printf 'DRY-RUN: no files deleted\n'
+    exit 0
+fi
+
+if ((${#candidates[@]} == 0)); then
+    printf 'PASS: no expired backups to delete\n'
+    exit 0
+fi
+
+rm -- "${candidates[@]}"
+
+for file in "${candidates[@]}"; do
+    [[ ! -e "$file" ]] || fail "candidate still exists after deletion"
+done
+
+printf 'PASS: deleted %d expired backup(s)\n' "${#candidates[@]}"
+```
+
+Создай каталог для пользовательских команд и выставь mode script:
+
+```bash
+mkdir -p ~/.local/bin
+chmod 700 ~/.local/bin/keepassxc-backup-rotate
+```
+
+Основные команды:
+
+```bash
+~/.local/bin/keepassxc-backup-rotate
+~/.local/bin/keepassxc-backup-rotate --apply
+```
+
+Первый вызов показывает число кандидатов и их mtime/размер, но ничего не
+удаляет. Второй запускает ту же проверку и удаляет найденные просроченные
+локальные `.kdbx`.
 
 ## Что намеренно не используется
 
@@ -324,13 +466,12 @@ rm "$verify_file"
 
 ## Ограничения и следующие этапы
 
-Не реализовано и здесь намеренно не описано (отдельные следующие этапы):
+Отдельными следующими этапами остаются:
 
-- production rotation локальной 90-day истории;
-- автоматизация доставки — отдельный design-этап; решение о конкретном
-  способе не принято (systemd user timer — только пример возможного
-  варианта);
-- синхронизация базы с телефоном.
+- automation вызова local rotation и доставки — отдельный design-этап;
+  решение о конкретном scheduler пока не принято (systemd user timer —
+  только пример возможного варианта);
+- синхронизация базы с телефоном после проработки автоматизации.
 
 ## Troubleshooting и откат
 

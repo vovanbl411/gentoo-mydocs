@@ -164,12 +164,13 @@
   In production, remote `gdrive:` повторно авторизован командой
   `rclone config reconnect gdrive:` (PASS), post-reauth transport validation
   (list, upload, read, deletefile, проверка отсутствия временного объекта)
-  пройдена 2026-09-29. Следующий этап — production implementation
-  локальной 90-day rotation (алгоритм проверен только на тестовых файлах в
-  изолированном каталоге), затем отдельно design/implementation automation
-  доставки и синхронизация с телефоном. Доставка в Google Drive идёт без
-  удалений (`rclone copy`); rotation/удаление на remote намеренно не
-  выполняются.
+  пройдена 2026-09-29. Production local 90-day rotation CLOSED / PASS:
+  `~/.local/bin/keepassxc-backup-rotate`; по умолчанию dry-run, удаление
+  только с явным `--apply`, срок определяется по mtime. Rotation запускается
+  вручную; scheduler и automation вызова rotation/доставки остаются pending,
+  конкретный scheduler не выбран. Доставка в Google Drive выполняется через
+  `rclone copy` без удаления; rotation/удаление на remote не выполняются.
+  Phone sync остаётся отдельным следующим этапом.
 
 ---
 
@@ -203,6 +204,7 @@
 | Дата | Событие |
 |------|---------|
 | 2026-09-29 | OAuth production gate для KeePassXC backups закрыт: Google OAuth app переведён в In production; опубликованы минимальные homepage/privacy policy на `https://rclone.9fans.uk/` и `https://rclone.9fans.uk/privacy/` в отдельном public repository `https://github.com/vovanbl411/rclone-oauth-pages`. Branding site служит только OAuth homepage/privacy surface, не участвует в transport и не хранит KDBX, OAuth tokens или backup data. Существующий `gdrive:` повторно авторизован (`rclone config reconnect gdrive:` — PASS); post-reauth list, загрузка временного текстового объекта, чтение с ожидаемым содержимым, удаление и повторный list без объекта — PASS. Local backups, `0700`, `drive.file`, ручная доставка и ранее проверенная byte-identical передача реального KDBX остаются без изменений. Следующий этап — production implementation локальной 90-day rotation; автоматизация доставки и phone sync не реализованы, remote rotation/deletion намеренно не выполняются. Секреты, hash и имя базы не публикуются. Это запись указанной проверки, не новый аудит системы. |
+| 2026-09-29 | Production acceptance локальной 90-day rotation — CLOSED / PASS. Первый dry-run на production-каталоге показал 0 candidates. Для controlled acceptance создан expired dummy KDBX и старый non-KDBX control: dry-run обнаружил один candidate и сохранил оба файла; `--apply` удалил только expired dummy KDBX. Non-KDBX control сохранился, production KDBX остался на месте, его SHA-256 до/после совпал. Destructive path — PASS; имена файлов и hash не публикуются. Механизм установлен как `~/.local/bin/keepassxc-backup-rotate`, default — dry-run, удаление только через `--apply`, критерий возраста — mtime. Запуск пока ручной; scheduler и delivery automation не реализованы, remote deletion не выполняется, phone sync остаётся pending. |
 | 2026-09-28 | Проверена схема KeePassXC backups: локальные timestamped backups в `~/Backups/KeePassXC/` с directory mode `0700`; dedicated OAuth Desktop client, remote `gdrive:` и scope `drive.file`; реальный KDBX загружен в Google Drive и скачан обратно byte-identical (размер, `cmp`, SHA-256 — PASS). OAuth app оставался в Testing; переход в In production, reconnect существующего remote и post-reauth transport validation оставались pending. Принята local retention target 90 days; production rotation, delivery automation и phone sync оставались pending. Доставка в Google Drive — без удалений, remote rotation/deletion не выполняются. Секреты, hash и имя базы не публикуются. Это запись проверки на указанную дату. |
 | 2026-09-27 | Xe acceptance на ASUS B5402 с `7.2.8-bdsm`: PCI binding, DMC/GuC/HuC firmware и сессия Niri/Wayland — PASS. При обычной работе плавность хуже, чем на `i915`; `xe.enable_psr2_sel_fetch=0` заметного улучшения не дал. Rollback выполнен, нормальная плавность восстановилась; production остаётся на `i915`. Experiment CLOSED. |
 | 2026-09-27 | KeePassXC Linux Quick Unlock через polkit/fingerprint подтверждён на ASUS B5402. Ошибка snapshot `QMap<QString,QString>` исправлена локальным version-scoped Portage patch для `app-admin/keepassxc-2.8.0_pre20260629-r1`; runtime audit подтвердил `pam_fprintd` и action `org.keepassxc.KeePassXC.unlockDatabase`. Это запись отдельной проверки, не новый аудит системы. |
