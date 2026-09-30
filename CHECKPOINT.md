@@ -164,17 +164,21 @@
   In production, remote `gdrive:` повторно авторизован командой
   `rclone config reconnect gdrive:` (PASS), post-reauth transport validation
   (list, upload, read, deletefile, проверка отсутствия временного объекта)
-  пройдена 2026-09-29. Production local 90-day rotation CLOSED /
-  PASS: `~/.local/bin/keepassxc-backup-rotate`; default — dry-run, удаление
-  только через `--apply`, критерий возраста — mtime. Daily delivery/rotation
-  automation CLOSED / PASS: wrapper `~/.local/bin/keepassxc-backup-run`,
-  systemd --user service `~/.config/systemd/user/keepassxc-backup.service`
-  и timer `~/.config/systemd/user/keepassxc-backup.timer`, ежедневно в 20:00
-  local time, `Persistent=true`, `Linger=no`. Workflow защищён одним
-  non-blocking flock на время доставки и rotation; delivery всегда идёт
-  первой, при её ошибке rotation пропускается. Remote использует `rclone copy`
-  без удаления; автоматических retry нет. Phone sync — следующий отдельный
-  этап.
+  пройдена 2026-09-29. Production local rotation CLOSED / PASS:
+  `~/.local/bin/keepassxc-backup-rotate`; default — dry-run, удаление только
+  через `--apply`, критерий — mtime не позже cutoff 90 дней. Daily
+  snapshot/delivery/rotation automation CLOSED / PASS: live directory
+  `~/Documents/KeePassSync/` требует ровно один top-level regular non-symlink
+  `*.kdbx`; wrapper `~/.local/bin/keepassxc-backup-run` под systemd --user
+  создаёт проверенный snapshot, доставляет его и прочие top-level KDBX через
+  `rclone copy`, затем запускает rotation. Один non-blocking flock покрывает
+  snapshot, delivery и rotation; ошибка precheck останавливает запуск до
+  snapshot, ошибка доставки пропускает rotation. Service
+  `~/.config/systemd/user/keepassxc-backup.service` и timer
+  `~/.config/systemd/user/keepassxc-backup.timer` работают ежедневно в 20:00
+  local time с `Persistent=true`, `Linger=no`; automatic retry нет. Remote
+  delivery не удаляет файлы; Google Drive не является live filesystem и не
+  считается immutable storage. Phone sync — следующий отдельный этап.
 
 ---
 
@@ -207,6 +211,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-09-29 | KeePassXC editor-independent daily snapshot принят CLOSED / PASS: wrapper создаёт generic snapshot из единственной live DB в `~/Documents/KeePassSync/`, проверяет byte identity и текущий mtime, затем выполняет `rclone copy` и только после успеха local rotation. Lock покрывает snapshot, delivery и rotation; controlled второй-KDBX test подтвердил startup conflict gate. Acceptance: локальные backup-файлы 2 → 3, remote objects 1 → 3, timer остался enabled/active на 20:00 с `Persistent=true`, `Linger=no`. Phone sync остаётся следующим отдельным этапом. Имена production-базы и hash не публикуются. |
 | 2026-09-29 | Daily KeePassXC delivery/rotation automation CLOSED / PASS: wrapper, systemd --user service and timer installed; schedule 20:00 local, `Persistent=true`, `Linger=no`. Direct wrapper and service PASS; journal confirmed delivery before rotation; controlled delivery failure skipped rotation. Timer enabled and `active (waiting)`. Workflow uses one lock and `rclone copy` without remote deletion; phone sync is the next separate stage. |
 | 2026-09-29 | OAuth production gate для KeePassXC backups закрыт: Google OAuth app переведён в In production; опубликованы минимальные homepage/privacy policy на `https://rclone.9fans.uk/` и `https://rclone.9fans.uk/privacy/` в отдельном public repository `https://github.com/vovanbl411/rclone-oauth-pages`. Branding site служит только OAuth homepage/privacy surface, не участвует в transport и не хранит KDBX, OAuth tokens или backup data. Существующий `gdrive:` повторно авторизован (`rclone config reconnect gdrive:` — PASS); post-reauth list, загрузка временного текстового объекта, чтение с ожидаемым содержимым, удаление и повторный list без объекта — PASS. Local backups, `0700`, `drive.file`, ручная доставка и ранее проверенная byte-identical передача реального KDBX остаются без изменений. Следующий этап — production implementation локальной 90-day rotation; автоматизация доставки и phone sync не реализованы, remote rotation/deletion намеренно не выполняются. Секреты, hash и имя базы не публикуются. Это запись указанной проверки, не новый аудит системы. |
 | 2026-09-29 | Production acceptance локальной 90-day rotation — CLOSED / PASS. Первый dry-run на production-каталоге показал 0 candidates. Для controlled acceptance создан expired dummy KDBX и старый non-KDBX control: dry-run обнаружил один candidate и сохранил оба файла; `--apply` удалил только expired dummy KDBX. Non-KDBX control сохранился, production KDBX остался на месте, его SHA-256 до/после совпал. Destructive path — PASS; имена файлов и hash не публикуются. Механизм установлен как `~/.local/bin/keepassxc-backup-rotate`, default — dry-run, удаление только через `--apply`, критерий возраста — mtime. Запуск пока ручной; scheduler и delivery automation не реализованы, remote deletion не выполняется, phone sync остаётся pending. |

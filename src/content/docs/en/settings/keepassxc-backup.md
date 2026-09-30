@@ -7,45 +7,45 @@ last_verified: "2026-09-29"
 verified_on: [asus-b5402]
 ---
 
-This guide describes a KeePassXC backup scheme: the application creates
-timestamped copies before saving the database, the wrapper delivers top-level
-`*.kdbx` files to Google Drive daily, and local rotation removes copies older
-than 90 days after successful delivery. The automation does not delete remote
-files.
+This guide documents the accepted KeePassXC backup pipeline: the wrapper
+finds exactly one top-level regular, non-symlink `*.kdbx` in the dedicated
+live directory `~/Documents/KeePassSync/`, creates a verified local snapshot,
+delivers backups to Google Drive, and runs local rotation only after delivery
+succeeds. KeePassXC's built-in timestamped backups on save remain enabled.
+Rotation removes local copies aged 90 days or more by mtime; this workflow
+does not delete remote files.
 
-The scheme applies to systems running KeePassXC and rclone. The automation
-documents the accepted ASUS ExpertBook B5402 setup: `systemd --user`, a
-calendar timer at 20:00 local time, and `Linger=no`. There is no separate
-background run when the user manager is inactive.
+Daily automation on the ASUS ExpertBook B5402 uses `systemd --user`: a
+calendar timer at 20:00 local time, `Persistent=true`, and `Linger=no`. The
+snapshot does not depend on where the live database was last edited: a change
+that later arrives through Android/Syncthing does not have to pass through a
+local KeePassXC save. Phone sync is not configured yet and remains the next
+separate stage.
 
-On the ASUS ExpertBook B5402, local timestamped backups, directory mode
-`0700`, the `gdrive:` remote with OAuth scope `drive.file`, and a real KDBX
-round trip with identical bytes were verified on 2026-09-28. On 2026-09-29,
-the OAuth app moved to *In production*, the remote was re-authorized
-(`rclone config reconnect gdrive:` — PASS), and post-reauth transport
-validation passed: listing, uploading and reading a temporary object,
-deleting it, and confirming it was absent. Production acceptance of local
-rotation and daily automation also passed that day: the direct wrapper and
-service runs passed, the journal confirmed delivery before rotation, and a
-controlled delivery failure confirmed that rotation is skipped. See
-[the system section](../../systems/asus-b5402/applications/) for the recorded
-machine state.
+Before starting, the wrapper checks that the live directory contains exactly
+one matching database. If it finds zero or multiple files, it exits before
+snapshot, delivery, or rotation. This is a startup conflict gate for an extra
+file such as a Syncthing conflict copy; it is not a transactional lock on
+Syncthing. On the ASUS B5402, the snapshot, normal service run, and controlled
+conflict-gate test passed on 2026-09-29. The snapshot had mode `0600`, a current
+run mtime, and byte-identical content to the live DB; the timer was already
+enabled and active. See also [the system section](../../systems/asus-b5402/applications/).
 
 ## Architecture
 
 ```text
-KeePassXC
-  ↓ built-in backup before saving the database
-~/Backups/KeePassXC/           timestamped .kdbx, directory mode 0700
-  ↓ systemd --user timer (daily, 20:00 local time)
-keepassxc-backup.service       Type=oneshot
-  ↓ wrapper: rclone copy, then local rotation
+~/Documents/KeePassSync/      live DB, mode 0600; exactly one top-level *.kdbx
+  ↓ daily wrapper: discover one DB, acquire non-blocking flock
+~/Backups/KeePassXC/           verified snapshot + KeePassXC save backups, mode 0700
+  ↓ rclone copy top-level *.kdbx
    gdrive:Backups/KeePassXC/   delivery without remote deletion
+  ↓ only after delivery succeeds
+local 90-day rotation           --apply; files aged 90 days or more by mtime
 ```
 
-The key decision: Google Drive is a destination for backups, not a live
-filesystem. The KeePassXC database is opened only from the local disk; the
-cloud stores closed copies and knows nothing about the database workflow.
+Google Drive is a destination for backup copies, not a live filesystem. The
+KeePassXC database is opened only from the local disk; the cloud stores closed
+copies.
 
 ## Prerequisites
 
@@ -312,7 +312,8 @@ database — there is no reason to copy them into documentation or notes.
 
 The decisions made:
 
-- local history: keep backups from the last 90 days;
+- local rotation keeps files younger than 90 days; copies aged 90 days or
+  more are removed by mtime;
 - Google Drive: delivery without deletion; no remote rotation.
 
 Implementation status as of 2026-09-29:
@@ -335,10 +336,10 @@ Implementation status as of 2026-09-29:
   preserved the expired test KDBX, and `--apply` deleted only that file. The
   non-KDBX control and production KDBX remained; the real database hash
   matched before and after;
-- daily delivery and local rotation run through the wrapper
-  `~/.local/bin/keepassxc-backup-run`, a user service, and a calendar timer;
-  the configuration is below. Delivery runs before rotation, and a delivery
-  failure stops the workflow before local deletion.
+- the wrapper `~/.local/bin/keepassxc-backup-run`, user service, and
+  calendar timer perform a daily snapshot, delivery, and local rotation. The
+  wrapper validates the live database and creates a snapshot before `rclone
+  copy`; rotation runs only after delivery succeeds. Configuration is below.
 
 Google Drive remains the destination for backup copies. This workflow does
 not delete remote files or rotate them. If a transfer partially succeeds and
@@ -474,23 +475,44 @@ The first invocation prints the candidate count and each candidate's mtime
 and size, but deletes nothing. The second performs the same checks and
 deletes the expired local `.kdbx` files it finds.
 
-## Daily delivery automation and local rotation
+## Daily snapshot, delivery, and local rotation
 
-The wrapper delivers only top-level regular `*.kdbx` files with the `rclone copy`
-command. It runs rotation with `--apply` only after delivery succeeds. If
-delivery returns an error, the wrapper exits with code `1` and skips rotation.
-`rclone copy` does not delete remote files; this workflow does not use
-`rclone sync`.
+The wrapper first finds exactly one top-level regular, non-symlink `*.kdbx`
+in `~/Documents/KeePassSync/`. It then acquires a non-blocking lock and
+creates a snapshot in `~/Backups/KeePassXC/`. This daily snapshot captures
+changes regardless of where they were made: a later Android/Syncthing change
+does not first have to pass through a KeePassXC save on this machine.
 
-The wrapper holds `flock` on `$XDG_RUNTIME_DIR/keepassxc-backup.lock` from
-the start of delivery until rotation finishes: file descriptor 9 stays open
-for the lifetime of the process. A concurrent run prints `SKIP` and exits
-with code `0` without starting a second workflow.
+The snapshot uses the generic name format
+`keepassxc-snapshot-YYYY-MM-DD_HH-MM-SS.XXXXXX.kdbx`; its mode is `0600` and
+its mtime is current. The wrapper checks byte identity with `cmp`. If copying
+or verification fails, it removes the incomplete snapshot and stops before
+delivery. A verified snapshot remains in the backup directory even if the
+subsequent delivery fails.
 
-Save the wrapper as `~/.local/bin/keepassxc-backup-run` and set its mode to
-`0700`. It requires `HOME` and `XDG_RUNTIME_DIR` to be set, `rclone` and
-`flock` to be available, the source directory to exist, the rotation script
-to be executable, and at least one regular `*.kdbx` at the source root.
+If the startup precheck finds anything other than exactly one top-level
+regular, non-symlink `*.kdbx`, the wrapper exits with an error before snapshot,
+delivery, or rotation. This startup conflict gate catches an unexpected
+additional database, such as a Syncthing conflict copy; it does not block or
+serialize Syncthing itself.
+
+One non-blocking `flock` on `$XDG_RUNTIME_DIR/keepassxc-backup.lock` is held
+from before snapshot creation through the end of rotation. File descriptor 9
+stays open for the entire workflow. A concurrent invocation prints `SKIP` and
+exits with code `0` without starting another workflow.
+
+After snapshot verification, `rclone copy` delivers only top-level regular
+`*.kdbx` files from `~/Backups/KeePassXC/` to `gdrive:Backups/KeePassXC/`.
+`copy` is used because delivery must not delete remote files; `rclone sync` and
+remote rotation are not used. If delivery returns an error, the wrapper exits
+and skips local rotation. The verified snapshot stays local for the next
+successful delivery. There is no automatic retry loop. Only successful
+delivery allows `keepassxc-backup-rotate --apply` to run.
+
+Save the wrapper as `~/.local/bin/keepassxc-backup-run` with mode `0700`. It
+requires `HOME` and `XDG_RUNTIME_DIR`, the `rclone` and `flock` commands, both
+directories, an executable rotation script, and exactly one top-level regular,
+non-symlink live `*.kdbx`.
 
 ```bash
 #!/usr/bin/env bash
@@ -500,6 +522,7 @@ umask 077
 : "${HOME:?HOME must be set}"
 : "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}"
 
+readonly live_dir="$HOME/Documents/KeePassSync"
 readonly backup_dir="$HOME/Backups/KeePassXC"
 readonly remote='gdrive:Backups/KeePassXC'
 readonly rotate="$HOME/.local/bin/keepassxc-backup-rotate"
@@ -507,21 +530,63 @@ readonly lock_file="$XDG_RUNTIME_DIR/keepassxc-backup.lock"
 
 command -v rclone >/dev/null 2>&1 || { printf 'FAIL: rclone is unavailable\n' >&2; exit 1; }
 command -v flock >/dev/null 2>&1 || { printf 'FAIL: flock is unavailable\n' >&2; exit 1; }
-[[ -d "$backup_dir" ]] || { printf 'FAIL: backup source directory is missing\n' >&2; exit 1; }
+[[ -d "$live_dir" ]] || { printf 'FAIL: live database directory is missing\n' >&2; exit 1; }
+[[ -d "$backup_dir" ]] || { printf 'FAIL: backup directory is missing\n' >&2; exit 1; }
 [[ -x "$rotate" ]] || { printf 'FAIL: rotation script is missing or not executable\n' >&2; exit 1; }
 
-has_backup=false
-while IFS= read -r -d '' _; do
-    has_backup=true
-    break
-done < <(find "$backup_dir" -maxdepth 1 -type f -name '*.kdbx' -print0)
-[[ "$has_backup" == true ]] || { printf 'FAIL: no top-level regular KDBX backups found\n' >&2; exit 1; }
+shopt -s dotglob nullglob
+live_candidates=("$live_dir"/*.kdbx)
+live_databases=()
+for candidate in "${live_candidates[@]}"; do
+    if [[ -f "$candidate" && ! -L "$candidate" ]]; then
+        live_databases+=("$candidate")
+    fi
+done
+if ((${#live_databases[@]} != 1)); then
+    printf 'FAIL: expected exactly one live KDBX; found %d\n' "${#live_databases[@]}" >&2
+    exit 1
+fi
+readonly live_db="${live_databases[0]}"
 
 exec 9>"$lock_file"
 if ! flock -n 9; then
     printf 'SKIP: another KeePassXC backup run holds the lock\n'
     exit 0
 fi
+
+snapshot_path=''
+snapshot_verified=false
+cleanup_incomplete_snapshot() {
+    if [[ "$snapshot_verified" != true && -n "$snapshot_path" ]]; then
+        rm -f -- "$snapshot_path"
+    fi
+}
+trap cleanup_incomplete_snapshot EXIT
+
+printf 'STAGE: local snapshot\n'
+snapshot_time="$(date '+%F_%H-%M-%S')"
+if ! snapshot_path="$(mktemp "$backup_dir/keepassxc-snapshot-${snapshot_time}.XXXXXX.kdbx")"; then
+    printf 'FAIL: cannot create local snapshot\n' >&2
+    exit 1
+fi
+if ! cp -- "$live_db" "$snapshot_path"; then
+    printf 'FAIL: cannot copy live database to snapshot\n' >&2
+    exit 1
+fi
+if ! chmod 600 -- "$snapshot_path"; then
+    printf 'FAIL: cannot set snapshot mode\n' >&2
+    exit 1
+fi
+if ! touch -- "$snapshot_path"; then
+    printf 'FAIL: cannot update snapshot mtime\n' >&2
+    exit 1
+fi
+if ! cmp -s -- "$live_db" "$snapshot_path"; then
+    printf 'FAIL: snapshot does not match live database\n' >&2
+    exit 1
+fi
+snapshot_verified=true
+printf 'PASS: local snapshot\n'
 
 printf 'STAGE: delivery\n'
 if ! rclone copy \
@@ -568,7 +633,7 @@ Unit=keepassxc-backup.service
 WantedBy=timers.target
 ```
 
-Set the file modes, reload the user units, and enable the timer:
+Set the modes, reload the user units, and enable the timer:
 
 ```bash
 mkdir -p ~/.local/bin ~/.config/systemd/user
@@ -579,17 +644,16 @@ systemctl --user daemon-reload
 systemctl --user enable --now keepassxc-backup.timer
 ```
 
-With `Persistent=true`, the timer catches up a missed calendar event after
-the user manager becomes active again. This machine has `Linger=no`, so there
-is no separate background run while the user manager is inactive; a missed
-event will usually be handled at the next login/session. `Persistent` is not
-a retry mechanism: if the service has already run and failed, it is not
-retried automatically. The next attempt is the next scheduled run or a
-manual start.
+With `Persistent=true`, the timer catches up a missed calendar event when the
+user manager becomes active again. This machine has `Linger=no`, so there is no
+separate background run while the user manager is inactive; a missed event is
+usually handled at the next login/session. `Persistent` is not an application
+retry mechanism: if the service has run and failed, it is not retried
+automatically. The next attempt is the next scheduled run or a manual start.
 
-The service uses `Type=oneshot`. After a successful run it normally shows
-`inactive (dead)`, which is the expected completed state. Check `Result=success`
-and the journal. Inspection commands:
+The service uses `Type=oneshot`. After success it normally shows
+`inactive (dead)`, which is the expected completed state. Check
+`Result=success` and the journal. Inspection commands:
 
 ```bash
 systemctl --user status keepassxc-backup.timer
@@ -598,16 +662,20 @@ systemctl --user status keepassxc-backup.service
 journalctl --user -u keepassxc-backup.service -n 50 --no-pager
 ```
 
-To run the workflow manually:
+To start the workflow manually:
 
 ```bash
 systemctl --user start keepassxc-backup.service
 ```
 
-Acceptance on ASUS B5402 passed on 2026-09-29: the direct wrapper and service
-runs succeeded; the journal confirmed delivery before rotation, and a
-controlled rclone failure confirmed that rotation was skipped. The timer was
-enabled and `active (waiting)` when checked.
+Acceptance on ASUS B5402 passed on 2026-09-29: the service completed with
+`Result=success` and `ExecMainStatus=0`; the journal confirmed snapshot →
+delivery → rotation. The local KDBX count increased from 2 to 3; the new
+snapshot had mode `0600`, the current run's mtime, and byte-identical content
+to the live DB. The remote object count increased from 1 to 3. A controlled
+test with a second database confirmed that the conflict gate stops the
+workflow before snapshot, delivery, or rotation. The timer remained enabled
+and `active (waiting)` on its daily 20:00 schedule.
 
 Phone sync is the next separate KeePassXC stage.
 

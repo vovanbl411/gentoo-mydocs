@@ -20,17 +20,25 @@ verified_on: [asus-b5402]
 - r2modman — AppImage; launches the Flatpak version of Steam through the
   `~/.local/bin/steam.sh` wrapper (`flatpak run com.valvesoftware.Steam "$@"`).
 - KeePassXC — native Gentoo (`app-admin/keepassxc`, runtime
-  `2.8.0-snapshot`); the built-in backup before saving the database is
-  enabled: timestamped `.kdbx` files in `~/Backups/KeePassXC/` (directory
-  mode `0700`). Local 90-day rotation is installed as
-  `~/.local/bin/keepassxc-backup-rotate`; production acceptance passed on
-  2026-09-29. Daily automation is also installed and accepted (PASS): wrapper
-  `~/.local/bin/keepassxc-backup-run`, user service and timer
-  `keepassxc-backup.service` / `keepassxc-backup.timer`, systemd --user,
-  20:00 local time, `Persistent=true`, and `Linger=no`. The timer was enabled
-  and `active (waiting)` at acceptance; direct wrapper and service runs passed,
-  and the failure-path test confirmed rotation is skipped after delivery
-  failure. Delivery to Google Drive does not delete remote files.
+  `2.8.0-snapshot`); the live database is stored in the dedicated
+  `~/Documents/KeePassSync/` directory, which must contain
+  exactly one top-level regular, non-symlink `*.kdbx`; the live KDBX file has
+  mode `0600`. KeePassXC's built-in timestamped backup before saving remains
+  enabled; a real save from the new live path and creation of its built-in
+  backup were verified. The daily wrapper
+  `~/.local/bin/keepassxc-backup-run` under systemd --user checks
+  for the single live DB, then creates a verified snapshot under one
+  non-blocking flock in `~/Backups/KeePassXC/` (directory mode `0700`, snapshot
+  mode `0600`), delivers top-level `*.kdbx` with `rclone copy`, and runs
+  `~/.local/bin/keepassxc-backup-rotate --apply` (90 days or older by mtime)
+  only after delivery succeeds. Delivery does not delete remote files. If the
+  live KDBX count is not exactly one, the workflow stops before snapshot; this
+  is a startup conflict gate, not a Syncthing lock. The
+  `keepassxc-backup.service` / `keepassxc-backup.timer` run daily at 20:00
+  local time with `Persistent=true`; `Linger=no`. The timer was enabled and
+  `active (waiting)` at acceptance. Snapshot, service, and controlled
+  conflict-gate acceptance passed on 2026-09-29. Phone sync remains the next
+  separate stage.
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` with a dedicated
   OAuth Desktop client and the `drive.file` scope; the app's publishing
   status is *In production*. The existing remote was re-authorized, and
@@ -46,12 +54,14 @@ the `gdrive:` remote was re-authorized with
 `rclone config reconnect gdrive:` (PASS). Post-reauth transport validation
 passed. A real KDBX backup was uploaded to Google Drive and downloaded back
 byte-identical on 2026-09-28 (`cmp`, SHA-256 — PASS). Local rotation and daily
-automation passed acceptance on 2026-09-29: the direct wrapper and service
-runs succeeded, and the journal confirmed delivery before rotation. A
-controlled delivery-failure test confirmed that rotation is skipped. The
-timer was enabled and `active (waiting)`; remote delivery does not delete
-files. Phone sync is the next separate stage. The other applications were not
-re-checked on 2026-09-29.
+automation passed acceptance on 2026-09-29: the wrapper created a snapshot
+(mode `0600`, current mtime, byte-identical to the live DB), then the journal
+confirmed snapshot → delivery → rotation; the local backup count increased
+2 → 3 and the remote object count 1 → 3. A controlled second-`*.kdbx` test
+confirmed the conflict gate stops the workflow before snapshot, delivery, and
+rotation. The timer was enabled and `active (waiting)`; remote delivery does
+not delete files. Phone sync is the next separate stage. The other
+applications were not re-checked on 2026-09-29.
 
 ## Firefox
 

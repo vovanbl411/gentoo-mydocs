@@ -7,43 +7,44 @@ last_verified: "2026-09-29"
 verified_on: [asus-b5402]
 ---
 
-Гайд описывает схему резервных копий KeePassXC: приложение создаёт копии с
-отметкой времени перед сохранением базы, wrapper ежедневно доставляет
-top-level `*.kdbx` в Google Drive, а после успешной доставки локальная
-rotation удаляет копии старше 90 дней. Automation не удаляет файлы на remote.
+Гайд описывает принятый pipeline резервного копирования KeePassXC: из
+выделенного live-каталога `~/Documents/KeePassSync/` wrapper находит ровно
+один top-level regular non-symlink `*.kdbx`, создаёт проверенный локальный
+snapshot, доставляет backups в Google Drive и только после успешной доставки
+запускает local rotation. Встроенные timestamped backups KeePassXC при save
+тоже остаются включены. Rotation удаляет локальные копии возрастом 90 дней и
+старше по mtime; remote-файлы workflow не удаляет.
 
-Схема применима на системах с KeePassXC и rclone. Автоматизация описывает
-принятый вариант для ASUS ExpertBook B5402: `systemd --user`, календарный
-tаймер на 20:00 по местному времени и `Linger=no`. Вне активного user manager
-отдельного фонового запуска нет.
+Ежедневная автоматизация на ASUS ExpertBook B5402 использует
+`systemd --user`: calendar timer срабатывает в 20:00 по местному времени,
+`Persistent=true`, `Linger=no`. Snapshot не зависит от того, где была сделана
+последняя правка live DB: изменение, пришедшее позже через Android/Syncthing,
+не обязано проходить через локальный save в KeePassXC. Телефонная синхронизация
+пока не настроена и остаётся следующим отдельным этапом.
 
-На ASUS ExpertBook B5402 2026-09-28 проверены локальные timestamped
-backups, mode каталога `0700`, remote `gdrive:` с OAuth scope `drive.file` и
-передача реального KDBX туда и обратно без изменения байтов. 2026-09-29
-OAuth-приложение переведено в *In production*, remote повторно авторизован
-(`rclone config reconnect gdrive:` — PASS), а post-reauth transport validation
-прошла: list, upload и read временного объекта, его удаление и проверка, что
-объект отсутствует. В тот же день production acceptance local rotation и
-daily automation завершился PASS: прямой wrapper и service прошли, журнал
-подтвердил delivery до rotation, а контролируемая ошибка доставки — пропуск
-rotation. Актуальное состояние машины см. в
-[системном разделе](../../systems/asus-b5402/applications/).
+Перед запуском wrapper проверяет, что в live-каталоге ровно одна подходящая
+база. При нуле или нескольких файлах он завершается до snapshot, delivery и
+rotation. Это startup conflict gate для лишнего файла, например Syncthing
+conflict-copy; это не транзакционная блокировка Syncthing. На ASUS B5402
+2026-09-29 приняты snapshot, обычный service run и controlled conflict-gate
+test. Snapshot был mode `0600`, имел mtime текущего запуска и совпадал с live
+DB побайтно; timer уже был включён и активен. См. также
+[системный раздел](../../systems/asus-b5402/applications/).
 
 ## Architecture
 
 ```text
-KeePassXC
-  ↓ встроенный backup перед сохранением базы
-~/Backups/KeePassXC/           timestamped .kdbx, directory mode 0700
-  ↓ systemd --user timer (ежедневно, 20:00 local time)
-keepassxc-backup.service       Type=oneshot
-  ↓ wrapper: rclone copy, затем local rotation
-   gdrive:Backups/KeePassXC/   доставка без удаления на remote
+~/Documents/KeePassSync/      live DB, mode 0600; exactly one top-level *.kdbx
+  ↓ daily wrapper: discover one DB, acquire non-blocking flock
+~/Backups/KeePassXC/           verified snapshot + KeePassXC save backups, mode 0700
+  ↓ rclone copy top-level *.kdbx
+   gdrive:Backups/KeePassXC/   delivery without remote deletion
+  ↓ only after delivery succeeds
+local 90-day rotation           --apply; files aged 90 days or more by mtime
 ```
 
-Ключевое решение: Google Drive — destination для резервных копий, а не live
-filesystem. База KeePassXC открывается только с локального диска; облако
-хранит закрытые копии и ничего не знает о процессе работы с базой.
+Google Drive — destination для резервных копий, а не live filesystem. База
+KeePassXC открывается только с локального диска; облако хранит закрытые копии.
 
 ## Prerequisites
 
@@ -303,7 +304,8 @@ rm "$verify_file"
 
 Принятые решения:
 
-- локальная история: хранить backups за последние 90 дней;
+- local rotation сохраняет файлы младше 90 дней; копии возрастом 90 дней и
+  старше удаляются по mtime;
 - Google Drive: доставка без удаления; rotation на remote не применяется.
 
 Статус реализации на 2026-09-29:
@@ -325,11 +327,11 @@ rm "$verify_file"
   сохранил просроченный тестовый KDBX, а `--apply` удалил только его.
   Non-KDBX control и production KDBX сохранились; hash реальной базы до и
   после совпал;
-- daily delivery и local rotation выполняются wrapper-ом
+- daily snapshot, delivery и local rotation выполняются wrapper-ом
   `~/.local/bin/keepassxc-backup-run` через user service и calendar timer;
-  подробная конфигурация приведена ниже. Доставка выполняется раньше
-  rotation, а ошибка доставки останавливает workflow до удаления локальных
-  файлов.
+  сначала он проверяет live DB и создаёт snapshot, затем выполняет
+  `rclone copy`, и только после успеха — rotation. Подробная конфигурация
+  приведена ниже.
 
 Google Drive остаётся destination для backup-копий. Этот workflow не удаляет
 remote-файлы и не выполняет remote rotation. При частичной передаче с ошибкой
@@ -465,23 +467,45 @@ chmod 700 ~/.local/bin/keepassxc-backup-rotate
 удаляет. Второй запускает ту же проверку и удаляет найденные просроченные
 локальные `.kdbx`.
 
-## Автоматизация ежедневной доставки и локальной rotation
+## Ежедневный snapshot, доставка и локальная rotation
 
-Wrapper сначала отправляет только top-level regular `*.kdbx` командой
-`rclone copy`. Только при успешной доставке он запускает rotation с `--apply`.
-Если доставка завершается ошибкой, wrapper завершается с кодом `1` и
-пропускает rotation. `rclone copy` не удаляет remote-файлы; в этой схеме
-`rclone sync` не используется.
+Wrapper сначала находит в `~/Documents/KeePassSync/` ровно один top-level
+regular non-symlink `*.kdbx`. Затем он захватывает non-blocking lock и создаёт
+snapshot в `~/Backups/KeePassXC/`. Ежедневный snapshot сохраняет изменения
+независимо от того, где они внесены: более позднее изменение из
+Android/Syncthing не обязано сначала пройти через KeePassXC save на этой
+машине.
 
-Wrapper удерживает `flock` на `$XDG_RUNTIME_DIR/keepassxc-backup.lock` от
-начала доставки до завершения rotation: file descriptor 9 остаётся открыт
-всё время работы процесса. Параллельный запуск печатает `SKIP` и завершается
-с кодом `0`, не запуская второй workflow.
+Имя snapshot имеет общий формат
+`keepassxc-snapshot-YYYY-MM-DD_HH-MM-SS.XXXXXX.kdbx`; mode — `0600`, mtime —
+текущий. Wrapper проверяет идентичность байтов через `cmp`. Если копирование
+или проверка не удались, неполный snapshot удаляется, а delivery не
+начинается. Проверенный snapshot остаётся в backup-каталоге, даже если
+последующая доставка завершится ошибкой.
 
-Сохрани wrapper в `~/.local/bin/keepassxc-backup-run` и установи mode `0700`.
-Он требует заданные `HOME` и `XDG_RUNTIME_DIR`, доступные `rclone` и `flock`,
-существующий source-каталог, исполняемый rotation script и хотя бы один
-regular `*.kdbx` в корне source.
+Если startup precheck находит не ровно один top-level regular non-symlink
+`*.kdbx`, wrapper завершается с ошибкой до snapshot, delivery и rotation.
+Этот startup conflict gate ловит неожиданную дополнительную базу, например
+Syncthing conflict-copy; он не блокирует и не сериализует сам Syncthing.
+
+Один non-blocking `flock` на `$XDG_RUNTIME_DIR/keepassxc-backup.lock`
+удерживается с момента перед созданием snapshot до конца rotation. File
+descriptor 9 остаётся открыт всё время работы workflow. Параллельный запуск
+печатает `SKIP` и завершается с кодом `0`, не запуская второй workflow.
+
+После проверки snapshot команда `rclone copy` доставляет только top-level
+regular `*.kdbx` из `~/Backups/KeePassXC/` в `gdrive:Backups/KeePassXC/`.
+Используется `copy`, потому что доставка не должна удалять remote-файлы;
+`rclone sync` и remote rotation не применяются. Если доставка возвращает
+ошибку, wrapper завершается и пропускает локальную rotation. Проверенный
+snapshot остаётся локально для следующей успешной доставки. Автоматического
+retry loop нет. Только успешная доставка разрешает запуск
+`keepassxc-backup-rotate --apply`.
+
+Сохрани wrapper как `~/.local/bin/keepassxc-backup-run` с mode `0700`. Ему
+нужны `HOME` и `XDG_RUNTIME_DIR`, команды `rclone` и `flock`, оба каталога,
+исполняемый rotation script и ровно один top-level regular non-symlink live
+`*.kdbx`.
 
 ```bash
 #!/usr/bin/env bash
@@ -491,6 +515,7 @@ umask 077
 : "${HOME:?HOME must be set}"
 : "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}"
 
+readonly live_dir="$HOME/Documents/KeePassSync"
 readonly backup_dir="$HOME/Backups/KeePassXC"
 readonly remote='gdrive:Backups/KeePassXC'
 readonly rotate="$HOME/.local/bin/keepassxc-backup-rotate"
@@ -498,21 +523,63 @@ readonly lock_file="$XDG_RUNTIME_DIR/keepassxc-backup.lock"
 
 command -v rclone >/dev/null 2>&1 || { printf 'FAIL: rclone is unavailable\n' >&2; exit 1; }
 command -v flock >/dev/null 2>&1 || { printf 'FAIL: flock is unavailable\n' >&2; exit 1; }
-[[ -d "$backup_dir" ]] || { printf 'FAIL: backup source directory is missing\n' >&2; exit 1; }
+[[ -d "$live_dir" ]] || { printf 'FAIL: live database directory is missing\n' >&2; exit 1; }
+[[ -d "$backup_dir" ]] || { printf 'FAIL: backup directory is missing\n' >&2; exit 1; }
 [[ -x "$rotate" ]] || { printf 'FAIL: rotation script is missing or not executable\n' >&2; exit 1; }
 
-has_backup=false
-while IFS= read -r -d '' _; do
-    has_backup=true
-    break
-done < <(find "$backup_dir" -maxdepth 1 -type f -name '*.kdbx' -print0)
-[[ "$has_backup" == true ]] || { printf 'FAIL: no top-level regular KDBX backups found\n' >&2; exit 1; }
+shopt -s dotglob nullglob
+live_candidates=("$live_dir"/*.kdbx)
+live_databases=()
+for candidate in "${live_candidates[@]}"; do
+    if [[ -f "$candidate" && ! -L "$candidate" ]]; then
+        live_databases+=("$candidate")
+    fi
+done
+if ((${#live_databases[@]} != 1)); then
+    printf 'FAIL: expected exactly one live KDBX; found %d\n' "${#live_databases[@]}" >&2
+    exit 1
+fi
+readonly live_db="${live_databases[0]}"
 
 exec 9>"$lock_file"
 if ! flock -n 9; then
     printf 'SKIP: another KeePassXC backup run holds the lock\n'
     exit 0
 fi
+
+snapshot_path=''
+snapshot_verified=false
+cleanup_incomplete_snapshot() {
+    if [[ "$snapshot_verified" != true && -n "$snapshot_path" ]]; then
+        rm -f -- "$snapshot_path"
+    fi
+}
+trap cleanup_incomplete_snapshot EXIT
+
+printf 'STAGE: local snapshot\n'
+snapshot_time="$(date '+%F_%H-%M-%S')"
+if ! snapshot_path="$(mktemp "$backup_dir/keepassxc-snapshot-${snapshot_time}.XXXXXX.kdbx")"; then
+    printf 'FAIL: cannot create local snapshot\n' >&2
+    exit 1
+fi
+if ! cp -- "$live_db" "$snapshot_path"; then
+    printf 'FAIL: cannot copy live database to snapshot\n' >&2
+    exit 1
+fi
+if ! chmod 600 -- "$snapshot_path"; then
+    printf 'FAIL: cannot set snapshot mode\n' >&2
+    exit 1
+fi
+if ! touch -- "$snapshot_path"; then
+    printf 'FAIL: cannot update snapshot mtime\n' >&2
+    exit 1
+fi
+if ! cmp -s -- "$live_db" "$snapshot_path"; then
+    printf 'FAIL: snapshot does not match live database\n' >&2
+    exit 1
+fi
+snapshot_verified=true
+printf 'PASS: local snapshot\n'
 
 printf 'STAGE: delivery\n'
 if ! rclone copy \
@@ -531,7 +598,7 @@ printf 'STAGE: local rotation\n'
 printf 'PASS: local rotation\n'
 ```
 
-Сохрани user service в
+Сохрани user service как
 `~/.config/systemd/user/keepassxc-backup.service` (mode `0644`):
 
 ```ini
@@ -543,7 +610,7 @@ Type=oneshot
 ExecStart=%h/.local/bin/keepassxc-backup-run
 ```
 
-Сохрани user timer в
+Сохрани user timer как
 `~/.config/systemd/user/keepassxc-backup.timer` (mode `0644`):
 
 ```ini
@@ -570,17 +637,17 @@ systemctl --user daemon-reload
 systemctl --user enable --now keepassxc-backup.timer
 ```
 
-Timer с `Persistent=true` догоняет пропущенное calendar-срабатывание после
-того, как user manager снова активируется. На этой машине `Linger=no`, поэтому
-при выключенном user manager отдельного фонового запуска нет; пропущенное
-срабатывание обычно будет обработано при следующем login/session. `Persistent`
-не является retry-механизмом: если service уже запустился и завершился
-ошибкой, автоматической повторной попытки нет. Новый запуск произойдёт по
-следующему расписанию или вручную.
+При `Persistent=true` timer догоняет пропущенное calendar-срабатывание,
+когда user manager снова становится активным. На этой машине `Linger=no`,
+поэтому при неактивном user manager отдельного фонового запуска нет;
+пропущенное событие обычно обрабатывается при следующем login/session.
+`Persistent` не является механизмом повтора приложения: если service уже
+запустился и завершился ошибкой, автоматического retry нет. Следующая попытка
+будет по расписанию или после ручного запуска.
 
-Service имеет `Type=oneshot`. После успешного выполнения он обычно показывает
-`inactive (dead)` — это штатное завершение, а не признак ошибки. Проверяй
-`Result=success` и журнал. Команды для проверки:
+Service использует `Type=oneshot`. После успешного выполнения он обычно
+показывает `inactive (dead)` — это штатное завершение. Проверяй
+`Result=success` и журнал. Команды проверки:
 
 ```bash
 systemctl --user status keepassxc-backup.timer
@@ -589,16 +656,19 @@ systemctl --user status keepassxc-backup.service
 journalctl --user -u keepassxc-backup.service -n 50 --no-pager
 ```
 
-Чтобы вручную повторить workflow:
+Для ручного запуска workflow:
 
 ```bash
 systemctl --user start keepassxc-backup.service
 ```
 
-Acceptance на ASUS B5402 2026-09-29 прошёл: прямой запуск wrapper и service
-завершились успешно; журнал подтвердил порядок delivery → rotation, а
-контролируемая ошибка rclone подтвердила, что rotation была пропущена.
-Timer включён и находился в состоянии `active (waiting)` при проверке.
+Acceptance на ASUS B5402 прошёл 2026-09-29: service завершился с
+`Result=success` и `ExecMainStatus=0`; журнал подтвердил snapshot → delivery →
+rotation. Число локальных KDBX выросло с 2 до 3; новый snapshot имел mode
+`0600`, mtime текущего запуска и совпадал с live DB побайтно. Число remote
+объектов выросло с 1 до 3. Контролируемый тест со второй базой подтвердил,
+что conflict gate останавливает workflow до snapshot, delivery и rotation.
+Timer остался enabled и `active (waiting)` с ежедневным расписанием 20:00.
 
 Следующий отдельный этап KeePassXC — синхронизация с телефоном.
 
