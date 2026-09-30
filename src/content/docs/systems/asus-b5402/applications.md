@@ -3,7 +3,7 @@ title: Приложения ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-29"
+last_verified: "2026-09-30"
 verified_on: [asus-b5402]
 ---
 
@@ -36,8 +36,14 @@ verified_on: [asus-b5402]
   `keepassxc-backup.service` / `keepassxc-backup.timer` работают ежедневно в
   20:00 local time с `Persistent=true`; `Linger=no`. Timer enabled и был
   `active (waiting)` при acceptance. Snapshot, service и controlled
-  conflict-gate acceptance прошли 2026-09-29. Phone sync остаётся следующим
-  отдельным этапом.
+  conflict-gate acceptance прошли 2026-09-29.
+- Syncthing `net-p2p/syncthing-2.0.16` запущен как systemd --user service;
+  `Linger=no`. Он синхронизирует только `~/Documents/KeePassSync/` с Android,
+  Folder ID на обеих сторонах — `keepassxc-live`. На Android используются
+  Syncthing-Fork и KeePassDX с путём `Documents/KeePassSync`. Защищённое
+  соединение по LAN и обычные изменения в обоих направлениях прошли acceptance
+  2026-09-30. NAT-PMP errors не мешали синхронизации. Реальное conflict
+  recovery с KeePassXC merge остаётся pending.
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` с собственным
   OAuth Desktop client и scope `drive.file`; publishing status приложения —
   *In production*. Remote `gdrive:` повторно авторизован командой
@@ -59,8 +65,10 @@ daily automation завершились успешно 2026-09-29: wrapper со�
 remote object count — 1 → 3. Controlled второй `*.kdbx` подтвердил, что
 conflict gate останавливает workflow до snapshot, delivery и rotation. Timer
 включён и находился в состоянии `active (waiting)`; remote delivery не удаляет
-файлы. Phone sync остаётся следующим отдельным этапом. Остальные приложения
-2026-09-29 повторно не проверялись.
+файлы. 2026-09-30 initial sync и изменения Gentoo → Android → Gentoo прошли
+PASS; локальные backup-файлы после переноса live-базы по-прежнему сохраняются.
+Число файлов в повторной проверке не фиксировалось. Реальное conflict recovery
+остаётся pending. Остальные приложения 2026-09-29 повторно не проверялись.
 
 ## Firefox
 
@@ -72,15 +80,16 @@ conflict gate останавливает workflow до snapshot, delivery и rot
 
 - OBS: package policy и настройки порта-стека остаются планом.
 - Perplexity: перенос конфигурации в chezmoi остаётся планом.
-- KeePassXC backups: следующий отдельный этап — синхронизация с телефоном.
-  Доставка в Google Drive идёт без удаления; remote rotation не выполняется.
-  См. [руководство по KeePassXC backups](../../../settings/keepassxc-backup/).
+- KeePassXC: обычная phone sync принята; end-to-end conflict recovery и
+  KeePassXC merge остаются pending. См.
+  [руководство по синхронизации](../../../settings/keepassxc-phone-sync/).
 
 ## Общие руководства
 
 - [Firefox](../../../settings/firefox/)
 - [Flatpak и Flatseal](../../../settings/flatpak/)
 - [Резервные копии KeePassXC в Google Drive](../../../settings/keepassxc-backup/)
+- [Синхронизация KeePassXC с Android через Syncthing](../../../settings/keepassxc-phone-sync/)
 - [OBS Studio](../../../settings/obs-studio/)
 - [Perplexity AppImage](../../../settings/perplexity/)
 - [r2modman и Steam Flatpak](../../../settings/r2modman/)

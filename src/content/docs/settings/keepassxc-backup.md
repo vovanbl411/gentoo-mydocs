@@ -3,7 +3,7 @@ title: Резервные копии KeePassXC в Google Drive через rclone
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-29"
+last_verified: "2026-09-30"
 verified_on: [asus-b5402]
 ---
 
@@ -19,8 +19,10 @@ snapshot, доставляет backups в Google Drive и только посл�
 `systemd --user`: calendar timer срабатывает в 20:00 по местному времени,
 `Persistent=true`, `Linger=no`. Snapshot не зависит от того, где была сделана
 последняя правка live DB: изменение, пришедшее позже через Android/Syncthing,
-не обязано проходить через локальный save в KeePassXC. Телефонная синхронизация
-пока не настроена и остаётся следующим отдельным этапом.
+не обязано проходить через локальный save в KeePassXC. Обычная двусторонняя
+синхронизация с Android через Syncthing и KeePassDX принята 2026-09-30;
+реальное восстановление после конфликта и merge остаётся pending. Подробности
+— в [отдельном руководстве](../keepassxc-phone-sync/).
 
 Перед запуском wrapper проверяет, что в live-каталоге ровно одна подходящая
 база. При нуле или нескольких файлах он завершается до snapshot, delivery и
@@ -670,8 +672,6 @@ rotation. Число локальных KDBX выросло с 2 до 3; нов�
 что conflict gate останавливает workflow до snapshot, delivery и rotation.
 Timer остался enabled и `active (waiting)` с ежедневным расписанием 20:00.
 
-Следующий отдельный этап KeePassXC — синхронизация с телефоном.
-
 ## Что намеренно не используется
 
 | Подход | Почему не используется |
@@ -680,10 +680,6 @@ Timer остался enabled и `active (waiting)` с ежедневным ра�
 | Постоянно смонтированный Drive | То же, плюс база не должна открываться с сетевого «диска». |
 | `rclone sync` | `sync` удаляет в destination файлы, отсутствующие в source, — удаляет старые remote-копии и ломает схему доставки без удаления. |
 | Git/GitHub как live sync KDBX | Бинарный секрет в VCS расширяет поверхность распространения и не даёт истории версий внутри базы. |
-
-## Ограничения и следующие этапы
-
-Следующий отдельный этап KeePassXC — синхронизация базы с телефоном.
 
 ## Troubleshooting и откат
 
@@ -708,6 +704,7 @@ Timer остался enabled и `active (waiting)` с ежедневным ра�
 
 ## Related docs
 
+- [Синхронизация KeePassXC с Android через Syncthing](../keepassxc-phone-sync/) — live sync и статус conflict recovery.
 - [Приложения ASUS B5402](../../systems/asus-b5402/applications/) — проверенное состояние машины.
 - [KeePassXC Quick Unlock через polkit](../../troubleshooting/keepassxc-quick-unlock-polkit/) — разблокировка базы по отпечатку.
 

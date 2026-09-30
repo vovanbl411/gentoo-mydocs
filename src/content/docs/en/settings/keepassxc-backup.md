@@ -3,7 +3,7 @@ title: KeePassXC backups to Google Drive via rclone
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-29"
+last_verified: "2026-09-30"
 verified_on: [asus-b5402]
 ---
 
@@ -19,8 +19,9 @@ Daily automation on the ASUS ExpertBook B5402 uses `systemd --user`: a
 calendar timer at 20:00 local time, `Persistent=true`, and `Linger=no`. The
 snapshot does not depend on where the live database was last edited: a change
 that later arrives through Android/Syncthing does not have to pass through a
-local KeePassXC save. Phone sync is not configured yet and remains the next
-separate stage.
+local KeePassXC save. Normal bidirectional sync with Android through
+Syncthing and KeePassDX was accepted on 2026-09-30; real conflict recovery and
+merge remain pending. See the [separate guide](../keepassxc-phone-sync/).
 
 Before starting, the wrapper checks that the live directory contains exactly
 one matching database. If it finds zero or multiple files, it exits before
@@ -677,8 +678,6 @@ test with a second database confirmed that the conflict gate stops the
 workflow before snapshot, delivery, or rotation. The timer remained enabled
 and `active (waiting)` on its daily 20:00 schedule.
 
-Phone sync is the next separate KeePassXC stage.
-
 ## What is deliberately not used
 
 | Approach | Why it is not used |
@@ -687,10 +686,6 @@ Phone sync is the next separate KeePassXC stage.
 | A permanently mounted Drive | Same, plus the database must not be opened from a network “disk”. |
 | `rclone sync` | `sync` deletes destination files that are missing at the source — it removes old remote copies and breaks the delivery-without-deletion scheme. |
 | Git/GitHub as live KDBX sync | A binary secret in a VCS widens the propagation surface and provides no version history inside the database. |
-
-## Limitations and next stages
-
-Phone sync is the next separate KeePassXC stage.
 
 ## Troubleshooting and rollback
 
@@ -718,6 +713,7 @@ Rollback:
 
 ## Related docs
 
+- [KeePassXC phone sync with Android via Syncthing](../keepassxc-phone-sync/) — live sync and conflict recovery status.
 - [ASUS B5402 applications](../../systems/asus-b5402/applications/) — the verified machine state.
 - [KeePassXC Quick Unlock via polkit](../../troubleshooting/keepassxc-quick-unlock-polkit/) — fingerprint database unlock.
 

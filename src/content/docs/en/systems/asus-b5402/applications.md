@@ -3,7 +3,7 @@ title: Applications on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-29"
+last_verified: "2026-09-30"
 verified_on: [asus-b5402]
 ---
 
@@ -37,8 +37,14 @@ verified_on: [asus-b5402]
   `keepassxc-backup.service` / `keepassxc-backup.timer` run daily at 20:00
   local time with `Persistent=true`; `Linger=no`. The timer was enabled and
   `active (waiting)` at acceptance. Snapshot, service, and controlled
-  conflict-gate acceptance passed on 2026-09-29. Phone sync remains the next
-  separate stage.
+  conflict-gate acceptance passed on 2026-09-29.
+- Syncthing `net-p2p/syncthing-2.0.16` runs as a systemd --user service with
+  `Linger=no`. It syncs only `~/Documents/KeePassSync/` with Android; the
+  Folder ID on both sides is `keepassxc-live`. Android uses Syncthing-Fork and
+  KeePassDX with the `Documents/KeePassSync` path. The secure LAN connection
+  and normal edits in both directions passed acceptance on 2026-09-30.
+  NAT-PMP errors did not prevent sync. Real conflict recovery with a KeePassXC
+  merge remains pending.
 - rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` with a dedicated
   OAuth Desktop client and the `drive.file` scope; the app's publishing
   status is *In production*. The existing remote was re-authorized, and
@@ -60,8 +66,10 @@ confirmed snapshot → delivery → rotation; the local backup count increased
 2 → 3 and the remote object count 1 → 3. A controlled second-`*.kdbx` test
 confirmed the conflict gate stops the workflow before snapshot, delivery, and
 rotation. The timer was enabled and `active (waiting)`; remote delivery does
-not delete files. Phone sync is the next separate stage. The other
-applications were not re-checked on 2026-09-29.
+not delete files. Initial sync and edits Gentoo → Android → Gentoo passed on
+2026-09-30; local backup files remained present after moving the live database.
+The repeated check recorded no file count. Real conflict recovery remains
+pending. The other applications were not re-checked on 2026-09-29.
 
 ## Firefox
 
@@ -73,15 +81,16 @@ applications were not re-checked on 2026-09-29.
 
 - OBS: the package policy and portal-stack settings remain planned.
 - Perplexity: moving the configuration into chezmoi remains planned.
-- KeePassXC backups: the next separate stage is phone sync. Delivery to
-  Google Drive does not delete remote files; remote rotation is not performed.
-  See the [KeePassXC backup guide](../../../settings/keepassxc-backup/).
+- KeePassXC: normal phone sync is accepted; end-to-end conflict recovery and
+  KeePassXC merge remain pending. See the
+  [phone sync guide](../../../settings/keepassxc-phone-sync/).
 
 ## General guides
 
 - [Firefox](../../../settings/firefox/)
 - [Flatpak and Flatseal](../../../settings/flatpak/)
 - [KeePassXC backups to Google Drive](../../../settings/keepassxc-backup/)
+- [KeePassXC phone sync with Android via Syncthing](../../../settings/keepassxc-phone-sync/)
 - [OBS Studio](../../../settings/obs-studio/)
 - [Perplexity AppImage](../../../settings/perplexity/)
 - [r2modman and Steam Flatpak](../../../settings/r2modman/)

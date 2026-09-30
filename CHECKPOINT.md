@@ -178,7 +178,13 @@
   `~/.config/systemd/user/keepassxc-backup.timer` работают ежедневно в 20:00
   local time с `Persistent=true`, `Linger=no`; automatic retry нет. Remote
   delivery не удаляет файлы; Google Drive не является live filesystem и не
-  считается immutable storage. Phone sync — следующий отдельный этап.
+  считается immutable storage. Normal phone sync CLOSED / PASS на 2026-09-30:
+  Syncthing `net-p2p/syncthing-2.0.16` работает как systemd --user service,
+  `Linger=no`; Gentoo и Android используют Folder ID `keepassxc-live` для
+  `~/Documents/KeePassSync/` / `Documents/KeePassSync`. Syncthing-Fork и
+  KeePassDX на Android; защищённое соединение и редактирование в обоих
+  направлениях прошли PASS. Backup-файлы локально сохраняются. Real conflict
+  recovery и KeePassXC merge остаются PENDING.
 
 ---
 
@@ -211,6 +217,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-09-30 | Normal KeePassXC phone sync CLOSED / PASS: Syncthing `2.0.16` на Gentoo как systemd --user service (`Linger=no`), Android Syncthing-Fork и KeePassDX; общий Folder ID `keepassxc-live`, только live-папка `~/Documents/KeePassSync/` ↔ `Documents/KeePassSync`. Защищённое TCP-соединение по LAN, initial sync, Gentoo → Android edit и Android → Gentoo edit — PASS. Повторно подтверждено, что локальные backup-файлы остаются на месте. Реальный conflict и последующий KeePassXC merge не проходили acceptance и остаются PENDING. Device IDs, адреса, имя базы и её содержимое не публикуются. |
 | 2026-09-29 | KeePassXC editor-independent daily snapshot принят CLOSED / PASS: wrapper создаёт generic snapshot из единственной live DB в `~/Documents/KeePassSync/`, проверяет byte identity и текущий mtime, затем выполняет `rclone copy` и только после успеха local rotation. Lock покрывает snapshot, delivery и rotation; controlled второй-KDBX test подтвердил startup conflict gate. Acceptance: локальные backup-файлы 2 → 3, remote objects 1 → 3, timer остался enabled/active на 20:00 с `Persistent=true`, `Linger=no`. Phone sync остаётся следующим отдельным этапом. Имена production-базы и hash не публикуются. |
 | 2026-09-29 | Daily KeePassXC delivery/rotation automation CLOSED / PASS: wrapper, systemd --user service and timer installed; schedule 20:00 local, `Persistent=true`, `Linger=no`. Direct wrapper and service PASS; journal confirmed delivery before rotation; controlled delivery failure skipped rotation. Timer enabled and `active (waiting)`. Workflow uses one lock and `rclone copy` without remote deletion; phone sync is the next separate stage. |
 | 2026-09-29 | OAuth production gate для KeePassXC backups закрыт: Google OAuth app переведён в In production; опубликованы минимальные homepage/privacy policy на `https://rclone.9fans.uk/` и `https://rclone.9fans.uk/privacy/` в отдельном public repository `https://github.com/vovanbl411/rclone-oauth-pages`. Branding site служит только OAuth homepage/privacy surface, не участвует в transport и не хранит KDBX, OAuth tokens или backup data. Существующий `gdrive:` повторно авторизован (`rclone config reconnect gdrive:` — PASS); post-reauth list, загрузка временного текстового объекта, чтение с ожидаемым содержимым, удаление и повторный list без объекта — PASS. Local backups, `0700`, `drive.file`, ручная доставка и ранее проверенная byte-identical передача реального KDBX остаются без изменений. Следующий этап — production implementation локальной 90-day rotation; автоматизация доставки и phone sync не реализованы, remote rotation/deletion намеренно не выполняются. Секреты, hash и имя базы не публикуются. Это запись указанной проверки, не новый аудит системы. |
