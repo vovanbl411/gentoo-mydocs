@@ -63,8 +63,9 @@ verified_on: [asus-b5402]
   The profile has `NTFNTF: Notify on This Folder Not That Folder` 1.3.1
   installed for this.
 
-The entries were moved from the general guides and checked against the system
-on 2026-09-22. The KeePassXC and rclone entries were verified separately on
+Entries that predated Thunderbird were moved from the general guides and
+checked against the system on 2026-09-22; Thunderbird was checked separately
+on 2026-10-01. The KeePassXC and rclone entries were verified separately on
 2026-09-29: the OAuth Desktop client works, the app is *In production*, and
 the `gdrive:` remote was re-authorized with
 `rclone config reconnect gdrive:` (PASS). Post-reauth transport validation

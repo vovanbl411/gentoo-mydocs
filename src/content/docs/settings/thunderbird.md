@@ -24,7 +24,7 @@ IMAP-провайдерами. При настройке отдельно про
 |---------|------------------|
 | Wayland | `wayland` включает native Wayland backend. В reference system также выбран `-X` как осознанная pure-Wayland policy; он не требуется для самого Wayland backend. |
 | Audio | `pulseaudio` добавляет audio backend через libpulse. В runtime его обслуживает PipeWire/PulseAudio-compatible stack. `system-pipewire` для этого не требуется и в resolver output выключен. |
-| Rendering | `-hwaccel` не мешает runtime использовать WebRender. Аппаратное ускорение не нужно форсировать, если фактическая проверка уже показывает WebRender. |
+| Rendering | `hwaccel` добавляет Gentoo system-wide prefs, принудительно включающие hardware-accelerated rendering, и устанавливает `gfxtest`. При `-hwaccel` эти prefs не инжектируются; Thunderbird всё ещё может самостоятельно включить WebRender. |
 | System libraries | В resolver output включены `system-av1`, `system-harfbuzz`, `system-jpeg`, `system-libevent`, `system-librnp`, `system-libvpx` и `system-webp`. |
 | PGO | `pgo` замаскирован в текущем профиле и не включён. Не описывай эту сборку как PGO-сборку. |
 
@@ -73,8 +73,10 @@ Yandex и один Mail.ru. Не помещай адреса, OAuth tokens, app 
 | GPU | Intel Iris Xe ADL GT2 через Mesa `iris` |
 | Audio Backend | `pulse-rust`, работающий через текущий PipeWire/Pulse stack |
 
-`USE=-hwaccel` описывает build capability, а не принудительный software
-rendering. Ориентируйся на runtime renderer и GPU из `about:support`.
+`USE=-hwaccel` означает, что Gentoo не инжектирует force-enable prefs. Это не
+запрещает Thunderbird самостоятельно включить WebRender: resolver reference
+system показывает `-hwaccel`, а `about:support` — `Compositing: WebRender`.
+Поэтому включать `USE=hwaccel` на этой системе сейчас не требуется.
 
 ## Profile and storage
 

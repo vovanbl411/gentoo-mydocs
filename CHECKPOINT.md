@@ -106,7 +106,7 @@
   гипотеза: точный measurement path прошивки не подтверждён, прямого
   before/after-замера PCR 7 не было. Решение 2026-09-14 — остаёмся
   на PCR 7, переход на ukify/PCR-подпись отклонён.
-- **Рабочий стол**: Pure Wayland — Niri + Noctalia 5.1.0
+- **Рабочий стол**: Pure Wayland — Niri + Noctalia 5.2.0
   (`::noctalia-overlay`, `jemalloc`), PipeWire, `xwayland-satellite-0.8.2`.
 - **iwd sandbox (2026-09-21)**: в локальном drop-in `iwd.service`
   `ProtectKernelTunables` переведён в `no` — `yes` блокировал запись
