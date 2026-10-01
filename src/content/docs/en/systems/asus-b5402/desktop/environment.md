@@ -3,7 +3,7 @@ title: Desktop environment on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-23"
+last_verified: "2026-09-30"
 verified_on: [asus-b5402]
 ---
 
@@ -24,6 +24,8 @@ verified_on: [asus-b5402]
 - Fingerprint: Noctalia lockscreen, greetd login, and polkit authentication
   were verified on 2026-09-27. polkit password fallback was checked; greetd
   fallback was not tested separately.
+- greetd fingerprint login does not pass the user's password to GNOME Keyring;
+  the login keyring is not unlocked automatically.
 
 The session, systemd user targets, portals, and polkit agent were checked
 against the live system on 2026-09-23. The GTK theme was not checked again in
@@ -67,6 +69,14 @@ On the ASUS B5402, `gnome-keyring` is selected as the Secret portal backend.
 This is a deliberate local override for Niri. The backend's presence and the
 configuration entry are confirmed, but a Secret portal runtime call was not
 checked separately.
+
+## Fingerprint login and GNOME Keyring
+
+When greetd logs in with a fingerprint, it does not pass the user's password
+to GNOME Keyring, so the login keyring is not unlocked automatically. At the
+first request, `gcr-prompter` displays `Unlock Keyring`; the keyring is
+unlocked with a separate password. This behavior is accepted, and the PAM
+stack remains unchanged.
 
 ## GTK
 

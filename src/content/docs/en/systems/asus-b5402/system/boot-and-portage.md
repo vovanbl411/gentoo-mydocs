@@ -125,8 +125,8 @@ Current policy:
   (`-flto=auto`) is incompatible with the global `-fuse-ld=lld`.
 - Performance policy (`p-cores`, `ssd`) is in `00-toolchain` and
   `10-performance`: clang/lld/llvm (`p-cores ssd`), gentoo-kernel
-  (`kernel-llvm p-cores ssd`), firefox and qtbase (`p-cores ssd`), and mesa
-  (`ssd` only).
+  (`kernel-llvm p-cores ssd`), firefox, qtbase, and thunderbird (`p-cores ssd`),
+  and mesa (`ssd` only).
 
 ### How this policy developed
 
@@ -324,8 +324,10 @@ Architectural decisions from the same review:
 
 - `app-crypt/libsecret -pam -tpm` — libsecret TPM integration is not used,
   consistent with the TPM policy above (TPM only for LUKS2/
-  `systemd-cryptenroll`); PAM integration remains through
-  `gnome-base/gnome-keyring[pam]`.
+  `systemd-cryptenroll`). The `pam` USE flag enables PAM support in
+  `gnome-base/gnome-keyring[pam]`; `pam_gnome_keyring.so` is installed. The
+  current PAM stack does not call the module, so GNOME Keyring PAM integration
+  is not active.
 
 **Qt / desktop performance**
 

@@ -72,6 +72,7 @@ live-базы с Android через Syncthing и KeePassDX.
 ### Настройки и приложения
 
 - [Firefox](src/content/docs/settings/firefox.md)
+- [Thunderbird](src/content/docs/settings/thunderbird.md)
 - [Flatpak и Flatseal](src/content/docs/settings/flatpak.md)
 - [GTK](src/content/docs/settings/gtk.md)
 - [Резервные копии KeePassXC в Google Drive](src/content/docs/settings/keepassxc-backup.md)

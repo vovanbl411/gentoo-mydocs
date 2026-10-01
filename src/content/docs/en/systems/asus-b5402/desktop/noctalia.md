@@ -3,7 +3,7 @@ title: Noctalia v5 on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: current
-last_verified: "2026-09-23"
+last_verified: "2026-09-30"
 verified_on: [asus-b5402]
 ---
 
@@ -13,7 +13,7 @@ updates, and the general configuration model are described in
 
 ## Current state
 
-- `gui-apps/noctalia-5.1.0` is installed from the `noctalia-overlay`
+- `gui-apps/noctalia-5.2.0` is installed from the `noctalia-overlay`
   repository.
 - USE includes `jemalloc` — a deliberate runtime memory-allocation policy for
   the long-running shell.
@@ -29,7 +29,8 @@ in the `noctalia-overlay` README. The overlay tracks stable releases only;
 future automation will create an Issue for a new release and will not change
 ebuilds or the installed package.
 
-The version, repository, and `USE=jemalloc` were confirmed on 2026-09-23.
+Version 5.2.0, the repository, and `USE=jemalloc` were confirmed on
+2026-09-30.
 
 ## Configuration
 
@@ -60,7 +61,7 @@ cat /var/db/pkg/gui-apps/noctalia-*/repository
 Expected result:
 
 ```text
-noctalia v5.1.0
+noctalia v5.2.0
 noctalia-overlay
 ```
 

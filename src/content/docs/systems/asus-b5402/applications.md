@@ -3,7 +3,7 @@ title: Приложения ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-30"
+last_verified: "2026-10-01"
 verified_on: [asus-b5402]
 ---
 
@@ -51,6 +51,16 @@ verified_on: [asus-b5402]
   (list, upload, read, deletefile, проверка отсутствия временного объекта) —
   PASS 2026-09-29. Wrapper ежедневно доставляет top-level `*.kdbx` в
   `gdrive:Backups/KeePassXC/` без удаления файлов на remote.
+- Thunderbird `157.0` — native Gentoo; runtime acceptance под Niri показал
+  Wayland, WebRender и Mesa `iris` на Intel Iris Xe ADL GT2; audio backend —
+  `pulse-rust` через PipeWire/Pulse stack. Настроено шесть IMAP-аккаунтов
+  (Gmail ×4, Yandex ×1, Mail.ru ×1); отправка и получение прошли acceptance.
+  Полная offline synchronization включена. Профиль находится под
+  `~/.config/thunderbird/`; измерено около 648 MiB для профиля и 574 MiB для
+  `ImapMail`. Пользовательские уведомления включены только для двух выбранных
+  Gmail; проверка уведомлений и тихой синхронизации остальных прошла PASS.
+  Для этого в профиле установлено расширение
+  `NTFNTF: Notify on This Folder Not That Folder` 1.3.1.
 
 Записи перенесены из общих руководств и сверены с системой 2026-09-22.
 Записи KeePassXC и rclone проверены отдельно 2026-09-29: OAuth Desktop
@@ -93,3 +103,4 @@ PASS; локальные backup-файлы после переноса live-ба
 - [OBS Studio](../../../settings/obs-studio/)
 - [Perplexity AppImage](../../../settings/perplexity/)
 - [r2modman и Steam Flatpak](../../../settings/r2modman/)
+- [Thunderbird](../../../settings/thunderbird/)

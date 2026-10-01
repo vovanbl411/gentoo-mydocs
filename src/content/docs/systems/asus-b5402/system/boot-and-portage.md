@@ -123,8 +123,8 @@ verified_on: [asus-b5402]
   (`-flto=auto`) несовместим с глобальным `-fuse-ld=lld`.
 - Performance policy (`p-cores`, `ssd`) — в `00-toolchain` и
   `10-performance`: clang/lld/llvm (`p-cores ssd`), gentoo-kernel
-  (`kernel-llvm p-cores ssd`), firefox и qtbase (`p-cores ssd`), mesa — только
-  `ssd`.
+  (`kernel-llvm p-cores ssd`), firefox, qtbase и thunderbird (`p-cores ssd`),
+  mesa — только `ssd`.
 
 ### Как к этому пришли
 
@@ -319,8 +319,10 @@ sys-firmware/intel-microcode  dist-kernel initramfs split-ucode hostonly -vanill
 
 - `app-crypt/libsecret -pam -tpm` — TPM integration libsecret не используется,
   что согласуется с TPM policy выше (TPM — только LUKS2/
-  `systemd-cryptenroll`); PAM integration остаётся через
-  `gnome-base/gnome-keyring[pam]`.
+  `systemd-cryptenroll`). USE-флаг `pam` включает поддержку PAM в
+  `gnome-base/gnome-keyring[pam]`; модуль `pam_gnome_keyring.so` установлен.
+  Текущий PAM stack его не вызывает, поэтому активной PAM-интеграции с GNOME
+  Keyring сейчас нет.
 
 **Qt / desktop performance**
 
