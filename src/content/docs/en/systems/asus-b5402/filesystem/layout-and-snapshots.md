@@ -44,7 +44,7 @@ Portage's build storage is kept outside the snapshotted root:
 
 | Subvolume | Mount point | Purpose |
 |---|---|---|
-| `@ccache` | `/var/tmp/ccache` | C/C++ compiler cache via ccache (50G); `nodatacow` on the directory is confirmed |
+| `@ccache` | `/var/tmp/ccache` | C/C++ compiler cache via ccache (20G); `nodatacow` on the directory is confirmed |
 | `@sccache` | `/var/tmp/sccache` | Rust cache via sccache (20G); owned by `portage:portage`, mode `drwxrwsr-x`, with the NoCoW attribute set |
 | `@portage_tmp` | `/var/tmp/portage-disk` | temporary files for large builds |
 | `@distfiles` | `/var/cache/distfiles` | package source archives |
@@ -90,8 +90,15 @@ for `emerge`.
 - `@sccache` and `/var/tmp/sccache` were checked on 2026-09-25: Btrfs mount
   options are `rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2`;
   the directory is owned by `portage:portage` and has the NoCoW attribute set.
+- The `@ccache` 20G limit was confirmed on 2026-10-02: `CCACHE_SIZE="20G"` in
+  `make.conf` and `max_size = 20G` in `/var/tmp/ccache/ccache.conf`; after
+  `ccache -c` the directory takes up 19G.
 - `/var/tmp/portage` (16 GiB tmpfs) was confirmed on 2026-09-12.
-- Snapper was checked against `/etc/snapper/configs/root` on 2026-09-22.
+- Snapper was checked against `/etc/snapper/configs/root` on 2026-09-22; the
+  timeline limits were reduced to 2 hours / 3 days / weekly 0 (confirmed by
+  `snapper get-config` on 2026-10-02). Btrfs quota is not enabled
+  (`btrfs qgroup show /` → quotas not enabled), so `SPACE_LIMIT` and
+  `FREE_LIMIT` are inactive — snapshot retention is count-based.
 - The absence of a Portage hook was checked in `/etc/portage/bashrc` on
   2026-09-22.
 

@@ -79,7 +79,7 @@ CGO_LDFLAGS="${LDFLAGS}"
 # C/C++ compiler cache (compression is enabled by default)
 FEATURES="${FEATURES} ccache"
 CCACHE_DIR="/var/tmp/ccache"
-CCACHE_SIZE="50G"
+CCACHE_SIZE="20G"
 CCACHE_COMPRESSLEVEL="3"
 CCACHE_SLOPPINESS="include_file_mtime,include_file_ctime,time_macros,pch_defines"
 

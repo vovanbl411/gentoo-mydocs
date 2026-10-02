@@ -44,7 +44,7 @@ verified_on: [asus-b5402]
 
 | Субволюм | Точка монтирования | Назначение |
 |---|---|---|
-| `@ccache` | `/var/tmp/ccache` | кэш C/C++ compiler через ccache (50G); `nodatacow` на каталоге подтверждён |
+| `@ccache` | `/var/tmp/ccache` | кэш C/C++ compiler через ccache (20G); `nodatacow` на каталоге подтверждён |
 | `@sccache` | `/var/tmp/sccache` | кэш Rust через sccache (20G); владелец `portage:portage`, режим `drwxrwsr-x`, установлен NoCoW attribute |
 | `@portage_tmp` | `/var/tmp/portage-disk` | временные файлы тяжёлых сборок |
 | `@distfiles` | `/var/cache/distfiles` | исходные коды пакетов |
@@ -89,8 +89,15 @@ SPACE_LIMIT=0.8
 - `@sccache` и `/var/tmp/sccache` проверены 2026-09-25: параметры монтирования
   Btrfs — `rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2`;
   каталог принадлежит `portage:portage`, NoCoW attribute установлен.
+- Лимит `@ccache` 20G подтверждён 2026-10-02: `CCACHE_SIZE="20G"` в
+  `make.conf` и `max_size = 20G` в `/var/tmp/ccache/ccache.conf`; после
+  `ccache -c` каталог занимает 19G.
 - `/var/tmp/portage` (tmpfs 16 GiB) подтверждён 2026-09-12.
-- Snapper проверен по конфигу `/etc/snapper/configs/root` 2026-09-22.
+- Snapper проверен по конфигу `/etc/snapper/configs/root` 2026-09-22; лимиты
+  timeline снижены до 2 часов / 3 дней / недельного 0 (подтверждено
+  `snapper get-config` 2026-10-02). Btrfs quota не включена
+  (`btrfs qgroup show /` → quotas not enabled), поэтому `SPACE_LIMIT` и
+  `FREE_LIMIT` неактивны — удержание снапшотов счётное.
 - Отсутствие Portage-хука проверено по `/etc/portage/bashrc` 2026-09-22.
 
 ## Related docs

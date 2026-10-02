@@ -11,7 +11,7 @@ verified_on: [asus-b5402]
 
 - Wi-Fi: NetworkManager + iwd, Intel AX201 adapter — operating normally.
 - Firewall: nftables.
-- Docker: 29.8.0, storage driver `overlay2` (iptables-nft).
+- Docker: 29.8.1, storage driver `overlay2` (iptables-nft).
 - Libvirt: 12.6.0, started on demand.
 - Mesh VPN: NetBird is active, interface `wt0`.
 - Tailscale: installed; `tailscaled` is inactive.
@@ -35,7 +35,7 @@ NetworkManager uses iwd as its Wi-Fi backend. Wi-Fi is operating normally.
 
 ## Docker and Libvirt
 
-- Docker 29.8.0: storage driver `overlay2`, iptables-nft.
+- Docker 29.8.1: storage driver `overlay2`, iptables-nft.
 - Libvirt 12.6.0: the libvirtd/virtqemud units are system-wide inactive —
   virtualization starts as needed.
 - To work around Docker's `FORWARD policy drop`, a separate

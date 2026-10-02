@@ -3,7 +3,7 @@ title: Специфика ASUS ExpertBook B5402CBA
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-27"
+last_verified: "2026-10-03"
 verified_on: [asus-b5402]
 ---
 
@@ -15,6 +15,10 @@ verified_on: [asus-b5402]
   `CONFIG_ASUS_ARMOURY` отключён.
 - Fn-клавиши и подсветка работают через asus-nb-wmi; обработка нажатий
   настроена binds в Niri.
+
+- Внешний User-status indicator идентифицирован как ASUS WMI `0x00040019` /
+  `CFLD`; ручное управление подтверждено 2026-10-03 через диагностический
+  `asus::cfld-test`. Подробности — [отдельный документ](../user-status-indicator/).
 
 ## Управление питанием и батареей (TLP)
 

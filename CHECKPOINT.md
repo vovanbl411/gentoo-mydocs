@@ -90,6 +90,10 @@
   `initrd_generator=dracut`, `uki_generator=dracut`). Savedconfig — rolling
   `gentoo-kernel` + версионные `7.2.6`/`7.2.7` + `linux-firmware-20260916`
   (проверено 2026-09-22).
+- **User-status indicator (2026-10-03) — CLOSED / PASS**: внешний индикатор
+  ASUS B5402CBA вручную управляется через диагностический `asus::cfld-test`.
+  Подтверждённое состояние и ограничения —
+  [system document](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md).
 - **Управление памятью (2026-09-27)**: zram (`ram / 2`, `zstd`, priority 100);
   `vm.swappiness=100` закреплён в `/etc/sysctl.d/99-memory.conf` и подтверждён
   в runtime. MGLRU `0x0007`, `vm.vfs_cache_pressure=100` и THP
@@ -217,6 +221,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-10-03 | User-status indicator ASUS B5402CBA: identification/manual hardware control — CLOSED / PASS. DSDT/firmware mapping `0x00040019 ↔ CFLD`; upstream Linux 7.2.8 этот DEVID не экспонирует. Диагностический Portage patch `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-cfld-test.patch`; после rebuild и загрузки `7.2.8-bdsm` зарегистрирован `asus::cfld-test`. Физический ON/OFF через brightness `1/0` — PASS. Secure Boot и lockdown `integrity` не отключались. Итог зафиксирован в RU/EN system document и связан с hardware overview/index. Final naming, upstream support и automatic conference integration остаются следующим отдельным этапом; `auto` mode не исследован и не реализован, расшифровка `CFLD` неизвестна. |
 | 2026-10-01 | Thunderbird `157.0` установлен из Gentoo на ASUS B5402: Wayland/WebRender/audio runtime прошли acceptance; настроены Gmail ×4, Yandex ×1 и Mail.ru ×1, send/receive — PASS. Полная offline synchronization включена, adaptive local spam filtering выключен; уведомления только для двух выбранных Gmail проверены отдельно от тихой синхронизации остальных. Live Portage policy подтверждена: `mail-client/thunderbird → p-cores ssd`. Canonical docs: `src/content/docs/settings/thunderbird.md` и `src/content/docs/systems/asus-b5402/applications.md`. |
 | 2026-09-30 | Normal KeePassXC phone sync CLOSED / PASS: Syncthing `2.0.16` на Gentoo как systemd --user service (`Linger=no`), Android Syncthing-Fork и KeePassDX; общий Folder ID `keepassxc-live`, только live-папка `~/Documents/KeePassSync/` ↔ `Documents/KeePassSync`. Защищённое TCP-соединение по LAN, initial sync, Gentoo → Android edit и Android → Gentoo edit — PASS. Повторно подтверждено, что локальные backup-файлы остаются на месте. Реальный conflict и последующий KeePassXC merge не проходили acceptance и остаются PENDING. Device IDs, адреса, имя базы и её содержимое не публикуются. |
 | 2026-09-29 | KeePassXC editor-independent daily snapshot принят CLOSED / PASS: wrapper создаёт generic snapshot из единственной live DB в `~/Documents/KeePassSync/`, проверяет byte identity и текущий mtime, затем выполняет `rclone copy` и только после успеха local rotation. Lock покрывает snapshot, delivery и rotation; controlled второй-KDBX test подтвердил startup conflict gate. Acceptance: локальные backup-файлы 2 → 3, remote objects 1 → 3, timer остался enabled/active на 20:00 с `Persistent=true`, `Linger=no`. Phone sync остаётся следующим отдельным этапом. Имена production-базы и hash не публикуются. |

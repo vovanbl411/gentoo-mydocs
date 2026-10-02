@@ -85,6 +85,15 @@ The configuration, `sysctl`, `swapon`, and sysfs were checked on 2026-09-27.
   **Decision:** keep global ccache enabled
   and leave the 50G limit unchanged; the size can be reconsidered after a
   period of ordinary updates.
+- **Decision on the ccache limit (2026-10-02, disk audit):** a `ccache -s`
+  measurement showed a 20.87% hit rate (53,132 of 254,558 cacheable calls)
+  with local storage completely full at 50.0/50.0 GB (99.97%) and 311
+  cleanups — 50G was not holding the working set and was not converting into
+  hits. The limit was reduced to 20G: `CCACHE_SIZE="20G"` in `make.conf`,
+  `max_size = 20G` in `/var/tmp/ccache/ccache.conf` (`ccache -M 20G` followed
+  by `ccache -c`; after cleanup the directory takes up 19G). Checkpoint: run
+  `ccache -s` after 2–4 weeks of ordinary work; if the hit rate drops
+  noticeably below ~15%, raise the limit to 30G.
 
 ## Optimization
 

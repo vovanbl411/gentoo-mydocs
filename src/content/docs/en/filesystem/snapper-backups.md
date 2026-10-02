@@ -97,17 +97,25 @@ filesystem size and the history depth you need.
 
 The ASUS B5402 values below are an example, not a universal norm:
 
-- the timeline keeps the last 5 hours and the last 7 days; the weekly limit
-  is 1, the monthly limit is 0;
+- the timeline keeps the last 2 hours and the last 3 days; the weekly, monthly,
+  and yearly limits are 0. Reduced from 5 hours / 7 days / weekly 1 following
+  the disk audit on 2026-10-02;
 - `NUMBER_LIMIT="10"` bounds the numbered snapshots processed by the
   `number` cleanup, regardless of how they were created;
-- `SPACE_LIMIT="0.8"` sets the maximum fraction of filesystem space snapshots
-  may use with space-aware cleanup. The minimum amount of free space is
-  controlled by the separate `FREE_LIMIT` parameter.
+- `SPACE_LIMIT="0.8"` and `FREE_LIMIT="0.2"` are effectively not in use:
+  space-aware cleanup requires btrfs quota to be enabled and range-style
+  limit values, while quota is disabled on the reference system
+  (`btrfs qgroup show /` → quotas not enabled, verified 2026-10-02).
+  Snapshot retention is purely count-based.
 
 `NUMBER_LIMIT="10"` does not mean "10 pairs of Portage snapshots". Such pairs
 are only created by a separate hook, which does not exist in the described
 ASUS B5402 state.
+
+> **Note**: `snapper set-config` in snapper 0.13.1 takes each `KEY=VALUE`
+> pair as a separate argument, contrary to the single-string example in
+> `man snapper`. The form `set-config "A=1 B=2"` writes `1 B=2` as the value
+> of `A`; the correct form is `snapper -c root set-config "A=1" "B=2"`.
 
 ## Everyday usage and recovery
 
