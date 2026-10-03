@@ -3,7 +3,7 @@ title: User-status indicator ASUS ExpertBook B5402CBA
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-03"
+last_verified: "2026-10-04"
 verified_on: [asus-b5402]
 ---
 
@@ -25,8 +25,15 @@ CLOSED / PASS** (2026-10-03). На эталонной системе diagnostic
 `asus-wmi` interface `/sys/class/leds/orange:status` прошёл live acceptance:
 state read и физический ON/OFF через brightness `0/1` работают.
 
-Следующий отдельный этап — **Gate 4C — upstream-quality review**
-(submission readiness). Patch пока не объявлен upstream-ready.
+**Gate 4C — upstream-quality review: CLOSED / PASS** (2026-10-04).
+**Upstream v1 — SUBMITTED / awaiting review**: патч отправлен через
+`git send-email`, принят SMTP (`250`) и подтверждён в публичном
+mailing-list archive. Это не означает accepted/merged upstream.
+
+Live-система остаётся на локальном `orange:status` с registration через
+`asus_wmi_dev_is_present()` и ядром `7.2.8-bdsm`. Upstream v1 использует
+`:status` и successful state-read gate; на эталонной машине он не установлен.
+Следующий шаг — ждать upstream maintainer/reviewer feedback.
 
 ## Аппаратный и firmware путь
 
@@ -128,6 +135,8 @@ If ((IIA0 == 0x00040019))
 
 ## Linux kernel implementation
 
+### Current local Gentoo implementation
+
 Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
 
 Production-style local Gentoo user patch добавляет:
@@ -158,25 +167,80 @@ brightness 0/1
 
 После rebuild `sys-kernel/gentoo-kernel-7.2.8` interface зарегистрирован
 как `/sys/class/leds/orange:status`; подробная проверка — в Verification.
-Patch не объявлен upstream-ready и не отправлялся upstream; submission
-readiness — предмет Gate 4C.
+Этот локальный патч остаётся текущей live implementation на `7.2.8-bdsm`
+после boot/runtime/physical ON/OFF acceptance; upstream v1 описан отдельно.
+
+### Upstream v1
+
+Generic upstream candidate отправлен после Gate 4C (2026-10-04):
+
+- `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`;
+- LED ABI `:status`;
+- registration при `asus_wmi_get_devstate_simple(...) >= 0`;
+- без DMI whitelist и trigger;
+- userspace Auto/Fn+1 policy — вне scope.
+
+| Submission | Значение |
+|------------|----------|
+| Subject | `[PATCH] platform/x86: asus-wmi: Add user-status LED support` |
+| Submitted commit | `374608bde83a23c6bb2c80422dcd1b751444dacf` |
+| Base | `pdx86/platform-drivers-x86 for-next`, `fe5030c8cc7156223f48530e9b49aa87c0305bcd` |
+| Message-ID | `<20261003220653.123909-1-vov4ik533@gmail.com>` ([lore.kernel.org](https://lore.kernel.org/all/20261003220653.123909-1-vov4ik533@gmail.com/)) |
+
+Commit trailers:
+
+```text
+Assisted-by: LLM
+Signed-off-by: Vovan Nikolaevich <vov4ik533@gmail.com>
+```
+
+Final submission validation:
+
+| Проверка | Результат |
+|----------|-----------|
+| `W=1` build `drivers/platform/x86/asus-wmi.o` | PASS; warnings/errors: 0 |
+| `git diff --check` | PASS |
+| `checkpatch.pl --strict` | 0 errors / 0 warnings / 0 checks |
+| `get_maintainer.pl` | expected ASUS + platform-driver-x86 maintainers/lists |
+| `git send-email` SMTP submission | PASS; `250`, письмо подтверждено в публичном archive |
+
+Статус — v1 submitted / awaiting review; принятие или merge не подтверждены.
 
 ### Почему `orange:status`
 
-Linux LED class использует стандартную семантику `color:function`, цвет
-физического индикатора подтверждён как orange, а `LED_FUNCTION_STATUS`
-уже существует — vendor-specific имя вида `asus::cfld-test` новому ABI не
-нужно. `CFLD` — firmware field с неизвестной расшифровкой и не должен
-становиться Linux ABI. `orange:status` — принятое local/upstream-oriented
-design decision, а не подтверждённое решение upstream maintainers.
+Linux LED class использует стандартную семантику `color:function`.
+Оранжевый цвет физически подтверждён только на B5402CBA, поэтому
+`orange:status` сохраняется в текущей локальной реализации. Upstream v1
+использует `:status`: generic driver не должен объявлять цвет других
+моделей без evidence. `LED_FUNCTION_STATUS` уже существует; `CFLD` —
+firmware field с неизвестной расшифровкой и не должен становиться Linux ABI.
 
 ### Capability discovery и DMI
 
-`asus_wmi_dev_is_present(... ASUS_WMI_DEVID_USER_STATUS_LED)` используется
-как firmware capability discovery. DMI whitelist в текущей реализации не
-требуется: firmware сам сообщает `ASUS_WMI_DSTS_PRESENCE_BIT`. Это не
-универсальное утверждение для других моделей — quirk может понадобиться
-на другом hardware.
+Текущий локальный патч использует
+`asus_wmi_dev_is_present(... ASUS_WMI_DEVID_USER_STATUS_LED)`; на B5402CBA
+registration и управление прошли live acceptance. В upstream v1 выбран
+successful state-read gate: `asus_wmi_get_devstate_simple(...) >= 0`.
+`ASUS_WMI_UNSUPPORTED_METHOD (0xFFFFFFFE)` содержит
+`ASUS_WMI_DSTS_PRESENCE_BIT`, поэтому generic registration через
+`asus_wmi_dev_is_present()` может дать ложную presence на некоторых firmware.
+Успешное чтение состояния — более безопасный registration gate для этого DEVID.
+
+Gate 4C DSDT survey:
+
+| Результат | DSDT entries | Unique model names |
+|-----------|--------------|--------------------|
+| REAL | 27 | 14 |
+| REJECT | 69 | 33 |
+| ZERO | 78 | 29 |
+| TOTAL | 174 | 76 |
+
+DSDT entries — записи, а не количество моделей. `0x00040019` встречается
+за пределами B5402CBA: реальные реализации есть у нескольких ASUS model
+families, но есть и firmware, возвращающие reject/zero. Поэтому DMI
+whitelist без отдельной необходимости не выбран; generic color survey
+не подтверждает. DMI whitelist отсутствует и в live local patch, и в
+upstream v1.
 
 ### История: diagnostic patch
 
@@ -360,10 +424,10 @@ Gate 4B (production-style local Linux implementation + live acceptance)
 закрыты. ASUS Windows Auto policy исследована статически с описанными
 выше границами; Linux implementation Auto отсутствует.
 
-Следующий отдельный **Gate 4C — upstream-quality review**: patch style,
-повторный review naming/API глазами upstream maintainer, checkpatch и
-patch formatting, commit message, submission readiness, необходимость
-дополнительных evidence/comments для upstream.
+**Gate 4C — CLOSED / PASS**, upstream v1 отправлен. Следующий шаг —
+ждать upstream maintainer/reviewer feedback. v2 появится только при
+конкретном review feedback или новой найденной проблеме; заранее он
+не планируется. Live local implementation остаётся `orange:status`.
 
 Fn+1 remapping и Linux userspace Auto (conference policy, daemon,
 интеграция с PipeWire/camera/microphone/conferencing applications) —

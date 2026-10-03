@@ -90,17 +90,22 @@
   `initrd_generator=dracut`, `uki_generator=dracut`). Savedconfig — rolling
   `gentoo-kernel` + версионные `7.2.6`/`7.2.7` + `linux-firmware-20260916`
   (проверено 2026-09-22).
-- **User-status indicator (2026-10-03)**: hardware/firmware identification,
-  manual binary control, Windows reference implementation (Gate 3D) и
-  production-style local Linux implementation + live acceptance (Gate 4B) —
-  **CLOSED / PASS**. Diagnostic `asus::cfld-test` заменён production-style
-  patch
-  `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
-  (`ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`); текущий Linux interface —
+- **User-status indicator (2026-10-04)**: hardware/firmware identification,
+  manual binary control, Gate 3D (Windows reference implementation),
+  Gate 4B (production-style local Linux implementation + live acceptance)
+  и Gate 4C (upstream-quality review) — **CLOSED / PASS**.
+  **Upstream v1 — SUBMITTED / awaiting review**. Текущая live implementation
+  на `7.2.8-bdsm` остаётся локальной:
+  `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`,
   binary LED `/sys/class/leds/orange:status` (`0/1`), registration через
-  firmware `PRESENCE_BIT`, без DMI whitelist. Следующий этап — Gate 4C
-  upstream-quality review; patch не объявлен upstream-ready, Fn+1 remapping
-  и userspace Auto не входят. Подтверждённое состояние и границы evidence —
+  `asus_wmi_dev_is_present()`, без DMI whitelist; boot/runtime/physical
+  ON/OFF acceptance — PASS. Отправленный generic upstream v1 использует
+  тот же `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`, ABI `:status` и
+  successful state-read gate `asus_wmi_get_devstate_simple(...) >= 0`,
+  без DMI whitelist и trigger. На live-системе upstream v1 не установлен;
+  accepted/merged upstream не подтверждены. Следующий шаг — ждать upstream
+  maintainer/reviewer feedback; Fn+1 remapping и userspace Auto вне scope.
+  Подтверждённое состояние и границы evidence —
   [system document](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md).
 - **Управление памятью (2026-09-27)**: zram (`ram / 2`, `zstd`, priority 100);
   `vm.swappiness=100` закреплён в `/etc/sysctl.d/99-memory.conf` и подтверждён
@@ -229,7 +234,8 @@
 
 | Дата | Событие |
 |------|---------|
-| 2026-10-03 | User-status indicator Gate 4B — production-style local Linux implementation + live acceptance: CLOSED / PASS. Diagnostic patch `10-asus-wmi-cfld-test.patch` удалён вместе с ABI `asus::cfld-test`; вместо него установлен `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`: `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`, `struct led_classdev user_status_led`, чтение `asus_wmi_get_devstate_simple()` / запись `asus_wmi_set_devstate()`, registration только при `asus_wmi_dev_is_present()`, final local ABI candidate `orange:status` (`"orange:" LED_FUNCTION_STATUS`, `max_brightness = 1`, `brightness_set_blocking`, без trigger), DMI whitelist не используется (firmware `PRESENCE_BIT`). После rebuild `gentoo-kernel-7.2.8` зарегистрирован `/sys/class/leds/orange:status` (symlink `../../devices/platform/asus-nb-wmi/leds/orange:status`); diagnostic ABI в `/sys/class/leds/` отсутствует. Live acceptance: registration, `max_brightness = 1`, DSTS state read, DEVS write `0/1`, физический ON/OFF — PASS. Patch не объявлен upstream-ready и не отправлялся upstream; следующий этап — Gate 4C upstream-quality review (patch style, naming/API review глазами upstream maintainer, checkpatch, commit message, submission readiness, дополнительные evidence/comments). RU/EN system document синхронизированы. |
+| 2026-10-04 | User-status indicator Gate 4C — CLOSED / PASS; upstream v1 — SUBMITTED / awaiting review через `git send-email`, SMTP `250`, письмо подтверждено в публичном mailing-list archive. Subject: `[PATCH] platform/x86: asus-wmi: Add user-status LED support`; commit `374608bde83a23c6bb2c80422dcd1b751444dacf`; base `pdx86/platform-drivers-x86 for-next` / `fe5030c8cc7156223f48530e9b49aa87c0305bcd`; Message-ID `<20261003220653.123909-1-vov4ik533@gmail.com>` ([lore.kernel.org](https://lore.kernel.org/all/20261003220653.123909-1-vov4ik533@gmail.com/)). Validation: `W=1` build `drivers/platform/x86/asus-wmi.o` PASS (warnings/errors: 0), `git diff --check` PASS, `checkpatch.pl --strict` — 0 errors / 0 warnings / 0 checks, `get_maintainer.pl` — expected ASUS + platform-driver-x86 maintainers/lists. Trailers: `Assisted-by: LLM`, `Signed-off-by: Vovan Nikolaevich <vov4ik533@gmail.com>`. Upstream: `:status`, successful state-read gate; live local `orange:status` на `7.2.8-bdsm` сохранён. Следующий шаг — ждать upstream review. RU/EN синхронизированы. |
+| 2026-10-03 | User-status indicator Gate 4B — production-style local Linux implementation + live acceptance: CLOSED / PASS. Diagnostic patch `10-asus-wmi-cfld-test.patch` удалён вместе с ABI `asus::cfld-test`; вместо него установлен `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`: `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`, `struct led_classdev user_status_led`, чтение `asus_wmi_get_devstate_simple()` / запись `asus_wmi_set_devstate()`, registration только при `asus_wmi_dev_is_present()`, final local ABI candidate `orange:status` (`"orange:" LED_FUNCTION_STATUS`, `max_brightness = 1`, `brightness_set_blocking`, без trigger), DMI whitelist не используется (firmware `PRESENCE_BIT`). После rebuild `gentoo-kernel-7.2.8` зарегистрирован `/sys/class/leds/orange:status` (symlink `../../devices/platform/asus-nb-wmi/leds/orange:status`); diagnostic ABI в `/sys/class/leds/` отсутствует. Live acceptance: registration, `max_brightness = 1`, DSTS state read, DEVS write `0/1`, физический ON/OFF — PASS. На момент Gate 4B (историческое состояние 2026-10-03) patch ещё не был объявлен upstream-ready и не отправлялся upstream; следующим этапом был Gate 4C upstream-quality review (patch style, naming/API review глазами upstream maintainer, checkpatch, commit message, submission readiness, дополнительные evidence/comments). RU/EN system document синхронизированы. |
 | 2026-10-03 | User-status indicator Gate 3D — CLOSED / PASS: статический анализ официальной ASUS Business Utility `3.5.35.0`, `confled.dll` (`Conference LED support package`) подтвердил `DSTS/DEVS(0x00040019)` для binary physical LED control через ATKACPI и WMI. Mode `0/1/2` хранится в `HKCU\Software\ASUS\ASUSBusinessUtility` и применяется userspace; forced ON/OFF и Auto policy восстановлены. Auto использует Windows audio-session monitoring; точный capture-session predicate — STRONG, не полностью доказанное universal rule. `ConfLedService` обрабатывает `0x61` при маршрутизации события в него; полный ExpertWidget/FunctionCommandList routing Fn+1 не восстановлен, что не блокирует основной вывод. Отдельный firmware mode interface в исследованном Windows path не найден; иные неизвестные capabilities не исключены. Следующий Gate 4 — production/upstream-quality Linux binary LED support и финальное kernel LED name/API; userspace Auto/Fn+1 integration пока не реализуются. RU/EN system document синхронизированы. |
 | 2026-10-03 | User-status indicator ASUS B5402CBA: identification/manual hardware control — CLOSED / PASS. DSDT/firmware mapping `0x00040019 ↔ CFLD`; upstream Linux 7.2.8 этот DEVID не экспонирует. Диагностический Portage patch `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-cfld-test.patch`; после rebuild и загрузки `7.2.8-bdsm` зарегистрирован `asus::cfld-test`. Физический ON/OFF через brightness `1/0` — PASS. Secure Boot и lockdown `integrity` не отключались. Итог зафиксирован в RU/EN system document и связан с hardware overview/index. Final naming, upstream support и automatic conference integration остаются следующим отдельным этапом; `auto` mode не исследован и не реализован, расшифровка `CFLD` неизвестна. |
 | 2026-10-01 | Thunderbird `157.0` установлен из Gentoo на ASUS B5402: Wayland/WebRender/audio runtime прошли acceptance; настроены Gmail ×4, Yandex ×1 и Mail.ru ×1, send/receive — PASS. Полная offline synchronization включена, adaptive local spam filtering выключен; уведомления только для двух выбранных Gmail проверены отдельно от тихой синхронизации остальных. Live Portage policy подтверждена: `mail-client/thunderbird → p-cores ssd`. Canonical docs: `src/content/docs/settings/thunderbird.md` и `src/content/docs/systems/asus-b5402/applications.md`. |
