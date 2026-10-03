@@ -10,13 +10,18 @@ verified_on: [asus-b5402]
 ## Current state
 
 The external orange User-status indicator on the ASUS ExpertBook B5402CBA
-lid can be switched on and off manually from Linux. Physical verification
-on 2026-10-03 confirmed the mapping `ASUS WMI DEVID 0x00040019 ↔ CFLD`.
-Hardware/firmware identification and manual control are **CLOSED / PASS**.
+lid can be switched on and off manually from Linux. Hardware/firmware
+identification `ASUS WMI DEVID 0x00040019 ↔ CFLD` and manual binary control
+are **CLOSED / PASS** (2026-10-03).
 
-The current interface is the temporary LED class interface `asus::cfld-test`,
-added by a diagnostic local kernel patch. It is a validation mechanism;
-the final name and full support have not been decided yet.
+**Gate 3D — Windows reference implementation: CLOSED / PASS**.
+Static analysis of the official ASUS Business Utility confirmed
+`0x00040019` as binary physical LED control. The three-mode Auto/Busy/Off
+policy is stored and applied in Windows userspace.
+
+Linux currently exposes only the temporary diagnostic LED class interface
+`asus::cfld-test` from a local kernel patch. The separate next stage,
+Gate 4, is the final kernel LED name/API and upstream-quality support.
 
 ## Hardware and firmware path
 
@@ -137,6 +142,111 @@ The writable ASUS debugfs interface was unavailable because of kernel
 lockdown `integrity`. Secure Boot and lockdown remained enabled throughout
 the investigation.
 
+## Windows reference implementation
+
+Gate 3D was completed on 2026-10-03: official Windows packages for B5402CBA
+were examined through static analysis. The main component is ASUS Business
+Utility `3.5.35.0`, containing `cceventapp.exe` and `confled.dll`.
+The FileDescription of `confled.dll` is `Conference LED support package`.
+This is the component name, not a proven expansion of the firmware field `CFLD`.
+
+```text
+ASUS Business Utility
+  ↓
+confled.dll (Conference LED support package)
+  ↓
+mode 0/1/2 in HKCU
+  ├─ Auto → audio-session-derived state
+  ├─ Busy → LED ON
+  └─ Off  → LED OFF
+  ↓
+DEVS(0x00040019, 0|1)
+  ↓
+CFLD
+  ↓
+physical LED
+```
+
+### Binary LED control — PROVEN
+
+`confled.dll` directly uses `DSTS(0x00040019)` for presence/status checks
+and `DEVS(0x00040019, 0|1)` to switch the LED on/off.
+Two transport paths are proven:
+
+| Transport | Call |
+|-----------|------|
+| ATKACPI | `DeviceIoControl` for `\\.\ATKACPI`, IOCTL `0x22240C`, payload `{'DEVS', 8, 0x00040019, status}` |
+| WMI | `ExecMethod` through `AsusAtkWmi_WMNB`, instance `ACPI\PNP0C14\ATK_0`, `Device_ID = 0x00040019`, `Control_status = 0\|1` |
+
+This independently confirms that the identified Linux firmware path matches
+the method ASUS officially uses to control the User-status / Conference LED.
+
+### Mode policy in userspace — PROVEN
+
+The state is stored as `REG_DWORD mode` under
+`HKCU\Software\ASUS\ASUSBusinessUtility`. At startup, the value is read
+and constrained to `0..2`; the default is `0`. Mode changes are written
+back to the registry.
+
+`ConfLedService::onEvent` cycles through `0 → 1 → 2 → 0`.
+The behavior of `ApplyMode` is proven; mode names are inferred from
+official ASUS documentation and static behavior (**STRONG**).
+These are reader-facing labels, not C enum constants found in the binary.
+
+| mode | `ApplyMode` behavior — PROVEN | Name — STRONG |
+|------|------------------------------|---------------|
+| `0` | `SetStatus(session state)` | Auto |
+| `1` | `SetStatus(true)` | Solid Orange / Busy / In a meeting |
+| `2` | `SetStatus(false)` | Light off |
+
+### Auto: proven mechanism and evidence boundary
+
+**PROVEN:** Auto policy is implemented in the Windows userspace component
+`confled.dll`. It uses `AudioSessionMonitor`,
+`MeetingAudioSessionNotification`, `MeetingAudioSessionEvents`, and
+`IAudioSessionManager2`; a separate monitoring thread waits approximately
+`3000 ms`. Only Auto mode sends session-derived state to the LED.
+
+**STRONG:** the automatic state is determined by Windows Core Audio /
+capture-session activity. The full capture-session predicate was not
+completely disassembled, so this is not a fully proven universal rule.
+No process allowlist for Teams/Zoom/Discord/Meet was found; camera/WebRTC
+alone are not proven criteria in this path.
+
+In the inspected Windows control path, the physical LED is controlled as
+a binary capability through `DSTS/DEVS(0x00040019)`, while userspace applies
+the Auto/Busy/Off policy. No separate firmware mode interface was found in
+this path. This does not rule out other unknown mode-related capabilities
+or firmware control registers.
+
+### Fn+1 and event routing
+
+Previously confirmed on Linux: Fn+1 emits ASUS WMI event `0x61`, which
+stock `asus-nb-wmi` maps to `KEY_SWITCHVIDEOMODE`.
+On Windows, `ConfLedService::onEvent(0x61)` handles the event and changes
+mode; it also handles `0x62–0x64` and part of `0x10–0x1b`.
+
+`confled.dll` is a proven handler of `0x61` for the Conference LED path
+when the event is routed to `ConfLedService`. The full routing
+`cceventapp.exe → FunctionCommandList / ExpertWidget assignments → plugin`
+has not been fully reconstructed. Direct handling of every Fn+1 by this
+component therefore cannot be treated as proven.
+
+ExpertWidget provides UI/resources and function assignments for Fn+1…Fn+4;
+`ConfLedService` is among the available commands. It is a configuration
+surface, not a proven physical LED control implementation. No code usage
+of `0x00040019` was found in the inspected ASUS System Control Interface v3.
+
+### Package and reproducibility
+
+Source: the [official ASUS B5402CBA support/download page](https://www.asus.com/supportonly/b5402cba/helpdesk_download/).
+The examined package is ASUS Business Utility `3.5.35.0`, published on `2025-01-16`.
+Package SHA-256:
+
+```text
+2d64897952378f2ed90a9a9c3b14c8e6295c46e52e1af7d1d84193b008974a9b
+```
+
 ## Verification
 
 Verified on the live system on 2026-10-03:
@@ -188,13 +298,16 @@ indicator on the lid; `0` switched the same indicator off. **ON/OFF — PASS**.
 
 ## Limitations and next step
 
-Hardware/firmware identification and manual control are closed.
-The final LED name and the decision on upstream support remain a separate
-next stage. The diagnostic patch is not an upstream-ready interface.
+Hardware/firmware identification, manual binary control, and Gate 3D
+are closed. ASUS Windows Auto policy has been examined statically within
+the evidence boundaries above; Linux Auto implementation is absent.
 
-Automatic integration with PipeWire, camera, microphone, or conferencing
-applications has not been implemented. The behavior of `auto` mode has
-not been investigated or implemented. The expansion of `CFLD` remains unknown.
+The separate next stage, **Gate 4**, is the final kernel LED name/API and
+production/upstream-quality Linux binary LED support. The diagnostic name
+`asus::cfld-test` is not final, and the current patch is not upstream-ready.
+Fn+1 remapping and Linux userspace conference policy are outside Gate 4;
+automatic integration with PipeWire, camera, microphone, or conferencing
+applications has not been implemented. The expansion of `CFLD` remains unknown.
 
 ## Related docs
 
