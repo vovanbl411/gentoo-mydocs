@@ -179,7 +179,7 @@ Two transport paths are proven:
 | WMI | `ExecMethod` through `AsusAtkWmi_WMNB`, instance `ACPI\PNP0C14\ATK_0`, `Device_ID = 0x00040019`, `Control_status = 0\|1` |
 
 This independently confirms that the identified Linux firmware path matches
-the method ASUS officially uses to control the User-status / Conference LED.
+the User-status / Conference LED control method implemented in official ASUS software.
 
 ### Mode policy in userspace — PROVEN
 

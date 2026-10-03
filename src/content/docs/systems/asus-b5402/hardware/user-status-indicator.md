@@ -178,7 +178,8 @@ presence/status и `DEVS(0x00040019, 0|1)` для включения/выклю�
 | WMI | `ExecMethod` через `AsusAtkWmi_WMNB`, instance `ACPI\PNP0C14\ATK_0`, `Device_ID = 0x00040019`, `Control_status = 0\|1` |
 
 Это независимое подтверждение: найденный Linux firmware path совпадает
-с официально используемым ASUS способом управления User-status / Conference LED.
+со способом управления User-status / Conference LED, реализованным
+в официальном ASUS software.
 
 ### Mode policy в userspace — PROVEN
 
