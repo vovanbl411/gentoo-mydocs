@@ -17,8 +17,9 @@ verified_on: [asus-b5402]
   through binds in Niri.
 
 - The external User-status indicator is identified as ASUS WMI `0x00040019` /
-  `CFLD`; manual control was verified on 2026-10-03 through the diagnostic
-  `asus::cfld-test`. See the [dedicated document](../user-status-indicator/).
+  `CFLD`; manual binary control was verified on 2026-10-03 through
+  `/sys/class/leds/orange:status` (a local kernel patch). See the
+  [dedicated document](../user-status-indicator/).
 
 ## Power management and battery (TLP)
 

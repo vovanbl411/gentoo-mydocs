@@ -19,9 +19,14 @@ verified_on: [asus-b5402]
 `0x00040019` как бинарный control физического LED. Трёхрежимная
 Auto/Busy/Off policy хранится и применяется Windows userspace.
 
-В Linux сейчас доступен только временный diagnostic LED class interface
-`asus::cfld-test` из локального kernel patch. Следующий отдельный
-Gate 4 — финальное kernel LED name/API и поддержка уровня upstream.
+**Gate 4B — production-style local Linux implementation + live acceptance:
+CLOSED / PASS** (2026-10-03). На эталонной системе diagnostic
+`asus::cfld-test` заменён production-style local patch. После rebuild новый
+`asus-wmi` interface `/sys/class/leds/orange:status` прошёл live acceptance:
+state read и физический ON/OFF через brightness `0/1` работают.
+
+Следующий отдельный этап — **Gate 4C — upstream-quality review**
+(submission readiness). Patch пока не объявлен upstream-ready.
 
 ## Аппаратный и firmware путь
 
@@ -121,22 +126,65 @@ If ((IIA0 == 0x00040019))
 - `LBLV` / `LBLS` только объявлены и не используются;
   `WLED` / `BLED` — stubs, возвращающие `Zero`.
 
-## Diagnostic kernel patch
+## Linux kernel implementation
 
-Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-cfld-test.patch`
+Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
 
-Минимальный Gentoo user patch добавляет:
+Production-style local Gentoo user patch добавляет:
 
-- временный define для DEVID `0x00040019`;
-- `struct led_classdev cfld_led`;
-- чтение через `asus_wmi_get_devstate()` и запись через
-  `asus_wmi_set_devstate()`;
+- `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`;
+- `struct led_classdev user_status_led`;
+- чтение через существующий `asus_wmi_get_devstate_simple()` и запись
+  через `asus_wmi_set_devstate()`;
 - регистрацию только при подтверждении capability через
   `asus_wmi_dev_is_present()`;
-- диагностическое имя `asus::cfld-test`.
+- LED ABI `"orange:" LED_FUNCTION_STATUS`;
+- `max_brightness = 1`, `brightness_set_blocking`;
+- без trigger и без DMI quirk.
 
-Имя намеренно временное, чтобы не закреплять семантику до отдельного решения.
-Patch использован для validation и не считается готовым к upstream.
+Архитектура patch:
+
+```text
+ASUS WMI DEVID 0x00040019
+        ↓
+DSTS PRESENCE_BIT / STATUS_BIT
+        ↓
+asus-wmi
+        ↓
+orange:status
+        ↓
+brightness 0/1
+```
+
+После rebuild `sys-kernel/gentoo-kernel-7.2.8` interface зарегистрирован
+как `/sys/class/leds/orange:status`; подробная проверка — в Verification.
+Patch не объявлен upstream-ready и не отправлялся upstream; submission
+readiness — предмет Gate 4C.
+
+### Почему `orange:status`
+
+Linux LED class использует стандартную семантику `color:function`, цвет
+физического индикатора подтверждён как orange, а `LED_FUNCTION_STATUS`
+уже существует — vendor-specific имя вида `asus::cfld-test` новому ABI не
+нужно. `CFLD` — firmware field с неизвестной расшифровкой и не должен
+становиться Linux ABI. `orange:status` — принятое local/upstream-oriented
+design decision, а не подтверждённое решение upstream maintainers.
+
+### Capability discovery и DMI
+
+`asus_wmi_dev_is_present(... ASUS_WMI_DEVID_USER_STATUS_LED)` используется
+как firmware capability discovery. DMI whitelist в текущей реализации не
+требуется: firmware сам сообщает `ASUS_WMI_DSTS_PRESENCE_BIT`. Это не
+универсальное утверждение для других моделей — quirk может понадобиться
+на другом hardware.
+
+### История: diagnostic patch
+
+Первоначальный diagnostic patch `10-asus-wmi-cfld-test.patch` регистрировал
+LED `asus::cfld-test` (чтение через `asus_wmi_get_devstate()`, намеренно
+временное имя) и служил этапом identification/physical validation. После
+Gate 4A/4B он удалён и заменён production-style patch; interface
+`asus::cfld-test` в текущем ядре отсутствует.
 
 Writable ASUS debugfs interface был недоступен из-за kernel lockdown
 `integrity`. Secure Boot и lockdown ради исследования не отключались.
@@ -261,52 +309,66 @@ SHA-256 пакета:
 | Secure Boot | включён |
 | Kernel lockdown | `integrity` |
 
-После пересборки пакета с диагностическим patch и загрузки `7.2.8-bdsm`
-зарегистрирован `/sys/class/leds/asus::cfld-test`. Проверка наличия и чтение:
+После пересборки пакета с production-style patch и загрузки `7.2.8-bdsm`
+зарегистрирован `/sys/class/leds/orange:status`; прежний diagnostic
+interface `asus::cfld-test` в `/sys/class/leds/` отсутствует.
+Проверка наличия и чтение:
 
 ```bash
-ls -l /sys/class/leds/asus::cfld-test
-cat /sys/class/leds/asus::cfld-test/max_brightness
-cat /sys/class/leds/asus::cfld-test/brightness
+ls -l /sys/class/leds/orange:status
+cat /sys/class/leds/orange:status/max_brightness
+cat /sys/class/leds/orange:status/brightness
 ```
 
 Подтверждённая цель symlink:
 
 ```text
-../../devices/platform/asus-nb-wmi/leds/asus::cfld-test
+../../devices/platform/asus-nb-wmi/leds/orange:status
 ```
 
-Прочитаны `max_brightness = 1` и `brightness = 0`.
-Команды ниже применимы к системе с этим patch и зарегистрированным LED.
-Они меняют состояние физического индикатора; запись `0` выключает его.
+Live-значения: `max_brightness = 1`, `brightness = 0`. Команды ниже меняют
+состояние физического индикатора; запись `0` выключает его.
 
 Включение:
 
 ```bash
-printf '1\n' | doas tee /sys/class/leds/asus::cfld-test/brightness
+printf '1\n' | doas tee /sys/class/leds/orange:status/brightness
 ```
 
 Выключение:
 
 ```bash
-printf '0\n' | doas tee /sys/class/leds/asus::cfld-test/brightness
+printf '0\n' | doas tee /sys/class/leds/orange:status/brightness
 ```
 
 Физическая проверка 2026-10-03: `1` зажёг именно внешний оранжевый
-User-status indicator на крышке; `0` погасил тот же индикатор. **ON/OFF — PASS**.
+User-status indicator на крышке; `0` погасил тот же индикатор.
+
+| Проверка Gate 4B | Результат |
+|------------------|-----------|
+| Registration `orange:status` | PASS |
+| `max_brightness = 1` | PASS |
+| DSTS state read | PASS |
+| DEVS write `0/1` | PASS |
+| Physical ON/OFF | PASS |
+| Diagnostic ABI `asus::cfld-test` отсутствует | PASS |
 
 ## Ограничения и следующий этап
 
-Идентификация hardware/firmware, ручное бинарное управление и Gate 3D
+Идентификация hardware/firmware, ручное бинарное управление, Gate 3D и
+Gate 4B (production-style local Linux implementation + live acceptance)
 закрыты. ASUS Windows Auto policy исследована статически с описанными
 выше границами; Linux implementation Auto отсутствует.
 
-Следующий отдельный **Gate 4** — финальное kernel LED name/API и
-production/upstream-quality Linux binary LED support. Диагностический
-`asus::cfld-test` не является финальным именем, текущий patch не upstream-ready.
-Fn+1 remapping и Linux userspace conference policy в Gate 4 не входят;
-автоматическая интеграция с PipeWire, camera, microphone или conferencing
-applications не реализована. Расшифровка `CFLD` остаётся неизвестной.
+Следующий отдельный **Gate 4C — upstream-quality review**: patch style,
+повторный review naming/API глазами upstream maintainer, checkpatch и
+patch formatting, commit message, submission readiness, необходимость
+дополнительных evidence/comments для upstream.
+
+Fn+1 remapping и Linux userspace Auto (conference policy, daemon,
+интеграция с PipeWire/camera/microphone/conferencing applications) —
+отдельные будущие вопросы после kernel support, сейчас не реализованы.
+Расшифровка `CFLD` остаётся неизвестной.
 
 ## Related docs
 

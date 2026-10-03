@@ -90,12 +90,17 @@
   `initrd_generator=dracut`, `uki_generator=dracut`). Savedconfig — rolling
   `gentoo-kernel` + версионные `7.2.6`/`7.2.7` + `linux-firmware-20260916`
   (проверено 2026-09-22).
-- **User-status indicator (2026-10-03)**: hardware/firmware identification
-  и manual binary control — **CLOSED / PASS**; Windows reference implementation /
-  mode semantics (Gate 3D) — **CLOSED / PASS**. Linux пока предоставляет
-  диагностический `asus::cfld-test`; следующий Gate 4 — production/upstream-quality
-  binary LED support, без Fn+1 remapping и userspace Auto integration.
-  Подтверждённое состояние и границы evidence —
+- **User-status indicator (2026-10-03)**: hardware/firmware identification,
+  manual binary control, Windows reference implementation (Gate 3D) и
+  production-style local Linux implementation + live acceptance (Gate 4B) —
+  **CLOSED / PASS**. Diagnostic `asus::cfld-test` заменён production-style
+  patch
+  `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
+  (`ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`); текущий Linux interface —
+  binary LED `/sys/class/leds/orange:status` (`0/1`), registration через
+  firmware `PRESENCE_BIT`, без DMI whitelist. Следующий этап — Gate 4C
+  upstream-quality review; patch не объявлен upstream-ready, Fn+1 remapping
+  и userspace Auto не входят. Подтверждённое состояние и границы evidence —
   [system document](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md).
 - **Управление памятью (2026-09-27)**: zram (`ram / 2`, `zstd`, priority 100);
   `vm.swappiness=100` закреплён в `/etc/sysctl.d/99-memory.conf` и подтверждён
@@ -224,6 +229,7 @@
 
 | Дата | Событие |
 |------|---------|
+| 2026-10-03 | User-status indicator Gate 4B — production-style local Linux implementation + live acceptance: CLOSED / PASS. Diagnostic patch `10-asus-wmi-cfld-test.patch` удалён вместе с ABI `asus::cfld-test`; вместо него установлен `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`: `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`, `struct led_classdev user_status_led`, чтение `asus_wmi_get_devstate_simple()` / запись `asus_wmi_set_devstate()`, registration только при `asus_wmi_dev_is_present()`, final local ABI candidate `orange:status` (`"orange:" LED_FUNCTION_STATUS`, `max_brightness = 1`, `brightness_set_blocking`, без trigger), DMI whitelist не используется (firmware `PRESENCE_BIT`). После rebuild `gentoo-kernel-7.2.8` зарегистрирован `/sys/class/leds/orange:status` (symlink `../../devices/platform/asus-nb-wmi/leds/orange:status`); diagnostic ABI в `/sys/class/leds/` отсутствует. Live acceptance: registration, `max_brightness = 1`, DSTS state read, DEVS write `0/1`, физический ON/OFF — PASS. Patch не объявлен upstream-ready и не отправлялся upstream; следующий этап — Gate 4C upstream-quality review (patch style, naming/API review глазами upstream maintainer, checkpatch, commit message, submission readiness, дополнительные evidence/comments). RU/EN system document синхронизированы. |
 | 2026-10-03 | User-status indicator Gate 3D — CLOSED / PASS: статический анализ официальной ASUS Business Utility `3.5.35.0`, `confled.dll` (`Conference LED support package`) подтвердил `DSTS/DEVS(0x00040019)` для binary physical LED control через ATKACPI и WMI. Mode `0/1/2` хранится в `HKCU\Software\ASUS\ASUSBusinessUtility` и применяется userspace; forced ON/OFF и Auto policy восстановлены. Auto использует Windows audio-session monitoring; точный capture-session predicate — STRONG, не полностью доказанное universal rule. `ConfLedService` обрабатывает `0x61` при маршрутизации события в него; полный ExpertWidget/FunctionCommandList routing Fn+1 не восстановлен, что не блокирует основной вывод. Отдельный firmware mode interface в исследованном Windows path не найден; иные неизвестные capabilities не исключены. Следующий Gate 4 — production/upstream-quality Linux binary LED support и финальное kernel LED name/API; userspace Auto/Fn+1 integration пока не реализуются. RU/EN system document синхронизированы. |
 | 2026-10-03 | User-status indicator ASUS B5402CBA: identification/manual hardware control — CLOSED / PASS. DSDT/firmware mapping `0x00040019 ↔ CFLD`; upstream Linux 7.2.8 этот DEVID не экспонирует. Диагностический Portage patch `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-cfld-test.patch`; после rebuild и загрузки `7.2.8-bdsm` зарегистрирован `asus::cfld-test`. Физический ON/OFF через brightness `1/0` — PASS. Secure Boot и lockdown `integrity` не отключались. Итог зафиксирован в RU/EN system document и связан с hardware overview/index. Final naming, upstream support и automatic conference integration остаются следующим отдельным этапом; `auto` mode не исследован и не реализован, расшифровка `CFLD` неизвестна. |
 | 2026-10-01 | Thunderbird `157.0` установлен из Gentoo на ASUS B5402: Wayland/WebRender/audio runtime прошли acceptance; настроены Gmail ×4, Yandex ×1 и Mail.ru ×1, send/receive — PASS. Полная offline synchronization включена, adaptive local spam filtering выключен; уведомления только для двух выбранных Gmail проверены отдельно от тихой синхронизации остальных. Live Portage policy подтверждена: `mail-client/thunderbird → p-cores ssd`. Canonical docs: `src/content/docs/settings/thunderbird.md` и `src/content/docs/systems/asus-b5402/applications.md`. |

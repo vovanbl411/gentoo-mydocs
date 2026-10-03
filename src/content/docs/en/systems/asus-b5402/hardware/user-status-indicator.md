@@ -19,9 +19,15 @@ Static analysis of the official ASUS Business Utility confirmed
 `0x00040019` as binary physical LED control. The three-mode Auto/Busy/Off
 policy is stored and applied in Windows userspace.
 
-Linux currently exposes only the temporary diagnostic LED class interface
-`asus::cfld-test` from a local kernel patch. The separate next stage,
-Gate 4, is the final kernel LED name/API and upstream-quality support.
+**Gate 4B — production-style local Linux implementation + live acceptance:
+CLOSED / PASS** (2026-10-03). On the reference system, the diagnostic
+`asus::cfld-test` was replaced with a production-style local patch. After
+the rebuild, the new `asus-wmi` interface `/sys/class/leds/orange:status`
+passed live acceptance: state read and physical ON/OFF via brightness
+`0/1` work.
+
+The separate next stage, **Gate 4C**, is the upstream-quality review
+(submission readiness). The patch is not yet declared upstream-ready.
 
 ## Hardware and firmware path
 
@@ -121,22 +127,66 @@ Other candidates checked:
 - `LBLV` / `LBLS` are only declared and unused;
   `WLED` / `BLED` are stubs returning `Zero`.
 
-## Diagnostic kernel patch
+## Linux kernel implementation
 
-File: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-cfld-test.patch`
+File: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
 
-The minimal Gentoo user patch adds:
+The production-style local Gentoo user patch adds:
 
-- a temporary define for DEVID `0x00040019`;
-- `struct led_classdev cfld_led`;
-- reads through `asus_wmi_get_devstate()` and writes through
-  `asus_wmi_set_devstate()`;
+- `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019`;
+- `struct led_classdev user_status_led`;
+- reads through the existing `asus_wmi_get_devstate_simple()` and writes
+  through `asus_wmi_set_devstate()`;
 - registration only when `asus_wmi_dev_is_present()` confirms the capability;
-- the diagnostic name `asus::cfld-test`.
+- the LED ABI `"orange:" LED_FUNCTION_STATUS`;
+- `max_brightness = 1`, `brightness_set_blocking`;
+- no trigger and no DMI quirk.
 
-The name is deliberately temporary to avoid assigning semantics before a
-separate decision. The patch was used for validation and is not considered
-ready for upstream.
+Patch architecture:
+
+```text
+ASUS WMI DEVID 0x00040019
+        ↓
+DSTS PRESENCE_BIT / STATUS_BIT
+        ↓
+asus-wmi
+        ↓
+orange:status
+        ↓
+brightness 0/1
+```
+
+After rebuilding `sys-kernel/gentoo-kernel-7.2.8`, the interface was
+registered as `/sys/class/leds/orange:status`; see Verification for the
+detailed checks. The patch is not declared upstream-ready and has not been
+submitted upstream — submission readiness is the subject of Gate 4C.
+
+### Why `orange:status`
+
+The Linux LED class uses the standard `color:function` semantics, the
+physical indicator color is confirmed as orange, and `LED_FUNCTION_STATUS`
+already exists — a vendor-specific name like `asus::cfld-test` is not
+needed for the new ABI. `CFLD` is a firmware field with an unknown
+expansion and must not become a Linux ABI. `orange:status` is an accepted
+local/upstream-oriented design decision, not a decision confirmed by the
+upstream maintainers.
+
+### Capability discovery and DMI
+
+`asus_wmi_dev_is_present(... ASUS_WMI_DEVID_USER_STATUS_LED)` is used as
+firmware capability discovery. No DMI whitelist is required in the current
+implementation: the firmware itself reports `ASUS_WMI_DSTS_PRESENCE_BIT`.
+This is not a universal claim about other models — a quirk may still be
+needed on other hardware.
+
+### History: diagnostic patch
+
+The initial diagnostic patch `10-asus-wmi-cfld-test.patch` registered the
+`asus::cfld-test` LED (reads through `asus_wmi_get_devstate()`, a
+deliberately temporary name) and served as the identification/physical
+validation stage. After Gates 4A/4B it was removed and replaced with the
+production-style patch; the `asus::cfld-test` interface is absent from the
+current kernel.
 
 The writable ASUS debugfs interface was unavailable because of kernel
 lockdown `integrity`. Secure Boot and lockdown remained enabled throughout
@@ -261,53 +311,66 @@ Verified on the live system on 2026-10-03:
 | Secure Boot | enabled |
 | Kernel lockdown | `integrity` |
 
-After rebuilding the package with the diagnostic patch and booting
-`7.2.8-bdsm`, `/sys/class/leds/asus::cfld-test` was registered.
+After rebuilding the package with the production-style patch and booting
+`7.2.8-bdsm`, `/sys/class/leds/orange:status` was registered; the previous
+diagnostic interface `asus::cfld-test` is absent from `/sys/class/leds/`.
 Check its presence and read its values:
 
 ```bash
-ls -l /sys/class/leds/asus::cfld-test
-cat /sys/class/leds/asus::cfld-test/max_brightness
-cat /sys/class/leds/asus::cfld-test/brightness
+ls -l /sys/class/leds/orange:status
+cat /sys/class/leds/orange:status/max_brightness
+cat /sys/class/leds/orange:status/brightness
 ```
 
 Confirmed symlink target:
 
 ```text
-../../devices/platform/asus-nb-wmi/leds/asus::cfld-test
+../../devices/platform/asus-nb-wmi/leds/orange:status
 ```
 
-The observed values were `max_brightness = 1` and `brightness = 0`.
-The commands below apply to the system with this patch and the registered
-LED. They change the physical indicator state; writing `0` switches it off.
+Live values: `max_brightness = 1`, `brightness = 0`. The commands below
+change the physical indicator state; writing `0` switches it off.
 
 Switch on:
 
 ```bash
-printf '1\n' | doas tee /sys/class/leds/asus::cfld-test/brightness
+printf '1\n' | doas tee /sys/class/leds/orange:status/brightness
 ```
 
 Switch off:
 
 ```bash
-printf '0\n' | doas tee /sys/class/leds/asus::cfld-test/brightness
+printf '0\n' | doas tee /sys/class/leds/orange:status/brightness
 ```
 
 Physical verification on 2026-10-03: `1` lit the external orange User-status
-indicator on the lid; `0` switched the same indicator off. **ON/OFF — PASS**.
+indicator on the lid; `0` switched the same indicator off.
+
+| Gate 4B check | Result |
+|---------------|--------|
+| `orange:status` registration | PASS |
+| `max_brightness = 1` | PASS |
+| DSTS state read | PASS |
+| DEVS write `0/1` | PASS |
+| Physical ON/OFF | PASS |
+| Diagnostic ABI `asus::cfld-test` absent | PASS |
 
 ## Limitations and next step
 
-Hardware/firmware identification, manual binary control, and Gate 3D
+Hardware/firmware identification, manual binary control, Gate 3D, and
+Gate 4B (production-style local Linux implementation + live acceptance)
 are closed. ASUS Windows Auto policy has been examined statically within
 the evidence boundaries above; Linux Auto implementation is absent.
 
-The separate next stage, **Gate 4**, is the final kernel LED name/API and
-production/upstream-quality Linux binary LED support. The diagnostic name
-`asus::cfld-test` is not final, and the current patch is not upstream-ready.
-Fn+1 remapping and Linux userspace conference policy are outside Gate 4;
-automatic integration with PipeWire, camera, microphone, or conferencing
-applications has not been implemented. The expansion of `CFLD` remains unknown.
+The separate next stage, **Gate 4C — upstream-quality review**, covers
+patch style, a repeated naming/API review with upstream-maintainer eyes,
+checkpatch and patch formatting, the commit message, submission readiness,
+and whether additional evidence/comments are needed for upstream.
+
+Fn+1 remapping and Linux userspace Auto (conference policy, a daemon,
+integration with PipeWire/camera/microphone/conferencing applications)
+remain separate future questions after kernel support and are not
+implemented. The expansion of `CFLD` remains unknown.
 
 ## Related docs
 

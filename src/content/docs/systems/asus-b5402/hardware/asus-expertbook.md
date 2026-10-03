@@ -17,8 +17,9 @@ verified_on: [asus-b5402]
   настроена binds в Niri.
 
 - Внешний User-status indicator идентифицирован как ASUS WMI `0x00040019` /
-  `CFLD`; ручное управление подтверждено 2026-10-03 через диагностический
-  `asus::cfld-test`. Подробности — [отдельный документ](../user-status-indicator/).
+  `CFLD`; ручное binary управление подтверждено 2026-10-03 через
+  `/sys/class/leds/orange:status` (local kernel patch). Подробности —
+  [отдельный документ](../user-status-indicator/).
 
 ## Управление питанием и батареей (TLP)
 
