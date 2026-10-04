@@ -14,26 +14,21 @@ verified_on: [asus-b5402]
 `ASUS WMI DEVID 0x00040019 ↔ CFLD` и ручное бинарное управление —
 **CLOSED / PASS** (2026-10-03).
 
+На 2026-10-04 live-система работает на `7.2.9-bdsm` с `/sys/class/leds/:status`
+и registration через `asus_wmi_get_devstate_simple(...) >= 0`. Физический
+ON/OFF прошёл acceptance. Текущая локальная реализация совпадает по design
+с submitted upstream v1: `:status`, successful state-read gate, без DMI
+whitelist и trigger. Следующий шаг — ждать upstream review.
+
 **Gate 3D — Windows reference implementation: CLOSED / PASS**.
 Статический анализ официальной ASUS Business Utility подтвердил
 `0x00040019` как бинарный control физического LED. Трёхрежимная
 Auto/Busy/Off policy хранится и применяется Windows userspace.
 
-**Gate 4B — production-style local Linux implementation + live acceptance:
-CLOSED / PASS** (2026-10-03). На эталонной системе diagnostic
-`asus::cfld-test` заменён production-style local patch. После rebuild новый
-`asus-wmi` interface `/sys/class/leds/orange:status` прошёл live acceptance:
-state read и физический ON/OFF через brightness `0/1` работают.
-
 **Gate 4C — upstream-quality review: CLOSED / PASS** (2026-10-04).
 **Upstream v1 — SUBMITTED / awaiting review**: патч отправлен через
 `git send-email`, принят SMTP (`250`) и подтверждён в публичном
 mailing-list archive. Это не означает accepted/merged upstream.
-
-Live-система остаётся на локальном `orange:status` с registration через
-`asus_wmi_dev_is_present()` и ядром `7.2.8-bdsm`. Upstream v1 использует
-`:status` и successful state-read gate; на эталонной машине он не установлен.
-Следующий шаг — ждать upstream maintainer/reviewer feedback.
 
 ## Аппаратный и firmware путь
 
@@ -137,7 +132,7 @@ If ((IIA0 == 0x00040019))
 
 ### Current local Gentoo implementation
 
-Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
+Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.9/10-asus-wmi-user-status-led.patch`
 
 Production-style local Gentoo user patch добавляет:
 
@@ -145,9 +140,9 @@ Production-style local Gentoo user patch добавляет:
 - `struct led_classdev user_status_led`;
 - чтение через существующий `asus_wmi_get_devstate_simple()` и запись
   через `asus_wmi_set_devstate()`;
-- регистрацию только при подтверждении capability через
-  `asus_wmi_dev_is_present()`;
-- LED ABI `"orange:" LED_FUNCTION_STATUS`;
+- регистрацию только после успешного чтения состояния:
+  `asus_wmi_get_devstate_simple(...) >= 0`;
+- LED ABI `":" LED_FUNCTION_STATUS`;
 - `max_brightness = 1`, `brightness_set_blocking`;
 - без trigger и без DMI quirk.
 
@@ -156,19 +151,18 @@ Production-style local Gentoo user patch добавляет:
 ```text
 ASUS WMI DEVID 0x00040019
         ↓
-DSTS PRESENCE_BIT / STATUS_BIT
+DSTS successful state read
         ↓
 asus-wmi
         ↓
-orange:status
+:status
         ↓
 brightness 0/1
 ```
 
-После rebuild `sys-kernel/gentoo-kernel-7.2.8` interface зарегистрирован
-как `/sys/class/leds/orange:status`; подробная проверка — в Verification.
-Этот локальный патч остаётся текущей live implementation на `7.2.8-bdsm`
-после boot/runtime/physical ON/OFF acceptance; upstream v1 описан отдельно.
+После rebuild `sys-kernel/gentoo-kernel-7.2.9` и загрузки `7.2.9-bdsm`
+`/sys/class/leds/:status` прошёл live acceptance 2026-10-04. Текущая локальная
+реализация совпадает по design с submitted upstream v1; проверка — в Verification.
 
 ### Upstream v1
 
@@ -206,21 +200,19 @@ Final submission validation:
 
 Статус — v1 submitted / awaiting review; принятие или merge не подтверждены.
 
-### Почему `orange:status`
+### Почему `:status`
 
 Linux LED class использует стандартную семантику `color:function`.
-Оранжевый цвет физически подтверждён только на B5402CBA, поэтому
-`orange:status` сохраняется в текущей локальной реализации. Upstream v1
-использует `:status`: generic driver не должен объявлять цвет других
-моделей без evidence. `LED_FUNCTION_STATUS` уже существует; `CFLD` —
-firmware field с неизвестной расшифровкой и не должен становиться Linux ABI.
+Оранжевый цвет физически подтверждён только на B5402CBA. Текущая локальная
+реализация и upstream v1 используют `:status`: generic driver не должен
+объявлять цвет других моделей без evidence. `LED_FUNCTION_STATUS` уже
+существует; `CFLD` — firmware field с неизвестной расшифровкой и не должен
+становиться Linux ABI.
 
 ### Capability discovery и DMI
 
-Текущий локальный патч использует
-`asus_wmi_dev_is_present(... ASUS_WMI_DEVID_USER_STATUS_LED)`; на B5402CBA
-registration и управление прошли live acceptance. В upstream v1 выбран
-successful state-read gate: `asus_wmi_get_devstate_simple(...) >= 0`.
+Текущий локальный патч и upstream v1 используют successful state-read
+gate: `asus_wmi_get_devstate_simple(...) >= 0`.
 `ASUS_WMI_UNSUPPORTED_METHOD (0xFFFFFFFE)` содержит
 `ASUS_WMI_DSTS_PRESENCE_BIT`, поэтому generic registration через
 `asus_wmi_dev_is_present()` может дать ложную presence на некоторых firmware.
@@ -361,6 +353,75 @@ SHA-256 пакета:
 
 ## Verification
 
+Проверено на live-системе 2026-10-04:
+
+| Параметр | Значение |
+|----------|----------|
+| Модель | ASUS ExpertBook B5402CBA |
+| BIOS | `B5402CBA.314` |
+| Kernel | `7.2.9-bdsm` |
+| Пакет | `sys-kernel/gentoo-kernel-7.2.9` |
+| Registration | `asus_wmi_get_devstate_simple(...) >= 0` |
+
+После загрузки `7.2.9-bdsm` зарегистрирован `/sys/class/leds/:status`;
+`orange:status` отсутствует. Проверка наличия и чтение состояния:
+
+```bash
+uname -r
+ls -l /sys/class/leds/:status
+cat /sys/class/leds/:status/max_brightness
+cat /sys/class/leds/:status/brightness
+```
+
+Подтверждённая цель symlink:
+
+```text
+../../devices/platform/asus-nb-wmi/leds/:status
+```
+
+Live-значения: `max_brightness = 1`, `brightness = 0`. Команды ниже меняют
+состояние физического индикатора; запись `0` выключает его.
+
+Включение:
+
+```bash
+printf '1\n' | doas tee /sys/class/leds/:status/brightness
+```
+
+Выключение:
+
+```bash
+printf '0\n' | doas tee /sys/class/leds/:status/brightness
+```
+
+Физическая проверка 2026-10-04: `1` зажёг именно внешний оранжевый
+User-status indicator на крышке; `0` погасил тот же индикатор.
+
+| Live acceptance 2026-10-04 | Результат |
+|----------------------------|-----------|
+| `7.2.9-bdsm` boot | PASS |
+| Registration `:status` | PASS |
+| `orange:status` отсутствует | PASS |
+| `max_brightness = 1` | PASS |
+| DSTS state read | PASS |
+| DEVS write `1` → physical LED ON | PASS |
+| DEVS write `0` → physical LED OFF | PASS |
+
+### История: 7.2.8 / Gate 4B
+
+Предыдущий local production patch использовал `orange:status` и
+`asus_wmi_dev_is_present()` на `7.2.8-bdsm`:
+
+`/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
+
+Это known-good rollback state, а не текущая live implementation.
+
+**Gate 4B — production-style local Linux implementation + live acceptance:
+CLOSED / PASS** (2026-10-03). На эталонной системе diagnostic
+`asus::cfld-test` заменён production-style local patch. После rebuild новый
+`asus-wmi` interface `/sys/class/leds/orange:status` прошёл live acceptance:
+state read и физический ON/OFF через brightness `0/1` работают.
+
 Проверено на live-системе 2026-10-03:
 
 | Параметр | Значение |
@@ -427,7 +488,8 @@ Gate 4B (production-style local Linux implementation + live acceptance)
 **Gate 4C — CLOSED / PASS**, upstream v1 отправлен. Следующий шаг —
 ждать upstream maintainer/reviewer feedback. v2 появится только при
 конкретном review feedback или новой найденной проблеме; заранее он
-не планируется. Live local implementation остаётся `orange:status`.
+не планируется. Live local implementation использует `:status` на `7.2.9-bdsm`
+и совпадает по design с submitted upstream v1.
 
 Fn+1 remapping и Linux userspace Auto (conference policy, daemon,
 интеграция с PipeWire/camera/microphone/conferencing applications) —

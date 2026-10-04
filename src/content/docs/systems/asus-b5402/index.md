@@ -18,7 +18,7 @@ verified_on: [asus-b5402]
 - Графика Intel Iris Xe — драйвер ядра i915, Mesa iris, Vulkan ANV.
 - Рабочий стол — Niri (чистый Wayland) + Noctalia v5; вход через
   greetd/tuigreet.
-- Ядро `7.2.8-bdsm` — собирается LLVM 23.1.1; загрузка systemd-boot → UKI
+- Ядро `7.2.9-bdsm` — собирается LLVM 23.1.1; загрузка systemd-boot → UKI
   (Dracut) → LUKS2/TPM2 → Btrfs.
 - Хранилище — Btrfs + Snapper; второй NVMe: состояние проверено, план
   backup/data не применён (осталась старая разметка Arch/LUKS).
@@ -38,7 +38,7 @@ verified_on: [asus-b5402]
 - [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — драйверы ядра,
   TLP и батарея.
 - [User-status indicator](hardware/user-status-indicator/) — ASUS WMI
-  `0x00040019` / `CFLD`, ручное управление подтверждено 2026-10-03.
+  `0x00040019` / `CFLD`, ручное управление подтверждено 2026-10-04.
 - [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — флаги
   компиляции, планировщик, аппаратная безопасность.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.

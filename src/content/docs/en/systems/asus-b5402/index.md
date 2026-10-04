@@ -20,7 +20,7 @@ the general instructions.
   ANV.
 - Desktop — Niri (pure Wayland) + Noctalia v5; login via
   greetd/tuigreet.
-- Kernel `7.2.8-bdsm` — built with LLVM 23.1.1; boot chain: systemd-boot
+- Kernel `7.2.9-bdsm` — built with LLVM 23.1.1; boot chain: systemd-boot
   → UKI (Dracut) → LUKS2/TPM2 → Btrfs.
 - Storage — Btrfs + Snapper; second NVMe: state verified, the
   backup/data plan not applied (the old Arch/LUKS layout is still
@@ -42,7 +42,7 @@ the general instructions.
 - [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — kernel
   drivers, TLP and the battery.
 - [User-status indicator](hardware/user-status-indicator/) — ASUS WMI
-  `0x00040019` / `CFLD`, manual control verified on 2026-10-03.
+  `0x00040019` / `CFLD`, manual control verified on 2026-10-04.
 - [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — compilation
   flags, the scheduler, hardware security.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.

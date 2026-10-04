@@ -3,7 +3,7 @@ title: ASUS ExpertBook B5402CBA specifics
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-03"
+last_verified: "2026-10-04"
 verified_on: [asus-b5402]
 ---
 
@@ -17,8 +17,8 @@ verified_on: [asus-b5402]
   through binds in Niri.
 
 - The external User-status indicator is identified as ASUS WMI `0x00040019` /
-  `CFLD`; manual binary control was verified on 2026-10-03 through
-  `/sys/class/leds/orange:status` (a local kernel patch). See the
+  `CFLD`; manual binary control was verified on 2026-10-04 through
+  `/sys/class/leds/:status` (a local kernel patch). See the
   [dedicated document](../user-status-indicator/).
 
 ## Power management and battery (TLP)

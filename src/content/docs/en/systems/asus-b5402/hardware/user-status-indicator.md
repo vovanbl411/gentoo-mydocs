@@ -14,27 +14,21 @@ lid can be switched on and off manually from Linux. Hardware/firmware
 identification `ASUS WMI DEVID 0x00040019 ↔ CFLD` and manual binary control
 are **CLOSED / PASS** (2026-10-03).
 
+On 2026-10-04, the live system runs `7.2.9-bdsm` with `/sys/class/leds/:status`
+and registration through `asus_wmi_get_devstate_simple(...) >= 0`. Physical
+ON/OFF passed acceptance. The current local implementation matches submitted
+upstream v1 by design: `:status`, a successful state-read gate, no DMI
+whitelist, and no trigger. The next step is to wait for upstream review.
+
 **Gate 3D — Windows reference implementation: CLOSED / PASS**.
 Static analysis of the official ASUS Business Utility confirmed
 `0x00040019` as binary physical LED control. The three-mode Auto/Busy/Off
 policy is stored and applied in Windows userspace.
 
-**Gate 4B — production-style local Linux implementation + live acceptance:
-CLOSED / PASS** (2026-10-03). On the reference system, the diagnostic
-`asus::cfld-test` was replaced with a production-style local patch. After
-the rebuild, the new `asus-wmi` interface `/sys/class/leds/orange:status`
-passed live acceptance: state read and physical ON/OFF via brightness
-`0/1` work.
-
 **Gate 4C — upstream-quality review: CLOSED / PASS** (2026-10-04).
 **Upstream v1 — SUBMITTED / awaiting review**: the patch was sent through
 `git send-email`, accepted by SMTP (`250`), and confirmed in the public
 mailing-list archive. This does not mean accepted/merged upstream.
-
-The live system retains the local `orange:status`, registration through
-`asus_wmi_dev_is_present()`, and kernel `7.2.8-bdsm`. Upstream v1 uses
-`:status` and a successful state-read gate; it is not installed on the
-reference system. The next step is to wait for upstream maintainer/reviewer feedback.
 
 ## Hardware and firmware path
 
@@ -138,7 +132,7 @@ Other candidates checked:
 
 ### Current local Gentoo implementation
 
-File: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
+File: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.9/10-asus-wmi-user-status-led.patch`
 
 The production-style local Gentoo user patch adds:
 
@@ -146,8 +140,9 @@ The production-style local Gentoo user patch adds:
 - `struct led_classdev user_status_led`;
 - reads through the existing `asus_wmi_get_devstate_simple()` and writes
   through `asus_wmi_set_devstate()`;
-- registration only when `asus_wmi_dev_is_present()` confirms the capability;
-- the LED ABI `"orange:" LED_FUNCTION_STATUS`;
+- registration only after a successful state read:
+  `asus_wmi_get_devstate_simple(...) >= 0`;
+- the LED ABI `":" LED_FUNCTION_STATUS`;
 - `max_brightness = 1`, `brightness_set_blocking`;
 - no trigger and no DMI quirk.
 
@@ -156,20 +151,18 @@ Patch architecture:
 ```text
 ASUS WMI DEVID 0x00040019
         ↓
-DSTS PRESENCE_BIT / STATUS_BIT
+DSTS successful state read
         ↓
 asus-wmi
         ↓
-orange:status
+:status
         ↓
 brightness 0/1
 ```
 
-After rebuilding `sys-kernel/gentoo-kernel-7.2.8`, the interface was
-registered as `/sys/class/leds/orange:status`; see Verification for the
-detailed checks. This local patch remains the current live implementation
-on `7.2.8-bdsm` after boot/runtime/physical ON/OFF acceptance; upstream v1
-is described separately.
+After rebuilding `sys-kernel/gentoo-kernel-7.2.9` and booting `7.2.9-bdsm`,
+`/sys/class/leds/:status` passed live acceptance on 2026-10-04. The current
+local implementation matches submitted upstream v1 by design; see Verification.
 
 ### Upstream v1
 
@@ -207,21 +200,19 @@ Final submission validation:
 
 The status is v1 submitted / awaiting review; acceptance or merge is not confirmed.
 
-### Why `orange:status`
+### Why `:status`
 
 The Linux LED class uses the standard `color:function` semantics.
-Orange has been physically confirmed only on B5402CBA, so `orange:status`
-remains in the current local implementation. Upstream v1 uses `:status`:
-the generic driver must not declare a color for other models without
-evidence. `LED_FUNCTION_STATUS` already exists; `CFLD` is a firmware field
-with an unknown expansion and must not become a Linux ABI.
+Orange has been physically confirmed only on B5402CBA. Both the current
+local implementation and upstream v1 use `:status`: the generic driver
+must not declare a color for other models without evidence.
+`LED_FUNCTION_STATUS` already exists; `CFLD` is a firmware field with an
+unknown expansion and must not become a Linux ABI.
 
 ### Capability discovery and DMI
 
-The current local patch uses
-`asus_wmi_dev_is_present(... ASUS_WMI_DEVID_USER_STATUS_LED)`; registration
-and control passed live acceptance on B5402CBA. Upstream v1 uses a
-successful state-read gate: `asus_wmi_get_devstate_simple(...) >= 0`.
+Both the current local patch and upstream v1 use a successful state-read
+gate: `asus_wmi_get_devstate_simple(...) >= 0`.
 `ASUS_WMI_UNSUPPORTED_METHOD (0xFFFFFFFE)` contains
 `ASUS_WMI_DSTS_PRESENCE_BIT`, so generic registration through
 `asus_wmi_dev_is_present()` can report false presence on some firmware.
@@ -362,6 +353,76 @@ Package SHA-256:
 
 ## Verification
 
+Verified on the live system on 2026-10-04:
+
+| Parameter | Value |
+|-----------|-------|
+| Model | ASUS ExpertBook B5402CBA |
+| BIOS | `B5402CBA.314` |
+| Kernel | `7.2.9-bdsm` |
+| Package | `sys-kernel/gentoo-kernel-7.2.9` |
+| Registration | `asus_wmi_get_devstate_simple(...) >= 0` |
+
+After booting `7.2.9-bdsm`, `/sys/class/leds/:status` is registered;
+`orange:status` is absent. Presence and state reads:
+
+```bash
+uname -r
+ls -l /sys/class/leds/:status
+cat /sys/class/leds/:status/max_brightness
+cat /sys/class/leds/:status/brightness
+```
+
+Confirmed symlink target:
+
+```text
+../../devices/platform/asus-nb-wmi/leds/:status
+```
+
+Live values: `max_brightness = 1`, `brightness = 0`. The commands below
+change the physical indicator state; writing `0` switches it off.
+
+Switch on:
+
+```bash
+printf '1\n' | doas tee /sys/class/leds/:status/brightness
+```
+
+Switch off:
+
+```bash
+printf '0\n' | doas tee /sys/class/leds/:status/brightness
+```
+
+Physical verification on 2026-10-04: `1` lit the external orange User-status
+indicator on the lid; `0` switched the same indicator off.
+
+| Live acceptance 2026-10-04 | Result |
+|----------------------------|--------|
+| `7.2.9-bdsm` boot | PASS |
+| Registration `:status` | PASS |
+| `orange:status` absent | PASS |
+| `max_brightness = 1` | PASS |
+| DSTS state read | PASS |
+| DEVS write `1` → physical LED ON | PASS |
+| DEVS write `0` → physical LED OFF | PASS |
+
+### History: 7.2.8 / Gate 4B
+
+The previous local production patch used `orange:status` and
+`asus_wmi_dev_is_present()` on `7.2.8-bdsm`:
+
+`/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.8/10-asus-wmi-user-status-led.patch`
+
+This remains a known-good rollback state, not the current live implementation.
+
+**Gate 4B — production-style local Linux implementation + live acceptance:
+CLOSED / PASS** (2026-10-03). On the reference system, the diagnostic
+`asus::cfld-test` was replaced with a production-style local patch. After
+the rebuild, the new `asus-wmi` interface `/sys/class/leds/orange:status`
+passed live acceptance: state read and physical ON/OFF via brightness
+`0/1` work.
+
 Verified on the live system on 2026-10-03:
 
 | Parameter | Value |
@@ -428,7 +489,8 @@ the evidence boundaries above; Linux Auto implementation is absent.
 **Gate 4C — CLOSED / PASS**, upstream v1 has been submitted. The next step
 is to wait for upstream maintainer/reviewer feedback. A v2 will arise only
 from specific review feedback or a newly found issue; it is not planned
-in advance. The live local implementation remains `orange:status`.
+in advance. The live local implementation uses `:status` on `7.2.9-bdsm`
+and matches submitted upstream v1 by design.
 
 Fn+1 remapping and Linux userspace Auto (conference policy, a daemon,
 integration with PipeWire/camera/microphone/conferencing applications)

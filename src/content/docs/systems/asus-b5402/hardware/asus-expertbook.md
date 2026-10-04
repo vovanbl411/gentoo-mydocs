@@ -3,7 +3,7 @@ title: Специфика ASUS ExpertBook B5402CBA
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-03"
+last_verified: "2026-10-04"
 verified_on: [asus-b5402]
 ---
 
@@ -17,8 +17,8 @@ verified_on: [asus-b5402]
   настроена binds в Niri.
 
 - Внешний User-status indicator идентифицирован как ASUS WMI `0x00040019` /
-  `CFLD`; ручное binary управление подтверждено 2026-10-03 через
-  `/sys/class/leds/orange:status` (local kernel patch). Подробности —
+  `CFLD`; ручное binary управление подтверждено 2026-10-04 через
+  `/sys/class/leds/:status` (local kernel patch). Подробности —
   [отдельный документ](../user-status-indicator/).
 
 ## Управление питанием и батареей (TLP)
