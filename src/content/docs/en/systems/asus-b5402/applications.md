@@ -3,7 +3,7 @@ title: Applications on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-01"
+last_verified: "2026-10-04"
 verified_on: [asus-b5402]
 ---
 
@@ -11,7 +11,7 @@ verified_on: [asus-b5402]
 
 - Firefox — native Gentoo: built for Wayland (LLVM 22, PGO, hardware
   acceleration); the profile is managed by profile-sync-daemon.
-- Steam and GUI applications — Flatpak (14 applications, remote — flathub);
+- Steam and GUI applications — Flatpak (12 applications, remote — flathub);
   permissions are granted through Flatseal with Wayland preferred.
 - OBS Studio — Flatpak (`com.obsproject.Studio` 32.2.2, verified 2026-09-22).
 - Perplexity — AppImage + user `.desktop`
@@ -81,6 +81,19 @@ not delete files. Initial sync and edits Gentoo → Android → Gentoo passed on
 2026-09-30; local backup files remained present after moving the live database.
 The repeated check recorded no file count. Real conflict recovery remains
 pending. The other applications were not re-checked on 2026-09-29.
+
+## Flatpak: verification on 2026-10-04
+
+The live inventory showed 12 Flatpak applications. The old pinned EOL runtime
+`org.freedesktop.Platform.ffmpeg-full//24.08` was unpinned and removed from
+the system installation after confirming that applications no longer used it.
+The repeated runtime check confirmed that `ffmpeg-full//24.08` was absent;
+`flatpak update` finished with `Nothing to update`.
+
+Only the Flatpak inventory and runtime maintenance were re-checked on
+2026-10-04, without a full repeat audit of applications. Previous verification
+dates for other components remain in the entries above. The procedure is in
+the [general Flatpak guide](../../../settings/flatpak/).
 
 ## Firefox
 

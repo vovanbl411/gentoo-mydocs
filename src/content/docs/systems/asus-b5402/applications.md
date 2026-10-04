@@ -3,7 +3,7 @@ title: Приложения ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-01"
+last_verified: "2026-10-04"
 verified_on: [asus-b5402]
 ---
 
@@ -11,7 +11,7 @@ verified_on: [asus-b5402]
 
 - Firefox — native Gentoo: сборка под Wayland (LLVM 22, PGO, аппаратное
   ускорение), профиль обслуживает profile-sync-daemon.
-- Steam и GUI-приложения — Flatpak (14 приложений, remote — flathub);
+- Steam и GUI-приложения — Flatpak (12 приложений, remote — flathub);
   разрешения выдаются через Flatseal с предпочтением Wayland.
 - OBS Studio — Flatpak (`com.obsproject.Studio` 32.2.2, проверено 2026-09-22).
 - Perplexity — AppImage + пользовательский `.desktop`
@@ -80,6 +80,19 @@ conflict gate останавливает workflow до snapshot, delivery и rot
 PASS; локальные backup-файлы после переноса live-базы по-прежнему сохраняются.
 Число файлов в повторной проверке не фиксировалось. Реальное conflict recovery
 остаётся pending. Остальные приложения 2026-09-29 повторно не проверялись.
+
+## Flatpak: проверка 2026-10-04
+
+Live inventory показал 12 Flatpak applications. Старый pinned EOL runtime
+`org.freedesktop.Platform.ffmpeg-full//24.08` снят с pin и удалён из system
+installation после подтверждения, что приложения его больше не используют.
+Повторная проверка runtimes подтвердила отсутствие `ffmpeg-full//24.08`;
+`flatpak update` завершился `Nothing to update`.
+
+2026-10-04 повторно проверялись только Flatpak inventory и runtime maintenance,
+без полного повторного аудита приложений. Предыдущие даты проверки остальных
+компонентов остаются в записях выше. Процедура — в
+[общем Flatpak guide](../../../settings/flatpak/).
 
 ## Firefox
 
