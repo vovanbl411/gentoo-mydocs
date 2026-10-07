@@ -49,7 +49,7 @@ live-базы с Android через Syncthing и KeePassDX.
 
 ### Оборудование
 
-- [Intel graphics](src/content/docs/hardware/intel-graphics.md) — графика и Vulkan (ANV).
+- [Графический стек Intel в Gentoo](src/content/docs/hardware/intel-graphics.md) — i915/Xe, Mesa, OpenGL и Vulkan.
 - [ELAN fingerprint](src/content/docs/hardware/elan-fingerprint-04f3-0c77.md) — поддержка сканера отпечатков в Gentoo.
 
 ### Сеть
