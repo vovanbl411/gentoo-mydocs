@@ -3,7 +3,7 @@ title: Applications on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-04"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
@@ -58,14 +58,18 @@ verified_on: [asus-b5402]
   are configured (Gmail ×4, Yandex ×1, Mail.ru ×1); sending and receiving
   passed acceptance. Full offline synchronization is enabled. The profile is
   under `~/.config/thunderbird/`; measurements were about 648 MiB for the
-  profile and 574 MiB for `ImapMail`. User notifications are enabled only for
-  two selected Gmail accounts; the notification and silent-sync test passed.
-  The profile has `NTFNTF: Notify on This Folder Not That Folder` 1.3.1
-  installed for this.
+  profile and 574 MiB for `ImapMail`. Notification acceptance on 2026-10-07:
+  two selected Gmail accounts — sound + visual notification PASS; other
+  accounts — silent sync with no sound and no visual notification PASS.
+  `NTFNTF: Notify on This Folder Not That Folder` 1.3.1 sets this policy.
+  Installed `x11-libs/libnotify` is required for the verified system notification
+  path and remains an explicit world package. See
+  [Thunderbird](../../../settings/thunderbird/).
 
 Entries that predated Thunderbird were moved from the general guides and
-checked against the system on 2026-09-22; Thunderbird was checked separately
-on 2026-10-01. The KeePassXC and rclone entries were verified separately on
+checked against the system on 2026-09-22; the Thunderbird baseline was verified
+on 2026-10-01, and its notification path was re-checked separately on
+2026-10-07. The KeePassXC and rclone entries were verified separately on
 2026-09-29: the OAuth Desktop client works, the app is *In production*, and
 the `gdrive:` remote was re-authorized with
 `rclone config reconnect gdrive:` (PASS). Post-reauth transport validation

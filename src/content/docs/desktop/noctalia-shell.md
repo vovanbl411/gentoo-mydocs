@@ -22,6 +22,10 @@ GUI overrides  = ~/.local/state/noctalia/settings.toml
 Проверенная конфигурация эталонной системы ASUS B5402 описана отдельно в
 [системном журнале](../../systems/asus-b5402/desktop/noctalia/).
 
+Noctalia может обслуживать стандартный D-Bus service
+`org.freedesktop.Notifications`. Клиентские библиотеки, проверка доставки и
+интеграция с Portage описаны в [руководстве по уведомлениям](../notifications/).
+
 ## Package source
 
 Noctalia распространяется через дополнительные репозитории Gentoo. Репозиторий

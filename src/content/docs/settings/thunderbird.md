@@ -3,7 +3,7 @@ title: "Thunderbird: native Gentoo и Wayland"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-10-01"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
@@ -15,6 +15,10 @@ IMAP-провайдерами. При настройке отдельно про
 Ниже приведены решения эталонной системы ASUS ExpertBook B5402. Это один
 проверенный вариант настройки; правила Portage и размер локальной почты не
 являются универсальной рекомендацией для Gentoo.
+
+2026-10-07 повторно проверен только notification path Thunderbird 157.0.
+Данные сборки, runtime backend, профиля и прочих настроек ниже относятся к
+проверке 2026-10-01.
 
 ## Build policy
 
@@ -111,6 +115,27 @@ system показывает `-hwaccel`, а `about:support` — `Compositing: Web
   остальные аккаунты синхронизируются без уведомления. В профиле для этого
   установлен `NTFNTF: Notify on This Folder Not That Folder` 1.3.1.
 
+## Desktop notifications
+
+Для проверенного system notification path нужен установленный
+`x11-libs/libnotify`. Текущий Gentoo ebuild Thunderbird предлагает его через
+`optfeature "desktop notifications"`, без обязательного `RDEPEND`, поэтому
+эталонная система сохраняет libnotify как explicit world package. Устройство
+стека и проверка Portage — в [руководстве по уведомлениям](../../desktop/notifications/).
+
+В Thunderbird включены **Show an alert**, **Use the system notification** и
+**Play a sound**. NTFNTF 1.3.1 задаёт policy двух выбранных Gmail с
+**Name & Message**; остальные аккаунты синхронизируются тихо.
+
+На этой системе до установки libnotify письмо приходило и NTFNTF воспроизводил
+звук, но визуального уведомления не было. Прямой вызов
+`nsIAlertsService.showAlert` завершался
+`NS_ERROR_FAILURE [nsIAlertsService.showAlert]`, а `dbus-monitor` не видел
+`org.freedesktop.Notifications.Notify`. После установки libnotify backend test
+дошёл до `Notify` с app `Thunderbird` и summary `Thunderbird backend test`,
+и Noctalia показала уведомление. Это установленная причина данного случая,
+а не универсальное объяснение всех сбоев уведомлений Thunderbird.
+
 ## Acceptance checklist
 
 - [x] Native Wayland — PASS.
@@ -119,5 +144,6 @@ system показывает `-hwaccel`, а `about:support` — `Compositing: Web
 - [x] Отправка и получение проверены для настроенных провайдеров — PASS.
 - [x] Gmail сохраняет одну копию письма в Sent — PASS.
 - [x] Локальное offline-хранилище присутствует.
-- [x] Проверено различие между уведомлением выбранных аккаунтов и тихой
-  синхронизацией остальных — PASS.
+- [x] 2026-10-07: два выбранных Gmail — звук + визуальное уведомление PASS.
+- [x] 2026-10-07: остальные аккаунты — тихая синхронизация без звука и
+  визуального уведомления PASS.

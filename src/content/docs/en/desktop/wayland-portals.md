@@ -92,8 +92,11 @@ org.freedesktop.impl.portal.Secret=gnome-keyring
 - The ASUS B5402 already uses `gnome-keyring` as the Secret portal backend.
   `oo7-portal` is a modern alternative; migrating this machine to it as
   part of the current audit is not required.
-- Notifications are served by the separate interface
-  `org.freedesktop.impl.portal.Notification`.
+- Portal notifications use `org.freedesktop.portal.Notification` and the
+  backend interface `org.freedesktop.impl.portal.Notification`. Choosing a
+  Notification backend does not determine the owner of the ordinary
+  `org.freedesktop.Notifications` service; that path is covered in the
+  [notifications guide](../notifications/).
 
 ## Session integration
 

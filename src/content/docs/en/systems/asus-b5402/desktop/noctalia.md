@@ -3,7 +3,7 @@ title: Noctalia v5 on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: current
-last_verified: "2026-09-30"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
@@ -13,8 +13,17 @@ updates, and the general configuration model are described in
 
 ## Current state
 
-- `gui-apps/noctalia-5.2.0` is installed from the `noctalia-overlay`
-  repository.
+- Running Noctalia reports version `5.2.1` (2026-10-07).
+- `GetServerInformation` returns `noctalia / noctalia-dev / 5.2.1 / 1.2`:
+  Noctalia owns `org.freedesktop.Notifications`.
+- DND is off; an external D-Bus notification is displayed — PASS.
+- Migration to `virtual/notification-daemon-0-r1::noctalia-overlay` is pending:
+  final resolver PASS without temporary `package.provided` has not been
+  supplied. See the [notification guide](../../../../desktop/notifications/) for criteria.
+
+The following details retain their previous verification dates; they were not
+re-checked on 2026-10-07:
+
 - USE includes `jemalloc` — a deliberate runtime memory-allocation policy for
   the long-running shell.
 - The `~/.config/noctalia/config.toml` file exists.
@@ -25,12 +34,15 @@ updates, and the general configuration model are described in
 
 The public [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay)
 is enabled in Portage. Its structure, setup, and update policy are described
-in the `noctalia-overlay` README. The overlay tracks stable releases only;
-future automation will create an Issue for a new release and will not change
-ebuilds or the installed package.
+in the `noctalia-overlay` README. The overlay tracks stable releases only.
+Release automation checks the new release, prepares a candidate ebuild and
+Manifest, updates version rotation, and opens a Draft PR. Merge is performed
+manually after review and runtime validation; the package is not installed
+automatically on the workstation.
 
-Version 5.2.0, the repository, and `USE=jemalloc` were confirmed on
-2026-09-30.
+The 2026-09-30 check confirmed package 5.2.0 from `noctalia-overlay` and
+`USE=jemalloc`; the 2026-10-07 check confirmed running service version 5.2.1,
+without a new package metadata audit.
 
 ## Configuration
 
@@ -58,17 +70,25 @@ noctalia --version
 cat /var/db/pkg/gui-apps/noctalia-*/repository
 ```
 
-Expected result:
+Check the service version in the current desktop session:
 
-```text
-noctalia v5.2.0
-noctalia-overlay
+```bash
+gdbus call \
+  --session \
+  --dest org.freedesktop.Notifications \
+  --object-path /org/freedesktop/Notifications \
+  --method org.freedesktop.Notifications.GetServerInformation
 ```
 
-The check confirms the binary version and the repository of the installed
-package. It does not check the contents of the user's TOML configuration; the
-2026-09-23 audit confirmed only the presence of `config.toml` and
-`settings.toml`.
+Confirmed result on 2026-10-07:
+
+```text
+('noctalia', 'noctalia-dev', '5.2.1', '1.2')
+```
+
+An external `Notify` call displayed a visual notification — PASS. This does
+not check user TOML contents; the 2026-09-23 check confirmed only the presence
+of `config.toml` and `settings.toml`.
 
 ## History
 

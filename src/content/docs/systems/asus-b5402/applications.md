@@ -3,7 +3,7 @@ title: Приложения ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-04"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
@@ -57,13 +57,16 @@ verified_on: [asus-b5402]
   (Gmail ×4, Yandex ×1, Mail.ru ×1); отправка и получение прошли acceptance.
   Полная offline synchronization включена. Профиль находится под
   `~/.config/thunderbird/`; измерено около 648 MiB для профиля и 574 MiB для
-  `ImapMail`. Пользовательские уведомления включены только для двух выбранных
-  Gmail; проверка уведомлений и тихой синхронизации остальных прошла PASS.
-  Для этого в профиле установлено расширение
-  `NTFNTF: Notify on This Folder Not That Folder` 1.3.1.
+  `ImapMail`. Notification acceptance 2026-10-07: два выбранных Gmail —
+  звук + визуальное уведомление PASS; остальные аккаунты — тихая синхронизация
+  без звука и визуального уведомления PASS. Policy задаёт
+  `NTFNTF: Notify on This Folder Not That Folder` 1.3.1. Установленный
+  `x11-libs/libnotify` нужен проверенному system notification path и оставлен
+  explicit world package. Подробнее — [Thunderbird](../../../settings/thunderbird/).
 
 Записи, существовавшие до Thunderbird, перенесены из общих руководств и сверены
-с системой 2026-09-22; Thunderbird отдельно проверен 2026-10-01.
+с системой 2026-09-22; Thunderbird baseline был проверен 2026-10-01,
+а notification path отдельно повторно проверен 2026-10-07.
 Записи KeePassXC и rclone проверены отдельно 2026-09-29: OAuth Desktop
 client и remote `gdrive:` работают; приложение находится в *In production*,
 remote `gdrive:` повторно авторизован командой

@@ -35,6 +35,7 @@ export default defineConfig({
 					items: [
 						{ slug: 'desktop/niri', label: 'Niri' },
 						{ slug: 'desktop/noctalia-shell', label: 'Noctalia' },
+						{ slug: 'desktop/notifications', label: 'Уведомления', translations: { en: 'Notifications' } },
 						{ slug: 'desktop/wayland-portals', label: 'XDG Desktop Portals' },
 						{
 							slug: 'desktop/default-applications',

@@ -3,7 +3,7 @@ title: "Thunderbird: native Gentoo and Wayland"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-10-01"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
@@ -15,6 +15,10 @@ Wayland, rendering, or the audio backend.
 The choices below describe the ASUS ExpertBook B5402 reference system. They
 show one verified setup; Portage rules and local mail storage size are not
 universal Gentoo recommendations.
+
+Only the notification path of Thunderbird 157.0 was re-checked on
+2026-10-07. Build, runtime backend, profile, and other settings below retain
+their 2026-10-01 verification date.
 
 ## Build policy
 
@@ -111,6 +115,28 @@ The six accounts on the reference system use these settings:
   accounts; the other accounts sync without notification. The profile has
   `NTFNTF: Notify on This Folder Not That Folder` 1.3.1 installed for this.
 
+## Desktop notifications
+
+The verified system notification path requires `x11-libs/libnotify` at runtime.
+The current Gentoo Thunderbird ebuild offers it through
+`optfeature "desktop notifications"`, without a mandatory `RDEPEND`, so the
+reference system keeps libnotify as an explicit world package. Stack details
+and Portage checks are in the [notifications guide](../../desktop/notifications/).
+
+Thunderbird has **Show an alert**, **Use the system notification**, and
+**Play a sound** enabled. NTFNTF 1.3.1 sets the policy for two selected Gmail
+accounts with **Name & Message**; the other accounts sync silently.
+
+On this system, before libnotify was installed, mail arrived and NTFNTF played
+a sound, but no visual notification appeared. A direct
+`nsIAlertsService.showAlert` call failed with
+`NS_ERROR_FAILURE [nsIAlertsService.showAlert]`, and `dbus-monitor` saw no
+`org.freedesktop.Notifications.Notify`. After installing libnotify, the backend
+test reached `Notify` with app `Thunderbird` and summary
+`Thunderbird backend test`, and Noctalia displayed the notification. This was
+the confirmed cause in this case, not a universal explanation for all
+Thunderbird notification failures.
+
 ## Acceptance checklist
 
 - [x] Native Wayland — PASS.
@@ -119,5 +145,6 @@ The six accounts on the reference system use these settings:
 - [x] Sending and receiving checked for the configured providers — PASS.
 - [x] Gmail stores one copy of sent mail — PASS.
 - [x] Local offline store is present.
-- [x] Notification for selected accounts versus silent sync for the others was
-  tested — PASS.
+- [x] 2026-10-07: two selected Gmail accounts — sound + visual notification PASS.
+- [x] 2026-10-07: other accounts — silent sync with no sound and no visual
+  notification PASS.

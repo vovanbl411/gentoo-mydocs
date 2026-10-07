@@ -38,6 +38,7 @@ live-базы с Android через Syncthing и KeePassDX.
 
 - [Niri](src/content/docs/desktop/niri.md) — Wayland-композитор.
 - [Noctalia Shell](src/content/docs/desktop/noctalia-shell.md) — оболочка для Niri.
+- [Уведомления](src/content/docs/desktop/notifications.md) — Freedesktop/Noctalia/libnotify stack.
 - [Wayland portals](src/content/docs/desktop/wayland-portals.md) — скринкастинг и системные диалоги.
 - [Приложения по умолчанию](src/content/docs/desktop/default-applications.md) — MIME-типы и URI-схемы.
 
