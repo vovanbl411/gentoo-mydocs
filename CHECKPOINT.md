@@ -4,9 +4,9 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Checkpoint updated | 2026-10-04 |
+| Checkpoint updated | 2026-10-07 |
 | Full-system audit baseline | 2026-09-22 — опорная сверка ядра, boot/UKI, graphics и polkit; полный аудит `/etc/portage` — 2026-09-14 |
-| Recent partial verification | Ядро + User-status LED — 2026-10-04 |
+| Recent partial verification | Ядро + User-status LED — 2026-10-07 |
 | Ветка | `main` |
 | Система | Gentoo hardened/systemd, ядро `7.2.9-bdsm`, BIOS `B5402CBA.314` |
 | Аппаратура | ASUS ExpertBook B5402CBA, Intel Core i7-1260P (Alder Lake) |
@@ -42,13 +42,18 @@
 - **Memory**: zram `RAM/2`, `zstd`, priority `100`;
   `vm.swappiness=100`, zswap отключён.
   [Управление памятью](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#управление-памятью).
-- **User-status LED**: live ABI `/sys/class/leds/:status`,
+- **User-status LED — kernel**: live ABI `/sys/class/leds/:status`,
   `max_brightness=1`, successful state-read registration gate
   `asus_wmi_get_devstate_simple(...) >= 0`; физический ON/OFF — PASS.
   `orange:status` отсутствует. Локальный design совпадает с submitted
-  upstream v1: без DMI whitelist и trigger. Локальный патч:
+  upstream v1: без DMI whitelist и trigger. Upstream v1 submitted / awaiting
+  review; accepted или merged не подтверждены. Локальный патч:
   `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.9/10-asus-wmi-user-status-led.patch`.
   [Реализация и acceptance](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md).
+- **User-status LED — userspace**: `asus-user-status-led` функционально
+  live-verified: Auto/Busy/Off, реальный PipeWire capture, Vesktop call,
+  Noctalia Spectrum negative check, Fn+1 и исправление AUTO CPU feedback loop
+  — PASS. Restart-flicker и reboot/login lifecycle остаются OPEN.
 - **Backups / sync**: KeePassXC backup automation и Google Drive delivery
   приняты; обычная Syncthing-синхронизация Gentoo ↔ Android принята.
   Реальный conflict/merge recovery остаётся PENDING.
@@ -58,11 +63,14 @@
 
 ## Active work / Next step
 
-**User-status LED upstream v1 — SUBMITTED / awaiting review.**
-Следующий шаг — ждать maintainer/reviewer feedback. Accepted или merged
-не подтверждены. v2 готовить только по конкретному review feedback или
-при обнаружении новой проблемы; Fn+1 и userspace Auto остаются вне scope.
-Подробности submission — в
+**Userspace/workstation acceptance:** следующие проверки — визуальная оценка
+restart-flicker и reboot/login lifecycle: persisted mode, запуск user service,
+udev permissions, нормальный старт AUTO, отсутствие CPU-loop regression и
+работа Fn+1 после reboot.
+
+**Kernel upstream:** v1 submitted / awaiting maintainer/reviewer feedback;
+accepted или merged не подтверждены. v2 готовить только по конкретному review
+feedback или при обнаружении новой проблемы. Подробности submission — в
 [документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
 
 ## Open items

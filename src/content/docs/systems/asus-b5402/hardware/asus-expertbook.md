@@ -16,10 +16,9 @@ verified_on: [asus-b5402]
 - Fn-клавиши и подсветка работают через asus-nb-wmi; обработка нажатий
   настроена binds в Niri.
 
-- Внешний User-status indicator идентифицирован как ASUS WMI `0x00040019` /
-  `CFLD`; ручное binary управление подтверждено 2026-10-04 через
-  `/sys/class/leds/:status` (local kernel patch). Подробности —
-  [отдельный документ](../user-status-indicator/).
+- Внешний User-status indicator управляется через локальный kernel LED ABI;
+  userspace-контроллер `auto/busy/off` и Fn+1 integration проверены на живой
+  системе. Подробности — в [отдельном документе](../user-status-indicator/).
 
 ## Управление питанием и батареей (TLP)
 

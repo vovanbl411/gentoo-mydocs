@@ -3,7 +3,7 @@ title: ASUS ExpertBook B5402CBA User-status indicator
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-04"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
@@ -14,11 +14,12 @@ lid can be switched on and off manually from Linux. Hardware/firmware
 identification `ASUS WMI DEVID 0x00040019 ↔ CFLD` and manual binary control
 are **CLOSED / PASS** (2026-10-03).
 
-On 2026-10-04, the live system runs `7.2.9-bdsm` with `/sys/class/leds/:status`
+On 2026-10-07, the live system runs `7.2.9-bdsm` with `/sys/class/leds/:status`
 and registration through `asus_wmi_get_devstate_simple(...) >= 0`. Physical
 ON/OFF passed acceptance. The current local implementation matches submitted
 upstream v1 by design: `:status`, a successful state-read gate, no DMI
-whitelist, and no trigger. The next step is to wait for upstream review.
+whitelist, and no trigger. Upstream v1 is submitted and awaiting review;
+acceptance or merge is not confirmed.
 
 **Gate 3D — Windows reference implementation: CLOSED / PASS**.
 Static analysis of the official ASUS Business Utility confirmed
@@ -29,6 +30,32 @@ policy is stored and applied in Windows userspace.
 **Upstream v1 — SUBMITTED / awaiting review**: the patch was sent through
 `git send-email`, accepted by SMTP (`250`), and confirmed in the public
 mailing-list archive. This does not mean accepted/merged upstream.
+
+## Gentoo userspace integration
+
+The kernel exposes binary LED control (`0/1`); the `auto`, `busy`, and `off`
+modes are implemented separately in userspace. This system runs
+[`asus-user-status-led`](https://github.com/vovanbl411/asus-user-status-led):
+`busy` forces the LED on, `off` forces it off, and `auto` follows an active
+consumer of a real PipeWire `Audio/Source`. Detailed implementation,
+architecture, and installation live in that separate project; this page
+documents the hardware/kernel path and its integration on Gentoo.
+
+Functional live acceptance passed on the ASUS ExpertBook B5402CBA: manual
+`busy`/`off`; AUTO idle; controlled `pw-record` capture with ON → OFF; no false
+positive from Noctalia Spectrum; a real Vesktop call turns the LED on, keeps it
+on when the application is muted, and turns it off after leaving the call;
+Fn+1 mode cycling; and the AUTO CPU feedback-loop fix. Fn+1 follows firmware
+event `0x61` → `KEY_SWITCHVIDEOMODE` → `XF86Display` → Niri → `user-status-led`;
+one physical press produces one mode transition. The service remains active,
+and returning to `auto` during an active call immediately re-evaluates
+PipeWire. The CPU-loop fix is live-verified: idle AUTO uses one long-lived
+`pw-dump --monitor`, does not continuously spawn plain `pw-dump`, and has low
+CPU usage.
+
+Two checks remain open: visual judgment of restart-flicker and the reboot/login
+lifecycle. After login, confirm the persisted mode, user-service startup, udev
+permissions, normal AUTO startup, no CPU-loop regression, and Fn+1 operation.
 
 ## Hardware and firmware path
 
@@ -484,18 +511,21 @@ indicator on the lid; `0` switched the same indicator off.
 Hardware/firmware identification, manual binary control, Gate 3D, and
 Gate 4B (production-style local Linux implementation + live acceptance)
 are closed. ASUS Windows Auto policy has been examined statically within
-the evidence boundaries above; Linux Auto implementation is absent.
+the evidence boundaries above. The Gentoo userspace controller passed
+functional live acceptance; restart-flicker and reboot/login lifecycle remain
+open.
 
-**Gate 4C — CLOSED / PASS**, upstream v1 has been submitted. The next step
-is to wait for upstream maintainer/reviewer feedback. A v2 will arise only
-from specific review feedback or a newly found issue; it is not planned
-in advance. The live local implementation uses `:status` on `7.2.9-bdsm`
-and matches submitted upstream v1 by design.
+**Gate 4C — CLOSED / PASS**, upstream v1 has been submitted and is awaiting
+maintainer/reviewer feedback. A v2 will arise only from specific review
+feedback or a newly found issue; it is not planned in advance. The live local
+implementation uses `:status` on `7.2.9-bdsm` and matches submitted upstream v1
+by design.
 
-Fn+1 remapping and Linux userspace Auto (conference policy, a daemon,
-integration with PipeWire/camera/microphone/conferencing applications)
-remain separate future questions after kernel support and are not
-implemented. The expansion of `CFLD` remains unknown.
+Userspace Auto/Fn+1 policy remains outside the upstream kernel patch's scope:
+the patch exposes only the binary LED ABI. Userspace Auto and Fn+1 are already
+implemented in a separate project and live-verified on this Gentoo system; the
+remaining lifecycle gates are listed above. The expansion of `CFLD` remains
+unknown.
 
 ## Related docs
 

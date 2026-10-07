@@ -41,8 +41,9 @@ the general instructions.
 
 - [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — kernel
   drivers, TLP and the battery.
-- [User-status indicator](hardware/user-status-indicator/) — ASUS WMI
-  `0x00040019` / `CFLD`, manual control verified on 2026-10-04.
+- [User-status indicator](hardware/user-status-indicator/) — kernel LED control
+  and the userspace `auto/busy/off` controller with Fn+1 integration are
+  live-verified; details are in the dedicated document.
 - [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — compilation
   flags, the scheduler, hardware security.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.

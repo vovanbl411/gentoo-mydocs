@@ -16,10 +16,9 @@ verified_on: [asus-b5402]
 - Fn keys and backlight work through asus-nb-wmi; key handling is configured
   through binds in Niri.
 
-- The external User-status indicator is identified as ASUS WMI `0x00040019` /
-  `CFLD`; manual binary control was verified on 2026-10-04 through
-  `/sys/class/leds/:status` (a local kernel patch). See the
-  [dedicated document](../user-status-indicator/).
+- The external User-status indicator uses a local kernel LED interface; the
+  userspace `auto/busy/off` controller and Fn+1 integration are live-verified.
+  See the [dedicated document](../user-status-indicator/).
 
 ## Power management and battery (TLP)
 
