@@ -97,12 +97,19 @@ The configuration, `sysctl`, `swapon`, and sysfs were checked on 2026-09-27.
 
 ## Gentoo binary build host — plan
 
-**PLAN / NOT APPLIED (decision on 2026-10-07).** Implementation has not started:
-the Gentoo Builder VM has not been created and the private binhost is not
-configured. A separate VM is planned on the home Proxmox host `pve-01` to build
-userspace binary packages (`.gpkg`) and serve them through a private Portage
-binary repository, reducing heavy builds on the laptop. The workstation must
-remain independent of the server.
+**Installation started; package policy and binhost are not configured yet.**
+The owner confirmed on 2026-10-07 that VM `gentoo-builder-01` (VMID `5201`)
+was created on `pve-01`: CPU type `host` was verified inside the guest,
+`x86-64-v3` capability was checked, stage3 was extracted, and chroot and DNS
+work. Installation stopped before editing `make.conf`: the current stage3
+profile is `default/linux/amd64/23.0/hardened/systemd`; the final no-multilib
+profile and `-march=x86-64-v3` have not been applied. The end-to-end binpkg
+pilot has not started. [Builder state and preparation](../../../gentoo-builder-01/).
+
+The separate headless VM is intended to build userspace binary packages
+(`.gpkg`) and serve them through a future private Portage binary repository,
+reducing heavy builds on the laptop. The workstation must remain independent
+of the server. The architectural decisions agreed on 2026-10-07 remain unchanged.
 
 ### CPU target and policy boundaries
 
@@ -112,11 +119,11 @@ According to the supplied glibc loader check on 2026-10-07, the host supports
 `x86-64-v2` and `x86-64-v3`, but not `x86-64-v4`; `x86-64-v3` is a suitable
 common baseline for the Broadwell builder and Alder Lake workstation.
 
-- **Builder:** the planned Proxmox CPU type is `host`, exposing Broadwell
-  capabilities to the VM. This is the CPU model inside the VM; the package
-  ISA contract is set separately with `-march=x86-64-v3`, without
-  `-march=native` or `-march=broadwell`. Rust must use a compatible portable
-  CPU target; Go uses `GOAMD64="v3"`. `CPU_FLAGS_X86` must be limited to a
+- **Builder:** Proxmox CPU type is `host`, exposing Broadwell capabilities
+  to the VM. This is the CPU model inside the VM; the future package ISA
+  contract is set separately with `-march=x86-64-v3`, without `-march=native`,
+  `-march=broadwell`, or `-march=alderlake`. Rust must use a compatible portable
+  CPU target; the planned Go policy is `GOAMD64="v3"`. `CPU_FLAGS_X86` must be limited to a
   set compatible with both machines, without blindly copying Alder Lake-only flags.
 - **Workstation:** C/C++ `-march=alderlake`,
   `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"`, and the current
@@ -144,8 +151,8 @@ with package policy/USE, build from source locally with Alder Lake optimization.
 The existing official Gentoo binary repository is retained.
 
 Fallback when the private binhost is unavailable is **not yet confirmed**.
-The next step is a minimal VM and one end-to-end binpkg pilot with these
-mandatory checks:
+Once the builder is configured, one end-to-end binpkg pilot is required
+with these mandatory checks:
 
 1. **Server/binhost ON:** a suitable package is actually installed as a binpkg.
 2. **Server/binhost OFF:** ordinary `emerge` continues through an acceptable

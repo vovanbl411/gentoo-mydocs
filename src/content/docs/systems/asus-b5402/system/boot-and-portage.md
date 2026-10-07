@@ -95,11 +95,19 @@ verified_on: [asus-b5402]
 
 ## Gentoo binary build host — план
 
-**PLAN / NOT APPLIED (решение 2026-10-07).** Implementation не начат:
-Gentoo Builder VM ещё не создана, private binhost не настроен. Планируется
-отдельная VM на домашнем Proxmox `pve-01`: сборка userspace binary packages
-(`.gpkg`) и выдача через private Portage binary repository, чтобы разгрузить
-ноутбук от тяжёлых сборок. Workstation должна оставаться независимой от сервера.
+**Установка начата; package policy и binhost ещё не настроены.** По
+подтверждению владельца от 2026-10-07, VM `gentoo-builder-01` (VMID `5201`)
+создана на `pve-01`: CPU type `host` подтверждён внутри гостя, capability
+`x86-64-v3` проверена, stage3 распакован, chroot и DNS работают. Установка
+остановлена перед изменением `make.conf`: текущий профиль stage3 —
+`default/linux/amd64/23.0/hardened/systemd`; final no-multilib profile и
+`-march=x86-64-v3` ещё не применены. End-to-end binpkg pilot не начат.
+[Состояние и подготовка builder](../../../gentoo-builder-01/).
+
+Назначение отдельной headless VM — сборка userspace binary packages
+(`.gpkg`) и выдача через будущий private Portage binary repository, чтобы
+разгрузить ноутбук от тяжёлых сборок. Workstation должна оставаться независимой
+от сервера. Согласованные архитектурные решения от 2026-10-07 сохраняются.
 
 ### CPU target и границы переноса policy
 
@@ -109,11 +117,11 @@ Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
 `x86-64-v2` и `x86-64-v3`, но не `x86-64-v4`; `x86-64-v3` подходит как
 общий baseline для Broadwell builder и Alder Lake workstation.
 
-- **Builder:** планируемый Proxmox CPU type — `host`, чтобы VM видела
-  возможности Broadwell. Это модель CPU внутри VM; ISA contract пакетов
-  задаётся отдельно через `-march=x86-64-v3`, без `-march=native` и
-  `-march=broadwell`. Rust должен использовать совместимый portable CPU
-  target; Go — `GOAMD64="v3"`. `CPU_FLAGS_X86` ограничивается набором,
+- **Builder:** Proxmox CPU type — `host`, VM видит возможности Broadwell.
+  Это модель CPU внутри VM; будущий ISA contract пакетов задаётся отдельно
+  через `-march=x86-64-v3`, без `-march=native`, `-march=broadwell` и
+  `-march=alderlake`. Rust должен использовать совместимый portable CPU
+  target; planned Go policy — `GOAMD64="v3"`. `CPU_FLAGS_X86` ограничивается набором,
   совместимым с обеими машинами, без слепого копирования Alder Lake-only flags.
 - **Workstation:** сохраняются C/C++ `-march=alderlake`,
   `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"` и текущий
@@ -141,8 +149,8 @@ Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
 Alder Lake optimization. Существующий официальный Gentoo binary repository
 сохраняется.
 
-Fallback при недоступном private binhost **ещё не подтверждён**. Следующий
-шаг — минимальная VM и один end-to-end binpkg pilot с обязательной проверкой:
+Fallback при недоступном private binhost **ещё не подтверждён**. После
+настройки builder предстоит один end-to-end binpkg pilot с обязательной проверкой:
 
 1. **Server/binhost ON:** подходящий пакет реально устанавливается как binpkg.
 2. **Server/binhost OFF:** обычный `emerge` продолжает работу через допустимый

@@ -118,6 +118,10 @@ export default defineConfig({
 					],
 				},
 				{
+					slug: 'systems/gentoo-builder-01',
+					label: 'Gentoo Builder VM',
+				},
+				{
 					label: 'Исследования',
 					translations: { en: 'Research' },
 					collapsed: true,

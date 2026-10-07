@@ -42,8 +42,10 @@ commented out. The kernel is planned to remain locally built so that
 `native` means Alder Lake itself.
 
 The future builder target `x86-64-v3` applies only to portable userspace
-binpkgs and does not replace the local Alder Lake policy. The builder has not
-been created; the decision and pilot boundaries are in the
+binpkgs and does not replace the local Alder Lake policy. The VM has been
+created: CPU type `host` and `x86-64-v3` capability were verified inside the
+guest on 2026-10-07. The userspace build target `-march=x86-64-v3` has not yet
+been applied to the builder config; the decision and pilot boundaries are in the
 [binary build host plan](../../system/boot-and-portage/#gentoo-binary-build-host--plan).
 
 ## Scheduler, Thread Director, and frequency management

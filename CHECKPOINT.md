@@ -4,7 +4,7 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Checkpoint updated | 2026-10-07 |
+| Checkpoint updated | 2026-10-08 |
 | Full-system audit baseline | 2026-09-22 — опорная сверка ядра, boot/UKI, graphics и polkit; полный аудит `/etc/portage` — 2026-09-14 |
 | Recent partial verification | Ядро + User-status LED — 2026-10-07 |
 | Ветка | `main` |
@@ -73,14 +73,19 @@ accepted или merged не подтверждены. v2 готовить тол
 feedback или при обнаружении новой проблемы. Подробности submission — в
 [документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
 
-**Gentoo Builder VM — PLAN / NOT APPLIED (2026-10-07):** решение принято,
-implementation не начат. Planned userspace target — `x86-64-v3`;
-workstation Alder Lake policy не меняется, kernel остаётся local-only.
-Следующий шаг — создать минимальную VM и провести один end-to-end binpkg
-pilot. Обязательный gate: установка binpkg при server ON и продолжение
-обычного `emerge` через допустимый fallback при недоступном private binhost;
-server-off fallback пока не подтверждён.
-[Принятое решение](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#gentoo-binary-build-host--план).
+**Gentoo Builder VM — bootstrap in progress (проверено 2026-10-07):**
+VM `5201` / `gentoo-builder-01` создана; CPU type `host` и capability
+`x86-64-v3` подтверждены в госте. Диск 100 GiB подготовлен: GPT, 8 GiB swap
+и ext4 root; hardened/systemd stage3 распакован, chroot и DNS работают.
+Остановка — перед изменением `/etc/portage/make.conf`; final no-multilib
+profile, `x86-64-v3` build target и package policy ещё pending, private binhost
+не настроен, binpkg pilot не начат. Workstation Alder Lake policy не меняется,
+kernel остаётся local-only.
+Следующее действие — продолжить builder configuration по согласованному
+Portage/profile/toolchain contract, начиная с review/apply `make.conf` и
+profile policy. Обязательный gate будущего pilot — server ON / server OFF;
+fallback при недоступном private binhost пока не подтверждён.
+[Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 
 ## Open items
 
