@@ -3,15 +3,17 @@ title: "Оптимизация CPU: Intel Alder Lake (i7-1260P)"
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-22"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
 ## Current state
 
 - CPU: Intel Core i7-1260P, Alder Lake (гибридные P/E-ядра).
-- Флаги компиляции: `-march=alderlake`; набор `CPU_FLAGS_X86` записан по
+- Userspace-флаги компиляции: `-march=alderlake`; набор `CPU_FLAGS_X86` записан по
   результату `cpuid2cpuflags` (см. ниже).
+- Ядро: `CONFIG_X86_NATIVE_CPU=y` — штатная native CPU optimization,
+  подтверждено владельцем 2026-10-07.
 - Драйвер частот: intel_pstate в режиме active.
 - HFI / Intel Thread Director: `CONFIG_INTEL_HFI_THERMAL=y`.
 - BOLT не используется (отключён с 2026-07, см. ниже).
@@ -20,7 +22,7 @@ verified_on: [asus-b5402]
 
 ## Флаги компиляции и инструкции
 
-В `make.conf` используется `-march=alderlake`. Это включает поддержку
+Для userspace в `make.conf` используется `-march=alderlake`. Это включает поддержку
 специфичных инструкций для данной архитектуры, за исключением тех, что
 заблокированы аппаратно (например, AVX-512).
 
@@ -30,6 +32,18 @@ verified_on: [asus-b5402]
 # Оптимальный набор для i7-1260P в make.conf
 CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
 ```
+
+## CPU optimization ядра
+
+По проверке владельца от 2026-10-07, `CONFIG_X86_NATIVE_CPU=y` включает
+штатную native CPU optimization через upstream Kconfig. Ручной
+`KCFLAGS="-march=alderlake"` для этого не требуется и правильно оставлен
+закомментированным. Ядро планируется продолжать собирать локально, чтобы
+`native` означал именно Alder Lake.
+
+Будущий builder target `x86-64-v3` относится только к portable userspace
+binpkg и не заменяет локальную Alder Lake policy. Builder ещё не создан;
+решение и границы pilot — в [плане binary build host](../../system/boot-and-portage/#gentoo-binary-build-host--план).
 
 ## Планировщик, Thread Director и управление частотами
 

@@ -3,7 +3,7 @@ title: Загрузка и Portage на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-27"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
@@ -41,11 +41,11 @@ verified_on: [asus-b5402]
 - Production toolchain — LLVM/Clang/LLD 22. Ядро намеренно собирается LLVM
   23.1.1 (env `kernel-llvm`, пилот): эксперимент по совместимости LLVM 23
   (A1–A4) завершён, перевод остальной системы на LLVM 23 не начат.
-- CPU target — явный `-march=alderlake`: явный таргет воспроизводим и
+- Userspace CPU target — явный `-march=alderlake`: явный таргет воспроизводим и
   проверяем по конфигу, а `-march=native` подстраивается под конкретный
-  экземпляр CPU, на котором идёт компиляция, и потому отклонён как production
-  policy. Явный набор `-mno-*` остаётся как отключение возможностей, которых
-  у процессора нет.
+  экземпляр CPU, на котором идёт компиляция, и потому отклонён как
+  userspace production policy. Явный набор `-mno-*` остаётся как отключение
+  возможностей, которых у процессора нет.
 - Записанный профиль: `MAKEOPTS="-j14 -l10"` — с запасом под гибридные ядра и
   память — и `VIDEO_CARDS="intel zink"` (невалидный токен `iris` удалён
   2026-09-11).
@@ -92,6 +92,61 @@ verified_on: [asus-b5402]
   cleanup каталог занимает 19G). Контрольная точка: `ccache -s` через 2–4
   недели обычной работы; при падении hit rate заметно ниже ~15% — поднять
   лимит до 30G.
+
+## Gentoo binary build host — план
+
+**PLAN / NOT APPLIED (решение 2026-10-07).** Implementation не начат:
+Gentoo Builder VM ещё не создана, private binhost не настроен. Планируется
+отдельная VM на домашнем Proxmox `pve-01`: сборка userspace binary packages
+(`.gpkg`) и выдача через private Portage binary repository, чтобы разгрузить
+ноутбук от тяжёлых сборок. Workstation должна оставаться независимой от сервера.
+
+### CPU target и границы переноса policy
+
+Выбранный ISA baseline builder — `x86-64-v3`. На `pve-01` установлен
+Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
+По предоставленной проверке glibc loader от 2026-10-07 host поддерживает
+`x86-64-v2` и `x86-64-v3`, но не `x86-64-v4`; `x86-64-v3` подходит как
+общий baseline для Broadwell builder и Alder Lake workstation.
+
+- **Builder:** планируемый Proxmox CPU type — `host`, чтобы VM видела
+  возможности Broadwell. Это модель CPU внутри VM; ISA contract пакетов
+  задаётся отдельно через `-march=x86-64-v3`, без `-march=native` и
+  `-march=broadwell`. Rust должен использовать совместимый portable CPU
+  target; Go — `GOAMD64="v3"`. `CPU_FLAGS_X86` ограничивается набором,
+  совместимым с обеими машинами, без слепого копирования Alder Lake-only flags.
+- **Workstation:** сохраняются C/C++ `-march=alderlake`,
+  `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"` и текущий
+  `CPU_FLAGS_X86` (подтверждено владельцем 2026-10-07).
+- **Package/build contract:** builder должен воспроизводить необходимые для
+  совместимости profile
+  `default/linux/amd64/23.0/no-multilib/hardened/systemd`,
+  `CHOST="x86_64-pc-linux-gnu"`, amd64/ABI, USE и `package.use`, keywords,
+  masks/unmasks, licenses, relevant USE_EXPAND, repositories/overlays и
+  package/version/dependency policy workstation.
+- **Execution policy:** ресурсы и compiler execution policy builder отдельны.
+  Не копируются буквально `env/p-cores`,
+  `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`, workstation `MAKEOPTS`,
+  `env/ssd` / локальный `PORTAGE_TMPDIR`, `env/zed-lowmem`, пути и размеры
+  ccache/sccache: значения выбираются под ресурсы VM. `env/gcc-fallback`
+  требует адаптации CPU flags, поскольку сейчас использует `-march=alderlake`.
+- **Kernel:** пока исключён из remote build path и остаётся local-only.
+  С `CONFIG_X86_NATIVE_CPU=y` локальная сборка использует именно Alder Lake;
+  детали — в [CPU optimization](../../hardware/cpu-optimization/).
+
+### Целевое поведение и обязательная проверка pilot
+
+Если подходящий private binpkg есть — использовать его; если отсутствует
+или несовместим по package policy/USE — собирать из source локально с
+Alder Lake optimization. Существующий официальный Gentoo binary repository
+сохраняется.
+
+Fallback при недоступном private binhost **ещё не подтверждён**. Следующий
+шаг — минимальная VM и один end-to-end binpkg pilot с обязательной проверкой:
+
+1. **Server/binhost ON:** подходящий пакет реально устанавливается как binpkg.
+2. **Server/binhost OFF:** обычный `emerge` продолжает работу через допустимый
+   fallback, не превращая домашний сервер в обязательную зависимость.
 
 ## Оптимизация
 

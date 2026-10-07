@@ -3,15 +3,17 @@ title: "CPU optimization: Intel Alder Lake (i7-1260P)"
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-22"
+last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
 ## Current state
 
 - CPU: Intel Core i7-1260P, Alder Lake (hybrid P/E cores).
-- Compilation flags: `-march=alderlake`; the `CPU_FLAGS_X86` set was recorded
+- Userspace compilation flags: `-march=alderlake`; the `CPU_FLAGS_X86` set was recorded
   from the output of `cpuid2cpuflags` (see below).
+- Kernel: `CONFIG_X86_NATIVE_CPU=y` — standard native CPU optimization,
+  confirmed by the owner on 2026-10-07.
 - Frequency driver: intel_pstate in active mode.
 - HFI / Intel Thread Director: `CONFIG_INTEL_HFI_THERMAL=y`.
 - BOLT is not used (disabled since 2026-07; see below).
@@ -20,7 +22,7 @@ verified_on: [asus-b5402]
 
 ## Compilation flags and instructions
 
-`make.conf` uses `-march=alderlake`. This enables support for instructions
+For userspace, `make.conf` uses `-march=alderlake`. This enables support for instructions
 specific to this architecture, except those blocked by hardware (for example,
 AVX-512).
 
@@ -30,6 +32,19 @@ The instruction set recorded for the i7-1260P from `cpuid2cpuflags`:
 # Optimal set for the i7-1260P in make.conf
 CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
 ```
+
+## Kernel CPU optimization
+
+The owner's check on 2026-10-07 confirmed that `CONFIG_X86_NATIVE_CPU=y`
+enables standard native CPU optimization through upstream Kconfig. Manual
+`KCFLAGS="-march=alderlake"` is not required for this and is correctly left
+commented out. The kernel is planned to remain locally built so that
+`native` means Alder Lake itself.
+
+The future builder target `x86-64-v3` applies only to portable userspace
+binpkgs and does not replace the local Alder Lake policy. The builder has not
+been created; the decision and pilot boundaries are in the
+[binary build host plan](../../system/boot-and-portage/#gentoo-binary-build-host--plan).
 
 ## Scheduler, Thread Director, and frequency management
 

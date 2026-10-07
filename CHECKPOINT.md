@@ -73,6 +73,15 @@ accepted или merged не подтверждены. v2 готовить тол
 feedback или при обнаружении новой проблемы. Подробности submission — в
 [документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
 
+**Gentoo Builder VM — PLAN / NOT APPLIED (2026-10-07):** решение принято,
+implementation не начат. Planned userspace target — `x86-64-v3`;
+workstation Alder Lake policy не меняется, kernel остаётся local-only.
+Следующий шаг — создать минимальную VM и провести один end-to-end binpkg
+pilot. Обязательный gate: установка binpkg при server ON и продолжение
+обычного `emerge` через допустимый fallback при недоступном private binhost;
+server-off fallback пока не подтверждён.
+[Принятое решение](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#gentoo-binary-build-host--план).
+
 ## Open items
 
 Эти задачи не выполнялись при cleanup. Для старых unresolved-пунктов без
