@@ -41,11 +41,11 @@ enables standard native CPU optimization through upstream Kconfig. Manual
 commented out. The kernel is planned to remain locally built so that
 `native` means Alder Lake itself.
 
-The future builder target `x86-64-v3` applies only to portable userspace
-binpkgs and does not replace the local Alder Lake policy. The VM has been
-created: CPU type `host` and `x86-64-v3` capability were verified inside the
-guest on 2026-10-07. The userspace build target `-march=x86-64-v3` has not yet
-been applied to the builder config; the decision and pilot boundaries are in the
+The accepted builder target `x86-64-v3` applies only to portable userspace
+binpkgs and does not replace the local Alder Lake policy. The owner verified
+on 2026-10-08 that `-march=x86-64-v3` and the production LLVM/Clang/LLD policy
+are applied; the final `@world` resolver is clean. Package-policy
+compatibility and the binpkg pilot remain pending; see the
 [binary build host plan](../../system/boot-and-portage/#gentoo-binary-build-host--plan).
 
 ## Scheduler, Thread Director, and frequency management

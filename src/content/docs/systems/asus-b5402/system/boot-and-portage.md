@@ -95,14 +95,19 @@ verified_on: [asus-b5402]
 
 ## Gentoo binary build host — план
 
-**Установка начата; package policy и binhost ещё не настроены.** По
-подтверждению владельца от 2026-10-07, VM `gentoo-builder-01` (VMID `5201`)
-создана на `pve-01`: CPU type `host` подтверждён внутри гостя, capability
-`x86-64-v3` проверена, stage3 распакован, chroot и DNS работают. Установка
-остановлена перед изменением `make.conf`: текущий профиль stage3 —
-`default/linux/amd64/23.0/hardened/systemd`; final no-multilib profile и
-`-march=x86-64-v3` ещё не применены. End-to-end binpkg pilot не начат.
-[Состояние и подготовка builder](../../../gentoo-builder-01/).
+**No-multilib bootstrap и production toolchain завершены; совместимость
+package policy и binhost ещё pending.** По проверке владельца от 2026-10-08,
+на `gentoo-builder-01` (VMID `5201`) активен профиль
+`default/linux/amd64/23.0/no-multilib/hardened/systemd`, `ABI_X86=64`,
+установлены LLVM/Clang/LLD 22.1.8. C/C++ используют `x86-64-v3`, `-O2`,
+ThinLTO и LLD; Fortran сохраняет `-O2` без ThinLTO. Проверены
+`MAKEOPTS="-j16 -l10"`, совместимый `CPU_FLAGS_X86`, Rust 1.97.1 /
+`x86-64-v3` с Clang/LLD linker и Go 1.27.1 / `GOAMD64=v3`.
+Final `@world` resolver чист. Установка в целом ещё не завершена.
+Следующий шаг — аудит и синхронизация совместимой package policy перед
+выпуском private binpkgs; private binhost и end-to-end ON/OFF pilot
+остаются будущими этапами.
+[Состояние и проверки builder](../../../gentoo-builder-01/).
 
 Назначение отдельной headless VM — сборка userspace binary packages
 (`.gpkg`) и выдача через будущий private Portage binary repository, чтобы
@@ -118,11 +123,10 @@ Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
 общий baseline для Broadwell builder и Alder Lake workstation.
 
 - **Builder:** Proxmox CPU type — `host`, VM видит возможности Broadwell.
-  Это модель CPU внутри VM; будущий ISA contract пакетов задаётся отдельно
-  через `-march=x86-64-v3`, без `-march=native`, `-march=broadwell` и
-  `-march=alderlake`. Rust должен использовать совместимый portable CPU
-  target; planned Go policy — `GOAMD64="v3"`. `CPU_FLAGS_X86` ограничивается набором,
-  совместимым с обеими машинами, без слепого копирования Alder Lake-only flags.
+  Принятый userspace ISA contract — `-march=x86-64-v3`, без `-march=native`,
+  `-march=broadwell` и `-march=alderlake`. Rust использует
+  `target-cpu=x86-64-v3`, Go — `GOAMD64="v3"`. Принятое пересечение
+  `CPU_FLAGS_X86` исключает workstation-only `avx_vnni`, `sha` и `vpclmulqdq`.
 - **Workstation:** сохраняются C/C++ `-march=alderlake`,
   `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"` и текущий
   `CPU_FLAGS_X86` (подтверждено владельцем 2026-10-07).
@@ -131,9 +135,11 @@ Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
   `default/linux/amd64/23.0/no-multilib/hardened/systemd`,
   `CHOST="x86_64-pc-linux-gnu"`, amd64/ABI, USE и `package.use`, keywords,
   masks/unmasks, licenses, relevant USE_EXPAND, repositories/overlays и
-  package/version/dependency policy workstation.
+  package/version/dependency policy workstation, а также package-specific env
+  rules, влияющие на произведённые userspace packages. Полное сравнение и
+  синхронизация ещё pending; это следующий шаг до выпуска private binpkgs.
 - **Execution policy:** ресурсы и compiler execution policy builder отдельны.
-  Не копируются буквально `env/p-cores`,
+  Принят `MAKEOPTS="-j16 -l10"`. Не копируются буквально `env/p-cores`,
   `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`, workstation `MAKEOPTS`,
   `env/ssd` / локальный `PORTAGE_TMPDIR`, `env/zed-lowmem`, пути и размеры
   ccache/sccache: значения выбираются под ресурсы VM. `env/gcc-fallback`

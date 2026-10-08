@@ -529,12 +529,15 @@ is not yet complete.
 
 ## Next steps
 
-The following stages are not yet described as a completed procedure:
-production LLVM/Clang/LLD policy, kernel installation, `/etc/fstab`,
-hostname/networking, users, SSH, GRUB/UEFI bootloader, first boot, and private
-binhost. Their commands will be added only after those stages have actually
-been completed and verified. The current result is prepared Gentoo userspace
-in a chroot.
+Post-bootstrap toolchain configuration has been verified separately on the
+example system. See [base system configuration](../base-system/) for the
+general Portage/toolchain example; adapt it to your hardware and purpose.
+This guide still ends at prepared Gentoo userspace in a chroot.
+
+Kernel installation, `/etc/fstab`, hostname/networking, users, SSH,
+GRUB/UEFI bootloader and first boot have not yet been completed in the rebuilt
+VM. Their commands will be added only after those stages have been completed
+and verified.
 
 ## References
 

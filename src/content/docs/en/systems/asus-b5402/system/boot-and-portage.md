@@ -97,14 +97,18 @@ The configuration, `sysctl`, `swapon`, and sysfs were checked on 2026-09-27.
 
 ## Gentoo binary build host — plan
 
-**Installation started; package policy and binhost are not configured yet.**
-The owner confirmed on 2026-10-07 that VM `gentoo-builder-01` (VMID `5201`)
-was created on `pve-01`: CPU type `host` was verified inside the guest,
-`x86-64-v3` capability was checked, stage3 was extracted, and chroot and DNS
-work. Installation stopped before editing `make.conf`: the current stage3
-profile is `default/linux/amd64/23.0/hardened/systemd`; the final no-multilib
-profile and `-march=x86-64-v3` have not been applied. The end-to-end binpkg
-pilot has not started. [Builder state and preparation](../../../gentoo-builder-01/).
+**No-multilib bootstrap and production toolchain are complete; package policy
+compatibility and binhost remain pending.** The owner verified on 2026-10-08
+that `gentoo-builder-01` (VMID `5201`) has the active profile
+`default/linux/amd64/23.0/no-multilib/hardened/systemd`, `ABI_X86=64`, and
+LLVM/Clang/LLD 22.1.8. C/C++ use `x86-64-v3`, `-O2`, ThinLTO and LLD;
+Fortran keeps `-O2` without ThinLTO. `MAKEOPTS="-j16 -l10"`, compatible
+`CPU_FLAGS_X86`, Rust 1.97.1 / `x86-64-v3` with Clang/LLD linking, and
+Go 1.27.1 / `GOAMD64=v3` are verified. The final `@world` resolver is clean.
+Installation is still incomplete. The next step is a package-policy
+compatibility audit and synchronization before private binpkg production;
+private binhost and the end-to-end ON/OFF pilot remain future work.
+[Builder state and verification](../../../gentoo-builder-01/).
 
 The separate headless VM is intended to build userspace binary packages
 (`.gpkg`) and serve them through a future private Portage binary repository,
@@ -120,11 +124,11 @@ According to the supplied glibc loader check on 2026-10-07, the host supports
 common baseline for the Broadwell builder and Alder Lake workstation.
 
 - **Builder:** Proxmox CPU type is `host`, exposing Broadwell capabilities
-  to the VM. This is the CPU model inside the VM; the future package ISA
-  contract is set separately with `-march=x86-64-v3`, without `-march=native`,
-  `-march=broadwell`, or `-march=alderlake`. Rust must use a compatible portable
-  CPU target; the planned Go policy is `GOAMD64="v3"`. `CPU_FLAGS_X86` must be limited to a
-  set compatible with both machines, without blindly copying Alder Lake-only flags.
+  to the VM. The accepted userspace ISA contract is `-march=x86-64-v3`,
+  without `-march=native`, `-march=broadwell`, or `-march=alderlake`.
+  Rust uses `target-cpu=x86-64-v3` and Go uses `GOAMD64="v3"`.
+  The accepted `CPU_FLAGS_X86` intersection excludes workstation-only
+  `avx_vnni`, `sha`, and `vpclmulqdq`.
 - **Workstation:** C/C++ `-march=alderlake`,
   `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"`, and the current
   `CPU_FLAGS_X86` remain unchanged (confirmed by the owner on 2026-10-07).
@@ -133,9 +137,12 @@ common baseline for the Broadwell builder and Alder Lake workstation.
   `default/linux/amd64/23.0/no-multilib/hardened/systemd`,
   `CHOST="x86_64-pc-linux-gnu"`, amd64/ABI, USE and `package.use`, keywords,
   masks/unmasks, licenses, relevant USE_EXPAND values, repositories/overlays,
-  and package/version/dependency policy.
+  and package/version/dependency policy, plus package-specific env rules
+  affecting produced userspace packages. Full comparison and synchronization
+  are still pending; this is the next step before private binpkg production.
 - **Execution policy:** builder resources and compiler execution policy are
-  separate. `env/p-cores`, `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`,
+  separate; `MAKEOPTS="-j16 -l10"` is accepted. `env/p-cores`,
+  `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`,
   workstation `MAKEOPTS`, `env/ssd` / local `PORTAGE_TMPDIR`, `env/zed-lowmem`,
   and ccache/sccache paths and sizes are not copied literally: values must
   match the VM's resources. `env/gcc-fallback` needs CPU flag adaptation

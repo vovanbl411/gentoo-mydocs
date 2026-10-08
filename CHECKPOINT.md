@@ -73,23 +73,18 @@ accepted или merged не подтверждены. v2 готовить тол
 feedback или при обнаружении новой проблемы. Подробности submission — в
 [документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
 
-**Gentoo Builder VM — no-multilib bootstrap complete (проверено 2026-10-08):**
-Текущая VM `5201` / `gentoo-builder-01` работает с записанным baseline;
-CPU type `host` и capability
-`x86-64-v3` подтверждены в госте. Диск 100 GiB подготовлен: GPT, 8 GiB swap
-и ext4 root; stage3/chroot bootstrap повторно пройден, DNS работает.
-В `make.conf` применён `COMMON_FLAGS="-march=x86-64-v3 -O2 -pipe"`,
-CFLAGS/CXXFLAGS/FCFLAGS/FFLAGS наследуют его. Активен профиль
-`default/linux/amd64/23.0/no-multilib/hardened/systemd`; `ABI_X86=64`,
-GCC multilib list — только `.;`. Пересборка после смены профиля успешна;
-final resolver — `Total: 0 packages`. Установка в целом ещё не завершена.
-Следующее действие — LLVM/toolchain stage по согласованному
-Portage/profile/toolchain contract. Production LLVM/Clang/LLD builder policy,
-Rust/Go/CPU_FLAGS_X86/final execution policy ещё pending; private binhost
-не настроен, end-to-end binpkg pilot не начат. Workstation Alder Lake policy
-не меняется; kernel по плану остаётся local-only на workstation.
-Обязательный gate будущего pilot — server ON / server OFF;
-fallback при недоступном private binhost пока не подтверждён.
+**Gentoo Builder VM — toolchain / portable userspace PASS (2026-10-08):**
+VM `5201` / `gentoo-builder-01`: no-multilib bootstrap завершён,
+`ABI_X86=64`. Production LLVM/Clang/LLD 22.1.8, C/C++ `x86-64-v3` + `-O2` + ThinLTO,
+Fortran `-O2` без ThinLTO, `MAKEOPTS="-j16 -l10"`, совместимый
+`CPU_FLAGS_X86`, Rust 1.97.1 / `x86-64-v3` с Clang/LLD linker и Go 1.27.1 /
+`GOAMD64=v3` — PASS. Реальные C/Rust/Go binaries собраны и запущены;
+после всех изменений final `@world` resolver — `Total: 0 packages`.
+Следующее действие — аудит и синхронизация совместимой package policy
+workstation/builder перед производством binpkgs; полная совместимость
+ещё не проверена. Установка VM в целом не завершена. Private binhost,
+end-to-end binpkg pilot и server ON/OFF fallback acceptance остаются pending.
+Workstation сохраняет Alder Lake policy; kernel остаётся local-only.
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 
 ## Open items

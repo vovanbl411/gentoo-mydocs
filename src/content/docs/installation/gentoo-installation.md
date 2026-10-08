@@ -520,11 +520,16 @@ emerge \
 
 ## Next steps
 
-Следующие этапы пока не описаны как выполненная процедура: production
-LLVM/Clang/LLD policy, kernel installation, `/etc/fstab`, hostname/networking,
-users, SSH, GRUB/UEFI bootloader, first boot и private binhost. Их команды
-появятся только после фактического прохождения и проверки соответствующих
-этапов. Текущий результат — подготовленный Gentoo userspace в chroot.
+Настройка toolchain после bootstrap проверена отдельно на системе из
+примера. Общий пример Portage/toolchain — в
+[настройке базовой системы](../base-system/); его нужно адаптировать под
+своё железо и назначение. Это руководство по-прежнему заканчивается
+подготовленным Gentoo userspace в chroot.
+
+Kernel installation, `/etc/fstab`, hostname/networking, users, SSH,
+GRUB/UEFI bootloader и first boot в пересозданной VM ещё не выполнены.
+Их команды появятся только после фактического прохождения и проверки
+соответствующих этапов.
 
 ## Источники
 

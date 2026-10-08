@@ -16,12 +16,19 @@ build appliance: она должна разгружать workstation, сохр�
 desktop/UI не устанавливается, обязательный autostart постоянного сервиса
 не предусмотрен.
 
-**No-multilib bootstrap завершён; установка в целом ещё не завершена.**
-По предоставленным владельцем проверкам от 2026-10-08, текущая VM работает
-с описанным ниже baseline. Stage3/chroot bootstrap повторно пройден;
-`make.conf` настроен на `x86-64-v3`, профиль переключён на no-multilib,
-пересборка завершилась успешно. Final resolver — `Total: 0 packages`.
-Следующий этап — production LLVM/Clang/LLD builder policy.
+**No-multilib bootstrap и production toolchain / portable userspace contract
+завершены и проверены 2026-10-08; установка в целом ещё не завершена.**
+По предоставленным владельцем live-проверкам, C/C++ используют LLVM/Clang/LLD
+22.1.8, `x86-64-v3`, `-O2` и ThinLTO; Fortran сохраняет `-O2` без ThinLTO.
+Приняты совместимый `CPU_FLAGS_X86`, Rust 1.97.1 с portable CPU target и
+Go 1.27.1 с `GOAMD64=v3`. После всех изменений final `@world` resolver чист.
+
+Следующий шаг — установить и проверить совместимость package policy
+workstation и builder до выпуска private binpkgs. Builder ещё не является
+готовым binhost: package policy не полностью перенесена и проверена,
+private binhost не настроен, end-to-end binpkg pilot не начат,
+server ON/OFF fallback acceptance остаётся pending. Ядро workstation
+остаётся local-only.
 
 | Параметр | Подтверждённое состояние |
 |----------|--------------------------|
@@ -33,13 +40,15 @@ desktop/UI не устанавливается, обязательный autosta
 | Install state | Stage3 extracted в `/mnt/gentoo`; chroot operational, DNS работает |
 | Release | Gentoo Base System release 2.18 |
 | Активный профиль | `default/linux/amd64/23.0/no-multilib/hardened/systemd` |
-| Build target / ABI | `-march=x86-64-v3 -O2 -pipe`; `ABI_X86=64`; GCC multilib list — только `.;` |
-| Rebuild / resolver | Пересборка после смены профиля завершена; final resolver — `Total: 0 packages` |
-| Production toolchain policy | LLVM/Clang/LLD ещё не настроены |
+| Build target / ABI | C/C++ `-march=x86-64-v3 -O2 -flto=thin -pipe`; `ABI_X86=64`; GCC multilib list — только `.;` |
+| Rebuild / resolver | Пересборки после смены профиля и toolchain/CPU policy успешны; final resolver — `Total: 0 packages, Size of downloads: 0 KiB` |
+| Production toolchain | LLVM/Clang/LLD и `llvm-config` 22.1.8; `llvm-ar`, `llvm-nm`, `llvm-ranlib` проверены |
+| Параллельная сборка | `MAKEOPTS="-j16 -l10"` |
+| Rust | 1.97.1; `target-cpu=x86-64-v3`, внешний Clang/LLD для linking |
+| Go | 1.27.1; `GOAMD64=v3` |
 | Private binhost / binpkg pilot | Не настроен / не начат |
 
-> **Важно:** применён минимальный CPU target для bootstrap. Это ещё не
-> production toolchain и не завершённая execution policy builder.
+> **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
 
 ## VM baseline
 
@@ -96,36 +105,74 @@ Stage3/chroot bootstrap повторно пройден 2026-10-08. Общая �
    `ABI_X86=64`, единственная строка `.;` в GCC multilib list и
    `Total: 0 packages` в final resolver.
 
-## Текущий make.conf и pending configuration
+## Текущая Portage policy
 
 Файл внутри chroot: `/etc/portage/make.conf`.
-Подтверждённые значения на точке остановки:
+Принятые значения production policy, видимые в Portage environment:
 
 ```makefile
-COMMON_FLAGS="-march=x86-64-v3 -O2 -pipe"
+LLVM_SLOT="22"
+CC="clang"
+CXX="clang++"
+AR="llvm-ar"
+NM="llvm-nm"
+RANLIB="llvm-ranlib"
+
+COMMON_FLAGS="-march=x86-64-v3 -O2 -flto=thin -pipe"
 CFLAGS="${COMMON_FLAGS}"
 CXXFLAGS="${COMMON_FLAGS}"
-FCFLAGS="${COMMON_FLAGS}"
-FFLAGS="${COMMON_FLAGS}"
+
+FORTRAN_FLAGS="-march=x86-64-v3 -O2 -pipe"
+FCFLAGS="${FORTRAN_FLAGS}"
+FFLAGS="${FORTRAN_FLAGS}"
+
+LDFLAGS="-Wl,-O1 -Wl,--as-needed -fuse-ld=lld"
+MAKEOPTS="-j16 -l10"
+CPU_FLAGS_X86="aes avx avx2 bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3"
+RUSTFLAGS="-C target-cpu=x86-64-v3 -C linker=/usr/lib/llvm/22/bin/clang -C link-arg=-fuse-ld=lld"
+GOAMD64="v3"
 
 LC_MESSAGES=C.UTF-8
 ```
 
-Это минимальный bootstrap config, а не final builder policy.
+`CPU_FLAGS_X86` — пересечение live-выводов `cpuid2cpuflags` Broadwell VM
+и Alder Lake workstation. Workstation-only `avx_vnni`, `sha` и `vpclmulqdq`
+исключены. После изменения Portage запросил ожидаемые пересборки
+`dev-libs/nettle`, `dev-libs/libgcrypt` и `dev-libs/json-c`; они завершены.
 
-Ещё не применены production LLVM/Clang/LLD compiler/toolchain policy,
-`RUSTFLAGS`, `GOAMD64`, builder `MAKEOPTS`, совместимый `CPU_FLAGS_X86`, cache
-policy, final execution policy и Portage package policy workstation.
-Private binhost не настроен;
-end-to-end binpkg pilot не начат.
+`LLVM_TARGETS="X86"` намеренно не сохранён: Gentoo profile принудительно
+задаёт поддерживаемый набор LLVM targets. Глобальный Rust `opt-level=3`
+не принят. Отдельный `GOMAXPROCS` не задаётся: если переменная не задана, Go eclass Gentoo
+выводит её из числа Make jobs. Cache/ccache/sccache policy для builder
+не принята.
 
-Следующее действие — LLVM/toolchain stage по
-[согласованному Portage/profile/toolchain contract](../asus-b5402/system/boot-and-portage/).
-Workstation сохраняет Alder Lake policy; kernel по плану остаётся local-only
-на workstation. Builder получает
-собственную execution policy под ресурсы VM; userspace targets
-`-march=native`, `-march=broadwell` и `-march=alderlake` не используются.
-Обязательные проверки будущего pilot при server ON / OFF остаются pending.
+## Следующий шаг: совместимость package policy
+
+До выпуска private binpkgs нужно сравнить и согласовать только Portage
+настройки, влияющие на совместимость userspace packages:
+
+- profile, `CHOST` и ABI;
+- USE и `/etc/portage/package.use`;
+- keywords, masks/unmasks и license policy;
+- relevant USE_EXPAND;
+- repositories/overlays;
+- package/version/dependency policy;
+- package-specific env rules, влияющие на произведённые userspace packages.
+
+Эта проверка и полная синхронизация ещё не выполнены. Архитектурные границы —
+в [плане binary build host](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--план).
+Workstation сохраняет Alder Lake optimization и локальную сборку ядра.
+Builder использует portable `x86-64-v3`; userspace targets `-march=native`,
+`-march=broadwell` и `-march=alderlake` не используются.
+
+Не переносим workstation execution-only settings: P-core/taskset policy,
+workstation `MAKEOPTS`, laptop-specific tmpdir, cache paths/sizes и kernel
+build policy. Builder имеет собственный `MAKEOPTS="-j16 -l10"` под ресурсы VM.
+Private binhost, end-to-end binpkg pilot и обязательная проверка fallback
+при server ON/OFF остаются будущими этапами.
+
+Kernel installation, `/etc/fstab`, hostname/networking, users/SSH,
+bootloader и first boot в rebuilt VM ещё не выполнены.
 
 ## Verification
 
@@ -171,9 +218,78 @@ emerge --pretend --verbose --update --deep --newuse --complete-graph @world
 
 Release — `Gentoo Base System release 2.18`; активный профиль —
 `default/linux/amd64/23.0/no-multilib/hardened/systemd`.
-Все четыре mountpoint checks и DNS lookup — PASS. Portage показывает
-`-march=x86-64-v3 -O2 -pipe` для всех пяти переменных; `ABI_X86=64`,
-`gcc -print-multi-lib` выводит только `.;`. Пересборка завершилась успешно;
-final resolver сообщает `Total: 0 packages`. Эти проверки подтверждают
-завершённый no-multilib bootstrap, а не завершённую установку или
-работоспособный binhost.
+Все четыре mountpoint checks и DNS lookup — PASS. При no-multilib bootstrap
+Portage показывал `-march=x86-64-v3 -O2 -pipe` для пяти переменных;
+текущие C/C++ и Fortran flags разделены, как указано выше. `ABI_X86=64`,
+`gcc -print-multi-lib` выводит только `.;`.
+
+### Production C/C++
+
+LLVM, Clang, LLD и `llvm-config` — 22.1.8; `llvm-ar`, `llvm-nm` и
+`llvm-ranlib` установлены и функционально проверены. Реальная C-программа
+скомпилирована и успешно запущена с `/usr/lib/llvm/22/bin/clang`,
+`-march=x86-64-v3 -O2 -fuse-ld=lld`. Проверка `clang -###` подтвердила
+фактический linker `/usr/lib/llvm/22/bin/ld.lld`. Затем ThinLTO принят
+в production policy; реальная Portage-пересборка с новой compiler policy
+завершилась успешно.
+
+### CPU flags
+
+Live `cpuid2cpuflags`:
+
+Builder Broadwell VM:
+
+```text
+aes avx avx2 bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3
+```
+
+Workstation Alder Lake:
+
+```text
+aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq
+```
+
+### Rust
+
+```text
+rustc 1.97.1 (8bab26f4f 2026-07-14)
+host: x86_64-unknown-linux-gnu
+embedded LLVM: 22.1.6
+```
+
+`rustc -C target-cpu=help` подтвердил `x86-64`, `x86-64-v2`, `x86-64-v3`
+и `x86-64-v4`. Реальный Rust binary с принятой `RUSTFLAGS` policy
+скомпилирован и успешно запущен. `rustc --print cfg -C target-cpu=x86-64-v3`
+подтвердил v3 feature baseline: AVX, AVX2, BMI1/2, F16C, FMA, POPCNT,
+SSE4.1/4.2 и связанные features.
+
+Bundled LLVM 22.1.6 в `dev-lang/rust-bin` используется для Rust codegen;
+system LLVM/Clang/LLD 22.1.8 — для внешнего linking. Разница версий
+не является конфликтом.
+
+### Go
+
+```text
+go version go1.27.1-X:nodwarf5 linux/amd64
+```
+
+Go environment подтвердил `GOARCH=amd64`, `GOAMD64=v3`. Реальный Go binary
+скомпилирован и успешно запущен; `go version -m` записал в нём
+`GOARCH=amd64` и `GOAMD64=v3`. Простой pure-Go test binary статически
+слинкован; это ожидаемый результат теста, а не требование ко всем Go packages.
+
+### Итоговый resolver
+
+После всех toolchain / CPU / Rust / Go изменений:
+
+```bash
+emerge --pretend --verbose --update --deep --newuse --complete-graph @world
+```
+
+```text
+Total: 0 packages, Size of downloads: 0 KiB
+```
+
+Это закрывает production toolchain и portable CPU/language contract.
+Чистый resolver не подтверждает завершённую установку, совместимость
+workstation package policy или работающий binhost.

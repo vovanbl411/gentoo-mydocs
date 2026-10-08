@@ -41,11 +41,12 @@ CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcn
 закомментированным. Ядро планируется продолжать собирать локально, чтобы
 `native` означал именно Alder Lake.
 
-Будущий builder target `x86-64-v3` относится только к portable userspace
-binpkg и не заменяет локальную Alder Lake policy. VM уже создана:
-2026-10-07 внутри гостя подтверждены CPU type `host` и capability `x86-64-v3`.
-Userspace build target `-march=x86-64-v3` ещё не применён к builder config;
-решение и границы pilot — в [плане binary build host](../../system/boot-and-portage/#gentoo-binary-build-host--план).
+Принятый builder target `x86-64-v3` относится только к portable userspace
+binpkg и не заменяет локальную Alder Lake policy. По проверке владельца
+от 2026-10-08, `-march=x86-64-v3` и production LLVM/Clang/LLD policy
+применены; final `@world` resolver чист. Совместимость package policy
+и binpkg pilot ещё pending; границы — в
+[плане binary build host](../../system/boot-and-portage/#gentoo-binary-build-host--план).
 
 ## Планировщик, Thread Director и управление частотами
 
