@@ -23,6 +23,7 @@ export default defineConfig({
 					label: 'Установка',
 					translations: { en: 'Installation' },
 					items: [
+						{ slug: 'installation/gentoo-installation' },
 						{ slug: 'installation/base-system' },
 						{ slug: 'installation/systemd-uki-setup' },
 						{ slug: 'installation/secure-boot-tpm' },

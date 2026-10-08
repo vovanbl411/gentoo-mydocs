@@ -12,6 +12,13 @@ and the hardened profile, an LLVM toolchain, Pure Wayland on Niri,
 systemd-boot + UKI, Btrfs + Snapper, Secure Boot and TPM 2.0. The
 examples are based on a real reference system, an ASUS ExpertBook B5402.
 
+## Where to start
+
+- [Manual Gentoo amd64 installation](./installation/gentoo-installation/) — from the LiveCD to initial Portage configuration; booting from disk is not yet covered.
+- [Base system configuration after installation](./installation/base-system/) — Portage and the LLVM toolchain.
+
+## Other materials
+
 The guide sections, the reference system state, troubleshooting notes
 and experiments all live here — use the navigation on the left.
 Repository-level materials (policy, contributing, archive) remain only

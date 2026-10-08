@@ -3,7 +3,7 @@ title: Gentoo Builder VM — gentoo-builder-01
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-07"
+last_verified: "2026-10-08"
 verified_on: [gentoo-builder-01]
 ---
 
@@ -16,9 +16,12 @@ build appliance: она должна разгружать workstation, сохр�
 desktop/UI не устанавливается, обязательный autostart постоянного сервиса
 не предусмотрен.
 
-**Установка не завершена.** По предоставленным владельцем проверкам от
-2026-10-07, stage3 распакован и chroot работает. Остановка — сразу после
-просмотра исходного `/etc/portage/make.conf`, до его изменения.
+**No-multilib bootstrap завершён; установка в целом ещё не завершена.**
+По предоставленным владельцем проверкам от 2026-10-08, текущая VM работает
+с описанным ниже baseline. Stage3/chroot bootstrap повторно пройден;
+`make.conf` настроен на `x86-64-v3`, профиль переключён на no-multilib,
+пересборка завершилась успешно. Final resolver — `Total: 0 packages`.
+Следующий этап — production LLVM/Clang/LLD builder policy.
 
 | Параметр | Подтверждённое состояние |
 |----------|--------------------------|
@@ -29,12 +32,14 @@ desktop/UI не устанавливается, обязательный autosta
 | Диск | 100 GiB, GPT; 1 MiB BIOS boot, 8 GiB active swap, около 92 GiB ext4 root |
 | Install state | Stage3 extracted в `/mnt/gentoo`; chroot operational, DNS работает |
 | Release | Gentoo Base System release 2.18 |
-| Текущий профиль stage3 | `default/linux/amd64/23.0/hardened/systemd` |
-| Final profile / build target | no-multilib и `-march=x86-64-v3` ещё **pending** |
+| Активный профиль | `default/linux/amd64/23.0/no-multilib/hardened/systemd` |
+| Build target / ABI | `-march=x86-64-v3 -O2 -pipe`; `ABI_X86=64`; GCC multilib list — только `.;` |
+| Rebuild / resolver | Пересборка после смены профиля завершена; final resolver — `Total: 0 packages` |
+| Production toolchain policy | LLVM/Clang/LLD ещё не настроены |
 | Private binhost / binpkg pilot | Не настроен / не начат |
 
-> **Важно:** поддержка `x86-64-v3` гостем не означает, что пакеты уже
-> собираются с `-march=x86-64-v3`. Builder policy в `make.conf` ещё не применена.
+> **Важно:** применён минимальный CPU target для bootstrap. Это ещё не
+> production toolchain и не завершённая execution policy builder.
 
 ## VM baseline
 
@@ -57,9 +62,9 @@ desktop/UI не устанавливается, обязательный autosta
 
 ## Выполненная подготовка до точки остановки
 
-Это запись выполненного этапа для этой VM, а не инструкция по разметке
-произвольной системы. Команды создания разделов и файловых систем здесь
-не приводятся: повторная разметка уничтожит данные целевого диска.
+Stage3/chroot bootstrap повторно пройден 2026-10-08. Общая процедура — в
+[руководстве по ручной установке Gentoo](../../installation/gentoo-installation/);
+ниже остаются результаты для этой VM.
 
 1. VM загружена с Minimal ISO. В госте подтверждена physical CPU model
    Intel Xeon E5-2696 v4; glibc loader показал поддержку `x86-64-v3` и
@@ -78,21 +83,26 @@ desktop/UI не устанавливается, обязательный autosta
    уже предоставляет Proxmox storage layer.
 3. Проверен checksum официального
    `stage3-amd64-hardened-systemd-20261004T164559Z.tar.xz`, затем stage3
-   распакован в `/mnt/gentoo`. Его текущий профиль — hardened/systemd,
-   без no-multilib switch.
+   распакован в `/mnt/gentoo`. Исходный профиль stage3 —
+   `default/linux/amd64/23.0/hardened/systemd`; активный профиль теперь no-multilib.
 4. Для chroot подготовлены `/proc`, `/sys`, `/dev`, `/run`; `/etc/resolv.conf`
    передан в новую систему. После входа проверены release, profile,
    mountpoints и DNS.
-5. Просмотрен исходный `/etc/portage/make.conf`; изменения builder policy
-   ещё не вносились.
+5. Исходный `/etc/portage/make.conf` сохранён как `make.conf.stage3`;
+   применён минимальный `-march=x86-64-v3 -O2 -pipe`, Gentoo repository
+   синхронизирован, news просмотрены.
+6. Выбран `default/linux/amd64/23.0/no-multilib/hardened/systemd`.
+   Пересборка после смены профиля завершилась успешно; подтверждены
+   `ABI_X86=64`, единственная строка `.;` в GCC multilib list и
+   `Total: 0 packages` в final resolver.
 
-## Исходный make.conf и pending configuration
+## Текущий make.conf и pending configuration
 
 Файл внутри chroot: `/etc/portage/make.conf`.
 Подтверждённые значения на точке остановки:
 
 ```makefile
-COMMON_FLAGS="-O2 -pipe"
+COMMON_FLAGS="-march=x86-64-v3 -O2 -pipe"
 CFLAGS="${COMMON_FLAGS}"
 CXXFLAGS="${COMMON_FLAGS}"
 FCFLAGS="${COMMON_FLAGS}"
@@ -101,25 +111,25 @@ FFLAGS="${COMMON_FLAGS}"
 LC_MESSAGES=C.UTF-8
 ```
 
-В исходном файле также есть комментарий о сборке stage с USE-флагом `bindist`.
-Это не запись final builder policy.
+Это минимальный bootstrap config, а не final builder policy.
 
-Ещё не применены `-march=x86-64-v3`, согласованный compiler/toolchain contract,
+Ещё не применены production LLVM/Clang/LLD compiler/toolchain policy,
 `RUSTFLAGS`, `GOAMD64`, builder `MAKEOPTS`, совместимый `CPU_FLAGS_X86`, cache
-policy, switch на `default/linux/amd64/23.0/no-multilib/hardened/systemd`
-и Portage package policy workstation. Private binhost не настроен;
+policy, final execution policy и Portage package policy workstation.
+Private binhost не настроен;
 end-to-end binpkg pilot не начат.
 
-Следующее действие — review/apply `make.conf` и profile policy по
+Следующее действие — LLVM/toolchain stage по
 [согласованному Portage/profile/toolchain contract](../asus-b5402/system/boot-and-portage/).
-Workstation сохраняет Alder Lake policy и local-only kernel. Builder получает
+Workstation сохраняет Alder Lake policy; kernel по плану остаётся local-only
+на workstation. Builder получает
 собственную execution policy под ресурсы VM; userspace targets
 `-march=native`, `-march=broadwell` и `-march=alderlake` не используются.
 Обязательные проверки будущего pilot при server ON / OFF остаются pending.
 
 ## Verification
 
-Проверки выполнены владельцем 2026-10-07. Ниже — команды для сверки состояния;
+Проверки выполнены владельцем 2026-10-08. Ниже — команды для сверки состояния;
 при обновлении документации они не запускались на живой VM.
 
 В installer/live environment:
@@ -145,16 +155,25 @@ x86-64-v2 (supported, searched)
 
 ```bash
 cat /etc/gentoo-release
-readlink /etc/portage/make.profile
+readlink -f /etc/portage/make.profile
 mountpoint /proc
 mountpoint /sys
 mountpoint /dev
 mountpoint /run
 getent hosts distfiles.gentoo.org
 cat /etc/portage/make.conf
+portageq envvar COMMON_FLAGS CFLAGS CXXFLAGS FCFLAGS FFLAGS
+eselect profile show
+portageq envvar ABI_X86
+gcc -print-multi-lib
+emerge --pretend --verbose --update --deep --newuse --complete-graph @world
 ```
 
-Release — `Gentoo Base System release 2.18`; profile link —
-`../../var/db/repos/gentoo/profiles/default/linux/amd64/23.0/hardened/systemd`.
-Все четыре mountpoint checks и DNS lookup — PASS. Эти проверки подтверждают
-достигнутый chroot, а не завершённую установку или работоспособный binhost.
+Release — `Gentoo Base System release 2.18`; активный профиль —
+`default/linux/amd64/23.0/no-multilib/hardened/systemd`.
+Все четыре mountpoint checks и DNS lookup — PASS. Portage показывает
+`-march=x86-64-v3 -O2 -pipe` для всех пяти переменных; `ABI_X86=64`,
+`gcc -print-multi-lib` выводит только `.;`. Пересборка завершилась успешно;
+final resolver сообщает `Total: 0 packages`. Эти проверки подтверждают
+завершённый no-multilib bootstrap, а не завершённую установку или
+работоспособный binhost.
