@@ -4,7 +4,7 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Checkpoint updated | 2026-10-08 |
+| Checkpoint updated | 2026-10-09 |
 | Full-system audit baseline | 2026-09-22 — опорная сверка ядра, boot/UKI, graphics и polkit; полный аудит `/etc/portage` — 2026-09-14 |
 | Recent partial verification | Ядро + User-status LED — 2026-10-07 |
 | Ветка | `main` |
@@ -73,17 +73,20 @@ accepted или merged не подтверждены. v2 готовить тол
 feedback или при обнаружении новой проблемы. Подробности submission — в
 [документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
 
-**Gentoo Builder VM — toolchain / portable userspace PASS (2026-10-08):**
-VM `5201` / `gentoo-builder-01`: no-multilib bootstrap завершён,
-`ABI_X86=64`. Production LLVM/Clang/LLD 22.1.8, C/C++ `x86-64-v3` + `-O2` + ThinLTO,
-Fortran `-O2` без ThinLTO, `MAKEOPTS="-j16 -l10"`, совместимый
-`CPU_FLAGS_X86`, Rust 1.97.1 / `x86-64-v3` с Clang/LLD linker и Go 1.27.1 /
-`GOAMD64=v3` — PASS. Реальные C/Rust/Go binaries собраны и запущены;
-после всех изменений final `@world` resolver — `Total: 0 packages`.
-Следующее действие — аудит и синхронизация совместимой package policy
-workstation/builder перед производством binpkgs; полная совместимость
-ещё не проверена. Установка VM в целом не завершена. Private binhost,
-end-to-end binpkg pilot и server ON/OFF fallback acceptance остаются pending.
+**Gentoo Builder VM — package-policy этап CLOSED / PASS (2026-10-09):**
+VM `5201` / `gentoo-builder-01`: no-multilib bootstrap, production
+LLVM/Clang/LLD 22.1.8 и portable `x86-64-v3` contract — PASS.
+Совместимость и синхронизация userspace package policy с workstation
+— PASS; `gentoo`, `guru`, `gentoo-zh`, `noctalia-overlay`, `zed-overlay`
+синхронизированы. Full convergence/rebuild завершён; final `@world` resolver
+— `Total: 0 packages, Size of downloads: 0 KiB`. Temporary bootstrap
+exceptions удалены; intentional GCC/BFD fallback для `sys-devel/binutils`
+и `x11-libs/pango` сохранён с portable target.
+Установка VM остаётся незавершённой, builder находится в installer/chroot.
+Следующий шаг — продолжение base VM installation до first boot:
+`/etc/fstab`, hostname, networking, users/SSH, kernel, bootloader,
+затем guest-side validation. Private binhost, end-to-end binpkg pilot
+и server ON/OFF fallback acceptance — будущие этапы после проверки VM.
 Workstation сохраняет Alder Lake policy; kernel остаётся local-only.
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 

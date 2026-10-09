@@ -3,7 +3,7 @@ title: Gentoo Builder VM — gentoo-builder-01
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-08"
+last_verified: "2026-10-09"
 verified_on: [gentoo-builder-01]
 ---
 
@@ -16,19 +16,24 @@ build appliance: она должна разгружать workstation, сохр�
 desktop/UI не устанавливается, обязательный autostart постоянного сервиса
 не предусмотрен.
 
-**No-multilib bootstrap и production toolchain / portable userspace contract
-завершены и проверены 2026-10-08; установка в целом ещё не завершена.**
-По предоставленным владельцем live-проверкам, C/C++ используют LLVM/Clang/LLD
-22.1.8, `x86-64-v3`, `-O2` и ThinLTO; Fortran сохраняет `-O2` без ThinLTO.
-Приняты совместимый `CPU_FLAGS_X86`, Rust 1.97.1 с portable CPU target и
-Go 1.27.1 с `GOAMD64=v3`. После всех изменений final `@world` resolver чист.
+**Package-policy этап CLOSED / PASS на 2026-10-09; установка VM ещё не завершена.**
+По проверкам владельца завершены:
 
-Следующий шаг — установить и проверить совместимость package policy
-workstation и builder до выпуска private binpkgs. Builder ещё не является
-готовым binhost: package policy не полностью перенесена и проверена,
-private binhost не настроен, end-to-end binpkg pilot не начат,
-server ON/OFF fallback acceptance остаётся pending. Ядро workstation
-остаётся local-only.
+- no-multilib bootstrap — PASS;
+- production LLVM/Clang/LLD portable toolchain — PASS;
+- repository contract — PASS;
+- синхронизация workstation-compatible userspace package policy — PASS;
+- initial full policy convergence/rebuild после stage3 — PASS.
+
+Финальный `@world` resolver: `Total: 0 packages, Size of downloads: 0 KiB`.
+Временные bootstrap overrides удалены. C/C++ используют LLVM/Clang/LLD
+22.1.8, `x86-64-v3`, `-O2` и ThinLTO; Fortran сохраняет `-O2` без ThinLTO.
+Rust 1.97.1 использует portable CPU target, Go 1.27.1 — `GOAMD64=v3`.
+
+Builder остаётся в installer/chroot phase. Следующий шаг — продолжить
+обычную установку VM до first boot и guest-side validation. Private binhost
+не настроен, end-to-end binpkg pilot не начат; server ON/OFF fallback
+acceptance остаётся pending. Ядро workstation остаётся local-only.
 
 | Параметр | Подтверждённое состояние |
 |----------|--------------------------|
@@ -41,7 +46,7 @@ server ON/OFF fallback acceptance остаётся pending. Ядро workstation
 | Release | Gentoo Base System release 2.18 |
 | Активный профиль | `default/linux/amd64/23.0/no-multilib/hardened/systemd` |
 | Build target / ABI | C/C++ `-march=x86-64-v3 -O2 -flto=thin -pipe`; `ABI_X86=64`; GCC multilib list — только `.;` |
-| Rebuild / resolver | Пересборки после смены профиля и toolchain/CPU policy успешны; final resolver — `Total: 0 packages, Size of downloads: 0 KiB` |
+| Rebuild / resolver | Полная пересборка под финальной package/toolchain policy завершена; final resolver — `Total: 0 packages, Size of downloads: 0 KiB` |
 | Production toolchain | LLVM/Clang/LLD и `llvm-config` 22.1.8; `llvm-ar`, `llvm-nm`, `llvm-ranlib` проверены |
 | Параллельная сборка | `MAKEOPTS="-j16 -l10"` |
 | Rust | 1.97.1; `target-cpu=x86-64-v3`, внешний Clang/LLD для linking |
@@ -107,11 +112,25 @@ Stage3/chroot bootstrap повторно пройден 2026-10-08. Общая �
 
 ## Текущая Portage policy
 
+Profile/ABI contract: `CHOST=x86_64-pc-linux-gnu`, `ABI_X86=64`.
+Effective profile/environment, подтверждённый через `portageq envvar`:
+
+```text
+PYTHON_SINGLE_TARGET="python3_14"
+PYTHON_TARGETS="python3_14"
+```
+
+Эти Python targets пришли из effective profile policy; в `make.conf`
+они явно не записывались.
+
 Файл внутри chroot: `/etc/portage/make.conf`.
-Принятые значения production policy, видимые в Portage environment:
+Явно заданные значения production policy:
 
 ```makefile
 LLVM_SLOT="22"
+VIDEO_CARDS="intel zink"
+INPUT_DEVICES="libinput"
+
 CC="clang"
 CXX="clang++"
 AR="llvm-ar"
@@ -127,6 +146,9 @@ FCFLAGS="${FORTRAN_FLAGS}"
 FFLAGS="${FORTRAN_FLAGS}"
 
 LDFLAGS="-Wl,-O1 -Wl,--as-needed -fuse-ld=lld"
+CGO_CFLAGS="${CFLAGS}"
+CGO_CXXFLAGS="${CXXFLAGS}"
+CGO_LDFLAGS="${LDFLAGS}"
 MAKEOPTS="-j16 -l10"
 CPU_FLAGS_X86="aes avx avx2 bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3"
 RUSTFLAGS="-C target-cpu=x86-64-v3 -C linker=/usr/lib/llvm/22/bin/clang -C link-arg=-fuse-ld=lld"
@@ -146,37 +168,54 @@ LC_MESSAGES=C.UTF-8
 выводит её из числа Make jobs. Cache/ccache/sccache policy для builder
 не принята.
 
-## Следующий шаг: совместимость package policy
+## Repositories и совместимость package policy
 
-До выпуска private binpkgs нужно сравнить и согласовать только Portage
-настройки, влияющие на совместимость userspace packages:
+Portage видит и успешно синхронизирует `gentoo`, `guru`, `gentoo-zh`,
+`noctalia-overlay` и `zed-overlay`. Все repository directories присутствуют;
+четыре overlay — git repositories. `dev-vcs/git` установлен как необходимая
+bootstrap dependency для git-based overlays.
 
-- profile, `CHOST` и ABI;
-- USE и `/etc/portage/package.use`;
-- keywords, masks/unmasks и license policy;
-- relevant USE_EXPAND;
-- repositories/overlays;
-- package/version/dependency policy;
-- package-specific env rules, влияющие на произведённые userspace packages.
+На builder перенесены и проверены global target USE policy,
+`VIDEO_CARDS="intel zink"`, `INPUT_DEVICES="libinput"`, relevant
+`/etc/portage/package.use`, `/etc/portage/package.accept_keywords`, Waydroid
+mask, license policy, repositories и userspace package policy.
+`@world` workstation не копировался.
 
-Эта проверка и полная синхронизация ещё не выполнены. Архитектурные границы —
-в [плане binary build host](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--план).
+Сохранён intentional GCC/BFD fallback для `sys-devel/binutils` и
+`x11-libs/pango`. Builder variant использует `-march=x86-64-v3` вместо
+workstation `-march=alderlake`: это принятая package/toolchain policy,
+а не временное bootstrap-исключение.
+
+Архитектурные границы — в
+[плане binary build host](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--план).
 Workstation сохраняет Alder Lake optimization и локальную сборку ядра.
 Builder использует portable `x86-64-v3`; userspace targets `-march=native`,
 `-march=broadwell` и `-march=alderlake` не используются.
 
-Не переносим workstation execution-only settings: P-core/taskset policy,
-workstation `MAKEOPTS`, laptop-specific tmpdir, cache paths/sizes и kernel
-build policy. Builder имеет собственный `MAKEOPTS="-j16 -l10"` под ресурсы VM.
-Private binhost, end-to-end binpkg pilot и обязательная проверка fallback
-при server ON/OFF остаются будущими этапами.
+Не переносились workstation execution-only/local settings: P-core/taskset,
+workstation `MAKEOPTS`, tmpdir/cache paths, `kernel-llvm`, kernel build
+policy, Secure Boot private key/cert paths и Alder Lake CPU flags.
+Builder имеет собственный `MAKEOPTS="-j16 -l10"` под ресурсы VM.
 
-Kernel installation, `/etc/fstab`, hostname/networking, users/SSH,
-bootloader и first boot в rebuilt VM ещё не выполнены.
+При первичной конвергенции потребовались временные разрывы USE dependency
+cycles, переустановка `net-dns/libidn2` и пересборка Perl со свежей Clang
+metadata. Все bootstrap overrides удалены; решения и проверки вынесены в
+[troubleshooting перехода stage3 → Clang/ThinLTO](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/).
+
+## Следующий шаг: установка VM до first boot
+
+Продолжить base VM installation/configuration: `/etc/fstab`, hostname,
+networking, users/SSH, kernel и bootloader. Затем выполнить first boot
+и guest-side validation. Эти этапы ещё не завершены.
+
+Private binhost, end-to-end binpkg pilot и проверка fallback при server
+ON/OFF следуют после получения нормально загружающейся и проверенной VM.
 
 ## Verification
 
-Проверки выполнены владельцем 2026-10-08. Ниже — команды для сверки состояния;
+Stage3/no-multilib и отдельные toolchain проверки выполнены владельцем
+2026-10-08; repository/package policy и full convergence подтверждены
+2026-10-09. Ниже — команды для сверки состояния;
 при обновлении документации они не запускались на живой VM.
 
 В installer/live environment:
@@ -280,16 +319,32 @@ Go environment подтвердил `GOARCH=amd64`, `GOAMD64=v3`. Реальны
 
 ### Итоговый resolver
 
-После всех toolchain / CPU / Rust / Go изменений:
+После bootstrap fixes успешно завершилась полная пересборка:
 
 ```bash
-emerge --pretend --verbose --update --deep --newuse --complete-graph @world
+emerge \
+    --ask \
+    --verbose \
+    --update \
+    --deep \
+    --newuse \
+    --complete-graph \
+    @world
 ```
+
+Команда приведена для root внутри installer chroot, где `doas`
+не требуется. Повторный resolver:
 
 ```text
+Calculating dependencies ... done!
+Dependency resolution took 7.27 s (backtrack: 0/20).
+
 Total: 0 packages, Size of downloads: 0 KiB
+
+Nothing to merge; quitting.
 ```
 
-Это закрывает production toolchain и portable CPU/language contract.
-Чистый resolver не подтверждает завершённую установку, совместимость
-workstation package policy или работающий binhost.
+Это acceptance gate текущего этапа: repository contract, синхронизация
+package policy и initial full convergence/rebuild — CLOSED / PASS.
+Чистый resolver не подтверждает завершённую установку VM, guest-side
+runtime validation или работающий binhost.
