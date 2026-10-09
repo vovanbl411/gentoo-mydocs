@@ -3,18 +3,17 @@ title: Manual Gentoo amd64 installation
 kind: guide
 scope: general
 status: current
-last_verified: "2026-10-08"
+last_verified: "2026-10-09"
 verified_on: [gentoo-builder-01]
 ---
 
 ## Result and scope
 
-This path takes you from a LiveCD to Gentoo userspace on the target disk:
-partitioning, filesystems, a verified stage3, a working chroot, and initial
-Portage configuration with a rebuild after changing profiles. **At this point,
-the system is not yet ready to boot from disk.** Only the repeated, verified
-part of the manual installation is documented here; later stages will be
-added after verification.
+This path takes you from a LiveCD to a bootable Gentoo amd64 system:
+partitioning, a verified stage3, chroot, Portage/profile bootstrap, base
+configuration, a kernel with Dracut initramfs, GRUB, and a successful first
+boot from the target disk. The verified branch is **BIOS + GPT + GRUB
+`i386-pc`**, ext4 and systemd.
 
 The guide is for installing Gentoo amd64 from scratch, including on another
 laptop. The verified example uses BIOS + GPT, ext4, hardened/systemd, and a
@@ -24,13 +23,14 @@ your own machine. The UEFI branch has not yet been verified here.
 Before starting, you need a booted Gentoo LiveCD, working networking and DNS,
 correct date/time for HTTPS, enough disk space, and a backup of any data you
 need to keep. Run commands **as root** in the LiveCD and, after entering the
-chroot in section 6, inside it: `doas` is not installed yet, so commands here do
-not use it. If a command fails, stop and investigate before continuing to
+chroot in section 6, inside it until an explicit exit instruction.
+Installation commands omit `doas`; after first boot, administrative actions
+by the ordinary user use `doas`. If a command fails, stop and investigate before continuing to
 the next stage.
 
-Verification dated 2026-10-08 was provided by the owner: this path was
-completed twice on `gentoo-builder-01`. This is an example of procedure
-verification; [the state of that system](../../systems/gentoo-builder-01/)
+The owner provided the checks: bootstrap was completed twice on 2026-10-08;
+base installation and first boot were accepted on 2026-10-09 on
+`gentoo-builder-01`. This is an example of procedure verification; [the state of that system](../../systems/gentoo-builder-01/)
 is maintained separately. [Base system configuration](../base-system/)
 describes later Portage/toolchain policy and is not the configuration for
 this bootstrap.
@@ -322,7 +322,7 @@ export PS1="(chroot) ${PS1}"
 ```
 
 `source /etc/profile` loads the Gentoo environment, and PS1 adds a visible
-context marker. Run all subsequent commands inside the chroot.
+context marker. Run subsequent commands inside the chroot until the explicit exit instruction.
 
 ```bash
 cat /etc/gentoo-release
@@ -512,6 +512,294 @@ emerge \
 An empty plan confirms completion of updates under the current policy and
 repository state. It does not mean future syncs will require no updates.
 
+## 10. `/etc/fstab`
+
+For the example's ext4 root and swap, define persistent mounts by LABEL.
+First check labels with `lsblk -o NAME,FSTYPE,LABEL`. On another machine,
+use your own labels and layout; duplicate LABEL values on attached disks
+are not acceptable. Preserve the original `/etc/fstab`, then replace its
+example entries with real ones without duplicating existing entries.
+
+File: `/etc/fstab`.
+
+```text
+LABEL=gentoo-root / ext4 defaults 0 1
+LABEL=gentoo-swap none swap sw 0 0
+```
+Verify the file:
+
+```bash
+findmnt --verify --verbose
+```
+**PASS:** labels resolve to the intended partitions; verification reports
+zero errors/warnings. The BIOS Boot Partition is not included in fstab;
+in this layout `/boot` is a directory on root, with no separate mount.
+
+## 11. Hostname, timezone, locale and machine-id
+
+Set your hostname in `/etc/hostname`. UTC and `C.UTF-8` are the verified
+example values, not mandatory choices for every machine.
+
+```bash
+printf '%s
+' 'your-hostname' > /etc/hostname
+ln -snf /usr/share/zoneinfo/UTC /etc/localtime
+printf '%s
+' 'LANG=C.UTF-8' > /etc/locale.conf
+locale -a
+```
+Replace `your-hostname`. `C.UTF-8` must be available in `locale -a`;
+for a different locale, configure its generation first.
+
+**Before first boot**, initialize the target system's machine-id:
+
+```bash
+systemd-machine-id-setup
+test -f /etc/machine-id &&
+    test "$(wc -c < /etc/machine-id)" -eq 33 &&
+    LC_ALL=C grep -Eq '^[0-9a-f]{32}$' /etc/machine-id &&
+    ! grep -Eq '^0{32}$' /etc/machine-id
+```
+**PASS:** initialization and the format check succeed. Do not copy the
+LiveCD's ID or another machine's ID; do not replace an already valid
+machine-id. If the file is invalid and nonempty, stop and investigate using
+[networkd troubleshooting](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
+This checks the format without printing the ID, not its uniqueness. In the
+verified installation, the lack of a valid ID prevented the DHCPv4 client
+from starting.
+
+## 12. Persistent networking: networkd + resolved
+
+The wired DHCPv4 example uses `ens18`. Identify your interface with `ip link`;
+this configuration needs adaptation for Wi-Fi or static addressing.
+Ensure the target systemd provides networkd/resolved units. LiveCD networking
+does not automatically become persistent configuration.
+
+File: `/etc/systemd/network/20-wired.network` (create the directory if needed).
+
+```ini
+[Match]
+Name=ens18
+
+[Network]
+DHCP=ipv4
+```
+Enable startup in the target system:
+
+```bash
+systemctl enable systemd-networkd.service systemd-resolved.service
+```
+In the chroot, `enable` creates symlinks for the next boot. Do not use
+`--now`: PID 1 and the working network still belong to the LiveCD.
+DHCP-provided DNS will be passed to systemd-resolved. Keep the working copy
+of `/etc/resolv.conf` until all package downloads finish; replace it with
+the stub symlink during the final checks below.
+
+## 13. Ordinary user, doas and SSH
+
+Create an ordinary user in `wheel`. The verified VM uses `vladimir`;
+choose your own name instead of `your-user` in the commands. Set a password
+for the first login. Keep VM/local console access until remote login is tested.
+
+```bash
+INSTALL_USER="your-user"
+useradd -m -G wheel -s /bin/bash "$INSTALL_USER"
+passwd "$INSTALL_USER"
+emerge --ask app-admin/doas net-misc/openssh
+```
+If the user already exists, check it with `id` rather than creating a
+second entry. Set the verified doas policy:
+
+File: `/etc/doas.conf`.
+
+```text
+permit persist :wheel
+```
+Restrict configuration permissions and enable SSH:
+
+```bash
+chown root:root /etc/doas.conf
+chmod 0600 /etc/doas.conf
+doas -C /etc/doas.conf
+ssh-keygen -A
+sshd -t
+systemctl enable sshd.service
+```
+**PASS:** doas configuration and `sshd -t` pass; sshd is enabled.
+The verified installation retained a working login method for first boot;
+a real SSH login was accepted after boot. Public-key/key-only access is
+the next separate stage. Do not disable the working login before testing
+the key from a second SSH session and retaining console recovery.
+
+## 14. Optional: QEMU Guest Agent
+
+Only for a Proxmox/QEMU guest with the agent channel enabled by the hypervisor:
+
+```bash
+emerge --ask app-emulation/qemu-guest-agent
+```
+The service may be `static`: do not force it to be enabled. Check ACTIVE
+runtime and host interaction after boot. This package is not required
+for an ordinary physical machine.
+
+## 15. Distribution kernel, Dracut and GRUB BIOS/GPT
+
+Configure installkernel and GRUB before installing the kernel. Add or
+update a single entry in `/etc/portage/make.conf`:
+
+```makefile
+GRUB_PLATFORMS="pc"
+```
+File: `/etc/portage/package.use/installkernel` (reconcile with existing policy).
+
+```text
+sys-kernel/installkernel dracut grub systemd -efistub -refind -systemd-boot -ugrd -uki -ukify
+```
+
+This package-specific policy explicitly selects the BIOS/systemd/GRUB path: a separate
+Dracut initramfs, with UKI and alternative boot paths disabled. `-ugrd`
+excludes a conflict with `dracut`, even if external/global USE enables
+another generator. Install the tools before the kernel:
+
+```bash
+emerge --ask sys-kernel/installkernel sys-kernel/dracut sys-boot/grub
+cat /usr/lib/kernel/install.conf
+```
+Expected configuration in `/usr/lib/kernel/install.conf`:
+
+```ini
+layout=grub
+initrd_generator=dracut
+uki_generator=none
+```
+This file belongs to the installed package: do not edit it manually.
+If `/etc/kernel/install.conf` exists, check it too: a local override must
+not contradict the selected path.
+
+With global Clang/ThinLTO, apply the package-specific
+[no-LTO/BFD policy for kernel helpers](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/#6-gentoo-kernel-bin-thinlto-объекты-и-прямой-вызов-ldbfd)
+before installing the kernel. Retain the userspace ThinLTO policy.
+
+Install a stable distribution kernel:
+
+```bash
+emerge --ask sys-kernel/gentoo-kernel-bin
+```
+The verified example is `sys-kernel/gentoo-kernel-bin-6.18.54`, with runtime
+`6.18.54-gentoo-dist-bin`. This is the builder's chosen stable version;
+it does not need to match another machine's kernel. Installkernel should
+create a Dracut initramfs and place the kernel in `/boot`.
+
+Before `grub-install`, check the target disk and BIOS Boot Partition again.
+The command writes the bootloader to the **disk**, not `/dev/sda1` or
+`/dev/sda3`. Selecting the wrong disk can break another system's boot;
+a backup and recovery LiveCD are prerequisites.
+
+```bash
+grub-install --target=i386-pc --recheck /dev/sda
+grub-mkconfig -o /boot/grub/grub.cfg
+ls -lh /boot
+ls /lib/modules
+grep -E '^[[:space:]]*(linux|initrd)' /boot/grub/grub.cfg
+```
+**PASS:** GRUB installation completed without error; `grub.cfg` refers to
+the intended kernel and an existing initramfs. Check both entries and files,
+not just the exit status of `grub-mkconfig`. In the chroot, `uname -r`
+still shows the LiveCD kernel.
+
+## 16. Final checks and reboot
+
+Do not proceed to reboot until all package installations and checks above
+are complete. Now replace the bootstrap DNS file with the systemd-resolved
+stub symlink:
+
+```bash
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+readlink /etc/resolv.conf
+findmnt --verify --verbose
+systemctl is-enabled systemd-networkd systemd-resolved sshd
+sshd -t
+test -s /boot/grub/grub.cfg
+```
+The stub target may not yet exist in the chroot: resolved creates it after
+boot. After replacement, do not rely on bootstrap DNS for more downloads.
+Repeat the machine-id format check from section 11; check hostname, timezone,
+locale, user/wheel and boot files. Enabled units do not yet prove runtime.
+
+Exit the chroot, then unmount the target and disable **its** swap in the LiveCD:
+
+```bash
+exit
+cd /
+sync
+umount -R /mnt/gentoo
+swapoff /dev/sda2
+findmnt -R /mnt/gentoo
+swapon --show
+reboot
+```
+If unmount/swapoff fails, stop: identify processes and mountpoints using
+the target. Do not use forced/lazy unmount as the normal solution.
+After successful unmount, `findmnt` must find no target mounts;
+`swapon --show` must not list the target swap. Run `reboot` only after
+these checks. Put the target disk first in firmware/hypervisor boot order
+or eject the ISO. The verified Proxmox order is `scsi0;ide2;net0`.
+
+## 17. First-boot acceptance
+
+After logging in as the ordinary user, check the **booted target system**:
+
+```bash
+uname -r
+findmnt /
+findmnt --verify --verbose
+swapon --show
+hostnamectl
+timedatectl
+locale
+id
+doas id -u
+networkctl status ens18
+ip -4 route
+resolvectl status ens18
+readlink /etc/resolv.conf
+getent ahostsv4 gentoo.org
+ping -4 -c 3 1.1.1.1
+systemctl is-active systemd-networkd systemd-resolved sshd
+systemctl is-enabled sshd
+```
+**PASS:** the target kernel is running, root and swap match fstab,
+fstab verification has no errors/warnings; hostname/timezone/locale are
+correct, the user is in wheel, and `doas id -u` prints `0`. Networkd reports
+`routable (configured)` / `online`, a DHCP default route exists, and external
+IPv4 and DNS through resolved work. Do not use a direct gateway ping as the
+only network gate: its firewall may block ICMP.
+
+Test a real SSH login **from another machine**, replacing the placeholders:
+
+```bash
+ssh <user>@<guest-address>
+```
+Verify the host key fingerprint through a trusted console before accepting
+a new SSH host key. A successful login completes the installation SSH check,
+but not public-key/key-only acceptance.
+
+For a QEMU guest, also check:
+
+```bash
+systemctl is-active qemu-guest-agent
+systemctl is-enabled qemu-guest-agent
+doas journalctl -b -u qemu-guest-agent --no-pager
+```
+**PASS:** the agent is ACTIVE and the host actually communicates with it
+(the verified case has `guest-ping` in the journal). A `static` result from
+`is-enabled` is not an error and does not replace a runtime check.
+
+This branch ends with a bootable Gentoo system with basic access and networking.
+Machine-id, MAC, filesystem UUID and transient DHCP IP from local output are
+not needed for published verification.
+
+
 ## Stopping and recovery
 
 If the preview fails, do not start the build. Before rebuilding, you can
@@ -524,20 +812,19 @@ root from a copy made beforehand or restart installation from a verified stage3.
 On a partitioning/formatting mistake, stop writing to the disk. Data recovery
 requires a backup; repeating commands is not a rollback. If the chroot lacks
 mounts or DNS, return to the LiveCD shell and check the preparation in
-section 6. Do not reboot from the target disk at this point: installation
-is not yet complete.
+section 6. On boot failure, boot the LiveCD again, mount root and prepare
+the chroot; check fstab, kernel/initramfs and GRUB, fix the cause and retry
+boot. For a networkd DHCP failure, use
+[machine-id diagnostics](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
 
 ## Next steps
 
-Post-bootstrap toolchain configuration has been verified separately on the
-example system. See [base system configuration](../base-system/) for the
-general Portage/toolchain example; adapt it to your hardware and purpose.
-This guide still ends at prepared Gentoo userspace in a chroot.
-
-Kernel installation, `/etc/fstab`, hostname/networking, users, SSH,
-GRUB/UEFI bootloader and first boot have not yet been completed in the rebuilt
-VM. Their commands will be added only after those stages have been completed
-and verified.
+Base installation and first boot of the verified BIOS path are complete.
+The next SSH stage is public-key login and key-only access with separate
+verification. Adapt Portage/toolchain policy to the machine's purpose using
+[base system configuration](../base-system/); userspace Clang/ThinLTO is not
+a prerequisite for completing this general installation guide.
+The UEFI/systemd-boot branch remains unverified here.
 
 ## References
 
@@ -546,3 +833,7 @@ and verified.
 - [Stage3 and download verification](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage).
 - [Chroot and profile selection](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base).
 - [sfdisk: script format and GPT types](https://man7.org/linux/man-pages/man8/sfdisk.8.html).
+
+- [Installkernel](https://wiki.gentoo.org/wiki/Installkernel).
+- [GRUB BIOS / bootloader](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader).
+- [systemd-machine-id-setup(1)](https://www.freedesktop.org/software/systemd/man/latest/systemd-machine-id-setup.html).

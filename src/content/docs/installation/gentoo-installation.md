@@ -3,17 +3,16 @@ title: Ручная установка Gentoo amd64
 kind: guide
 scope: general
 status: current
-last_verified: "2026-10-08"
+last_verified: "2026-10-09"
 verified_on: [gentoo-builder-01]
 ---
 
 ## Результат и границы руководства
 
-Этот путь ведёт от LiveCD к Gentoo userspace на целевом диске: разметка,
-файловые системы, проверенный stage3, рабочий chroot и начальная настройка
-Portage с пересборкой после смены профиля. **На этой точке система ещё не
-готова к загрузке с диска.** Здесь описана только повторно пройденная часть
-ручной установки; следующие этапы будут добавляться после проверки.
+Этот путь ведёт от LiveCD к загружающейся Gentoo amd64: разметка,
+проверенный stage3, chroot, Portage/profile bootstrap, базовая конфигурация,
+ядро с Dracut initramfs, GRUB и успешный first boot с целевого диска.
+Проверенная ветка — **BIOS + GPT + GRUB `i386-pc`**, ext4 и systemd.
 
 Руководство предназначено для установки Gentoo amd64 с нуля, в том числе
 на другой ноутбук. Проверенный пример использует BIOS + GPT, ext4,
@@ -23,12 +22,14 @@ hardened/systemd и переход на no-multilib. Boot mode, диск, CPU ta
 До начала нужны загруженный Gentoo LiveCD, работающая сеть и DNS, корректные
 дата/время для HTTPS, достаточно места на диске и резервная копия данных,
 которые требуется сохранить. Команды выполняются **от root** в LiveCD,
-а после входа в chroot в разделе 6 — внутри него. `doas` ещё не установлен,
-поэтому команды приведены без него. При ошибке остановись и выясни причину, прежде
+а после входа в chroot в разделе 6 — внутри него до явно указанного выхода.
+Для установки команды приведены без `doas`; после first boot
+административные действия обычного пользователя используют `doas`. При ошибке остановись и выясни причину, прежде
 чем выполнять следующий этап.
 
-Проверка от 2026-10-08 предоставлена владельцем: описанный путь пройден
-дважды на `gentoo-builder-01`. Это пример проверки процедуры;
+Проверки предоставлены владельцем: bootstrap пройден дважды 2026-10-08,
+base installation и first boot приняты 2026-10-09 на `gentoo-builder-01`.
+Это пример проверки процедуры;
 [состояние конкретной системы](../../systems/gentoo-builder-01/) ведётся
 отдельно. [Настройка базовой системы](../base-system/) описывает последующую
 Portage/toolchain policy и не является конфигурацией для этого bootstrap.
@@ -314,7 +315,7 @@ export PS1="(chroot) ${PS1}"
 ```
 
 `source /etc/profile` загружает окружение Gentoo, а PS1 добавляет заметную
-метку контекста. Все дальнейшие команды выполняются внутри chroot.
+метку контекста. До явно указанного выхода все дальнейшие команды выполняются внутри chroot.
 
 ```bash
 cat /etc/gentoo-release
@@ -503,6 +504,292 @@ emerge \
 Нулевой план подтверждает завершение обновления при текущей policy и текущем
 состоянии repository. Он не означает, что будущие sync не потребуют обновлений.
 
+## 10. `/etc/fstab`
+
+Для ext4 root и swap из примера задай постоянные mounts по LABEL.
+Сначала сверь labels через `lsblk -o NAME,FSTYPE,LABEL`. На другой машине
+используй свои labels и layout; одинаковые LABEL на подключённых дисках
+недопустимы. Сохрани исходный `/etc/fstab`, затем замени его примерные
+записи реальными, не дублируя уже существующие строки.
+
+Файл: `/etc/fstab`.
+
+```text
+LABEL=gentoo-root / ext4 defaults 0 1
+LABEL=gentoo-swap none swap sw 0 0
+```
+Проверь файл:
+
+```bash
+findmnt --verify --verbose
+```
+**PASS:** labels разрешаются в нужные разделы; проверка завершилась
+с нулём errors/warnings. BIOS Boot Partition в fstab не включается;
+в этом layout `/boot` — каталог на root, отдельного mount нет.
+
+## 11. Hostname, timezone, locale и machine-id
+
+Задай свой hostname в `/etc/hostname`. UTC и `C.UTF-8` — проверенные
+значения примера, а не обязательный выбор для каждой машины.
+
+```bash
+printf '%s
+' 'your-hostname' > /etc/hostname
+ln -snf /usr/share/zoneinfo/UTC /etc/localtime
+printf '%s
+' 'LANG=C.UTF-8' > /etc/locale.conf
+locale -a
+```
+Замени `your-hostname`. `C.UTF-8` должен быть доступен в `locale -a`;
+для другого locale сначала настрой его генерацию.
+
+**До first boot** инициализируй machine-id в целевой системе:
+
+```bash
+systemd-machine-id-setup
+test -f /etc/machine-id &&
+    test "$(wc -c < /etc/machine-id)" -eq 33 &&
+    LC_ALL=C grep -Eq '^[0-9a-f]{32}$' /etc/machine-id &&
+    ! grep -Eq '^0{32}$' /etc/machine-id
+```
+**PASS:** команда и проверка формата успешны. Не копируй ID LiveCD
+или другой машины; не заменяй уже валидный machine-id. Если файл невалиден
+и непуст, остановись и разбери его по
+[networkd troubleshooting](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
+Здесь проверяется формат без вывода ID, не его уникальность. На проверенной
+установке отсутствие валидного ID мешало запуску DHCPv4 client.
+
+## 12. Постоянная сеть: networkd + resolved
+
+Для wired DHCPv4 примера используется `ens18`. Определи своё имя через
+`ip link`; настройка не подходит без адаптации для Wi-Fi или static addressing.
+Убедись, что целевой systemd содержит networkd/resolved units. Конфигурация
+LiveCD не становится постоянной автоматически.
+
+Файл: `/etc/systemd/network/20-wired.network` (создай каталог при необходимости).
+
+```ini
+[Match]
+Name=ens18
+
+[Network]
+DHCP=ipv4
+```
+Разреши запуск при загрузке целевой системы:
+
+```bash
+systemctl enable systemd-networkd.service systemd-resolved.service
+```
+В chroot `enable` создаёт symlinks для следующего boot. Не используй
+`--now`: PID 1 и работающая сеть пока принадлежат LiveCD.
+DNS по DHCP будет передан systemd-resolved. Рабочую копию `/etc/resolv.conf`
+сохрани до завершения всех package downloads; замена на stub symlink
+выполняется в финальной проверке ниже.
+
+## 13. Обычный пользователь, doas и SSH
+
+Создай обычного пользователя с `wheel`. В проверенной VM это `vladimir`;
+в командах выбери своё имя вместо `your-user`. Задай пароль для первого
+входа. Держи доступ к VM/local console, пока удалённый вход не проверен.
+
+```bash
+INSTALL_USER="your-user"
+useradd -m -G wheel -s /bin/bash "$INSTALL_USER"
+passwd "$INSTALL_USER"
+emerge --ask app-admin/doas net-misc/openssh
+```
+Если пользователь уже существует, проверь его через `id`, не создавай
+вторую запись. Для doas задай проверенную policy:
+
+Файл: `/etc/doas.conf`.
+
+```text
+permit persist :wheel
+```
+Ограничь права конфига и включи SSH:
+
+```bash
+chown root:root /etc/doas.conf
+chmod 0600 /etc/doas.conf
+doas -C /etc/doas.conf
+ssh-keygen -A
+sshd -t
+systemctl enable sshd.service
+```
+**PASS:** doas configuration и `sshd -t` проходят, sshd enabled.
+В проверенной установке сохранён рабочий способ login для first boot;
+реальный SSH-вход принят после загрузки. Public-key/key-only access —
+следующий отдельный этап. Не отключай рабочий login до проверки ключа
+из второй SSH-сессии и сохранения console recovery.
+
+## 14. Необязательно: QEMU Guest Agent
+
+Только для Proxmox/QEMU guest, где agent channel включён на hypervisor:
+
+```bash
+emerge --ask app-emulation/qemu-guest-agent
+```
+Service может быть `static`: его не нужно принудительно `enable`.
+Проверяй ACTIVE runtime и взаимодействие с host после boot.
+Для обычной физической машины этот пакет не требуется.
+
+## 15. Distribution kernel, Dracut и GRUB BIOS/GPT
+
+Перед установкой ядра настрой installkernel и GRUB. Добавь или обнови
+одну строку в `/etc/portage/make.conf`:
+
+```makefile
+GRUB_PLATFORMS="pc"
+```
+Файл: `/etc/portage/package.use/installkernel` (согласуй с имеющейся policy).
+
+```text
+sys-kernel/installkernel dracut grub systemd -efistub -refind -systemd-boot -ugrd -uki -ukify
+```
+
+Эта package-specific policy фиксирует BIOS/systemd/GRUB path: отдельный
+Dracut initramfs, без UKI и альтернативных boot paths. `-ugrd` исключает
+конфликт с `dracut`, даже если внешний/global USE включает другой generator.
+Установи инструменты до kernel:
+
+```bash
+emerge --ask sys-kernel/installkernel sys-kernel/dracut sys-boot/grub
+cat /usr/lib/kernel/install.conf
+```
+Ожидаемая конфигурация `/usr/lib/kernel/install.conf`:
+
+```ini
+layout=grub
+initrd_generator=dracut
+uki_generator=none
+```
+Это файл установленного пакета: не редактируй его вручную.
+Если существует `/etc/kernel/install.conf`, проверь и его: local override
+не должен противоречить выбранному path.
+
+При global Clang/ThinLTO до установки kernel примени package-specific
+[no-LTO/BFD policy для kernel helpers](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/#6-gentoo-kernel-bin-thinlto-объекты-и-прямой-вызов-ldbfd).
+Userspace ThinLTO policy сохраняется.
+
+Установи stable distribution kernel:
+
+```bash
+emerge --ask sys-kernel/gentoo-kernel-bin
+```
+Проверенный пример — `sys-kernel/gentoo-kernel-bin-6.18.54`, runtime
+`6.18.54-gentoo-dist-bin`. Это выбранная stable-версия builder;
+согласовывать её с ядром другой машины не требуется. Installkernel должен
+создать Dracut initramfs и разместить kernel в `/boot`.
+
+Перед `grub-install` сверь целевой диск и BIOS Boot Partition снова.
+Команда пишет загрузчик на **диск**, не на `/dev/sda1` или `/dev/sda3`.
+Ошибка выбора диска может повредить загрузку другой системы; до применения
+нужны backup и LiveCD для восстановления.
+
+```bash
+grub-install --target=i386-pc --recheck /dev/sda
+grub-mkconfig -o /boot/grub/grub.cfg
+ls -lh /boot
+ls /lib/modules
+grep -E '^[[:space:]]*(linux|initrd)' /boot/grub/grub.cfg
+```
+**PASS:** GRUB installation завершилась без ошибки; `grub.cfg` содержит
+нужный kernel и существующий initramfs. Проверяй обе записи и наличие
+файлов, не только exit status `grub-mkconfig`. В chroot `uname -r`
+по-прежнему показывает LiveCD kernel.
+
+## 16. Финальные проверки и reboot
+
+Не выходи к reboot, пока все установки пакетов и проверки выше не завершены.
+Теперь замени bootstrap DNS file на systemd-resolved stub symlink:
+
+```bash
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+readlink /etc/resolv.conf
+findmnt --verify --verbose
+systemctl is-enabled systemd-networkd systemd-resolved sshd
+sshd -t
+test -s /boot/grub/grub.cfg
+```
+Stub target может ещё отсутствовать внутри chroot: его создаст resolved
+после boot. После замены не рассчитывай на bootstrap DNS для новых downloads.
+Повтори machine-id format check из раздела 11; проверь hostname, timezone,
+locale, user/wheel и boot files. Enabled units ещё не доказывают runtime.
+
+Выйди из chroot, затем в LiveCD размонтируй target и отключи **его** swap:
+
+```bash
+exit
+cd /
+sync
+umount -R /mnt/gentoo
+swapoff /dev/sda2
+findmnt -R /mnt/gentoo
+swapon --show
+reboot
+```
+Если unmount/swapoff не прошёл, остановись: найди использующие target
+процессы и mountpoints. Не используй forced/lazy unmount как обычное решение.
+После успешного unmount `findmnt` не должен находить target mounts;
+`swapon --show` не должен показывать target swap. Выполняй `reboot` только
+после этих проверок. В firmware/hypervisor поставь целевой диск первым
+или извлеки ISO. Проверенный Proxmox boot order — `scsi0;ide2;net0`.
+
+## 17. First-boot acceptance
+
+После входа обычным пользователем проверь **загруженную целевую систему**:
+
+```bash
+uname -r
+findmnt /
+findmnt --verify --verbose
+swapon --show
+hostnamectl
+timedatectl
+locale
+id
+doas id -u
+networkctl status ens18
+ip -4 route
+resolvectl status ens18
+readlink /etc/resolv.conf
+getent ahostsv4 gentoo.org
+ping -4 -c 3 1.1.1.1
+systemctl is-active systemd-networkd systemd-resolved sshd
+systemctl is-enabled sshd
+```
+**PASS:** target kernel загружен, root и swap соответствуют fstab,
+проверка fstab без errors/warnings; hostname/timezone/locale верны,
+пользователь в wheel, `doas id -u` выводит `0`. Networkd сообщает
+`routable (configured)` / `online`, есть DHCP default route, external IPv4
+и DNS через resolved работают. Не используй прямой ping gateway как
+единственный network gate: ICMP может блокироваться его firewall.
+
+Проверь реальный SSH-вход **с другой машины**, заменив placeholders:
+
+```bash
+ssh <user>@<guest-address>
+```
+Проверь host key fingerprint через доверенную console перед принятием
+нового SSH host key. Успешный login закрывает установочную SSH-проверку,
+но не public-key/key-only acceptance.
+
+Для QEMU guest дополнительно:
+
+```bash
+systemctl is-active qemu-guest-agent
+systemctl is-enabled qemu-guest-agent
+doas journalctl -b -u qemu-guest-agent --no-pager
+```
+**PASS:** agent ACTIVE и host действительно обращается к нему
+(в проверенном случае journal содержит `guest-ping`). `static` в выводе
+`is-enabled` не является ошибкой и не заменяет runtime check.
+
+Результат этой ветки — загружающаяся Gentoo с базовым доступом и сетью.
+Machine-id, MAC, filesystem UUID и transient DHCP IP из локальных выводов
+не нужны для публикации verification.
+
+
 ## Остановка и восстановление
 
 Если preview не проходит, сборку не запускай. До пересборки можно вернуть
@@ -515,21 +802,19 @@ emerge \
 При ошибке разметки/форматирования прекрати запись на диск. Восстановление
 данных требует резервной копии; повторный запуск команд не является откатом.
 Если chroot не имеет mounts или DNS, вернись в LiveCD shell и проверь
-подготовку из раздела 6. Не перезагружайся с целевого диска на этой точке:
-установка пока не завершена.
+подготовку из раздела 6. При boot failure снова загрузи LiveCD, смонтируй
+root и подготовь chroot; проверь fstab, kernel/initramfs и GRUB, исправь
+причину и повтори boot. При networkd DHCP failure используй
+[диагностику machine-id](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
 
 ## Next steps
 
-Настройка toolchain после bootstrap проверена отдельно на системе из
-примера. Общий пример Portage/toolchain — в
-[настройке базовой системы](../base-system/); его нужно адаптировать под
-своё железо и назначение. Это руководство по-прежнему заканчивается
-подготовленным Gentoo userspace в chroot.
-
-Kernel installation, `/etc/fstab`, hostname/networking, users, SSH,
-GRUB/UEFI bootloader и first boot в пересозданной VM ещё не выполнены.
-Их команды появятся только после фактического прохождения и проверки
-соответствующих этапов.
+Base installation и first boot проверенного BIOS path завершены.
+Следующий этап для SSH — public-key login и key-only access с отдельной
+проверкой. Portage/toolchain policy адаптируется под назначение машины по
+[настройке базовой системы](../base-system/); userspace Clang/ThinLTO
+не является условием прохождения этого общего installation guide.
+UEFI/systemd-boot ветка здесь пока не проверена.
 
 ## Источники
 
@@ -538,3 +823,7 @@ GRUB/UEFI bootloader и first boot в пересозданной VM ещё не 
 - [Stage3 и проверка загрузок](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage).
 - [Chroot и выбор профиля](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base).
 - [sfdisk: script format и GPT types](https://man7.org/linux/man-pages/man8/sfdisk.8.html).
+
+- [Installkernel](https://wiki.gentoo.org/wiki/Installkernel).
+- [GRUB BIOS / bootloader](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader).
+- [systemd-machine-id-setup(1)](https://www.freedesktop.org/software/systemd/man/latest/systemd-machine-id-setup.html).

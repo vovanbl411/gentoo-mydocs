@@ -9,31 +9,36 @@ verified_on: [gentoo-builder-01]
 
 ## Current state
 
+**Base VM installation и first boot — CLOSED / PASS на 2026-10-09.**
+VM загружается с целевого диска и работает как Gentoo hardened/systemd guest.
+Package/toolchain/package-policy этапы также остаются CLOSED / PASS.
+
 `gentoo-builder-01` — отдельная headless VM на домашнем Proxmox для будущей
 сборки portable userspace binpkgs (`.gpkg`) для ASUS B5402. Это replaceable
 build appliance: она должна разгружать workstation, сохраняя её независимость
 от сервера. VM создана вручную, Terraform/Packer не используются;
-desktop/UI не устанавливается, обязательный autostart постоянного сервиса
-не предусмотрен.
+desktop/UI не устанавливается. Обязательный autostart будущего binhost
+сервиса не предусмотрен; SSH и network services включены для работы guest.
 
-**Package-policy этап CLOSED / PASS на 2026-10-09; установка VM ещё не завершена.**
 По проверкам владельца завершены:
 
 - no-multilib bootstrap — PASS;
 - production LLVM/Clang/LLD portable toolchain — PASS;
 - repository contract — PASS;
 - синхронизация workstation-compatible userspace package policy — PASS;
-- initial full policy convergence/rebuild после stage3 — PASS.
+- initial full policy convergence/rebuild после stage3 — PASS;
+- base installation, kernel/GRUB и first boot — PASS;
+- persistent networking/DNS, реальный SSH login и QEMU Guest Agent — PASS.
 
 Финальный `@world` resolver: `Total: 0 packages, Size of downloads: 0 KiB`.
 Временные bootstrap overrides удалены. C/C++ используют LLVM/Clang/LLD
 22.1.8, `x86-64-v3`, `-O2` и ThinLTO; Fortran сохраняет `-O2` без ThinLTO.
 Rust 1.97.1 использует portable CPU target, Go 1.27.1 — `GOAMD64=v3`.
 
-Builder остаётся в installer/chroot phase. Следующий шаг — продолжить
-обычную установку VM до first boot и guest-side validation. Private binhost
-не настроен, end-to-end binpkg pilot не начат; server ON/OFF fallback
-acceptance остаётся pending. Ядро workstation остаётся local-only.
+Следующий шаг — настроить и проверить SSH public-key login и key-only
+access. Private binhost не настроен, end-to-end binpkg pilot не начат;
+server ON/OFF fallback acceptance остаётся pending. Ядро workstation
+остаётся local-only.
 
 | Параметр | Подтверждённое состояние |
 |----------|--------------------------|
@@ -42,7 +47,7 @@ acceptance остаётся pending. Ядро workstation остаётся local
 | CPU | Proxmox `host`; гость видит Intel Xeon E5-2696 v4 (Broadwell-EP) |
 | ISA capability | `x86-64-v3` подтверждена внутри VM; `x86-64-v4` не поддерживается |
 | Диск | 100 GiB, GPT; 1 MiB BIOS boot, 8 GiB active swap, около 92 GiB ext4 root |
-| Install state | Stage3 extracted в `/mnt/gentoo`; chroot operational, DNS работает |
+| Install state | Установка завершена; first boot с целевого диска — PASS; работающий Gentoo guest |
 | Release | Gentoo Base System release 2.18 |
 | Активный профиль | `default/linux/amd64/23.0/no-multilib/hardened/systemd` |
 | Build target / ABI | C/C++ `-march=x86-64-v3 -O2 -flto=thin -pipe`; `ABI_X86=64`; GCC multilib list — только `.;` |
@@ -51,6 +56,15 @@ acceptance остаётся pending. Ядро workstation остаётся local
 | Параллельная сборка | `MAKEOPTS="-j16 -l10"` |
 | Rust | 1.97.1; `target-cpu=x86-64-v3`, внешний Clang/LLD для linking |
 | Go | 1.27.1; `GOAMD64=v3` |
+| Kernel / GRUB | `6.18.54-gentoo-dist-bin` (`sys-kernel/gentoo-kernel-bin-6.18.54`); `sys-boot/grub-2.14-r5`, BIOS/GPT, target `i386-pc` |
+| Initramfs | Dracut initramfs существует и успешно загружается |
+| Root / swap / fstab | `/dev/sda3`, ext4, LABEL `gentoo-root`; `/dev/sda2`, 8 GiB, LABEL `gentoo-swap`, active; `findmnt --verify --verbose` — 0 errors/warnings |
+| Identity / time / locale | Hostname `gentoo-builder-01`; UTC; `C.UTF-8` |
+| User / privileges | `vladimir` в `wheel`; doas установлен, `/etc/doas.conf`: `permit persist :wheel` |
+| Persistent network | systemd-networkd + systemd-resolved; VirtIO `ens18`, DHCPv4; `routable (configured)` / `online`; default route, external IPv4 и DNS — PASS |
+| Resolver | `/etc/resolv.conf` — symlink на systemd-resolved stub |
+| SSH | OpenSSH enabled/running; реальный login как `vladimir` после first boot — PASS; key-only access — pending |
+| QEMU Guest Agent | ACTIVE после boot; service `static`, в journal наблюдаются реальные `guest-ping` |
 | Private binhost / binpkg pilot | Не настроен / не начат |
 
 > **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
@@ -61,8 +75,9 @@ acceptance остаётся pending. Ядро workstation остаётся local
 
 | Параметр | Значение |
 |----------|----------|
-| Agent | `agent: 1` — настройка Proxmox, не подтверждение работающего guest agent |
-| Boot order | Installation ISO first, затем `scsi0` / `net0` |
+| Agent | `agent: 1`; guest agent ACTIVE, реальные `guest-ping` наблюдаются |
+| Boot order | `scsi0;ide2;net0` — целевой диск первым |
+| Machine / firmware | В `qm config 5201` нет явных `machine:` / `bios:`; guest runtime: `pc-i440fx-11.0`, SeaBIOS (фактические defaults) |
 | CPU / RAM | `cpu: host`, `cores: 16`, `sockets: 1`, `memory: 16384`, `numa: 0` |
 | Диск | Storage `vm-nvme`, 100 GiB, VirtIO SCSI Single |
 | Disk options | `discard=on`, `iothread=1`, `ssd=1` |
@@ -74,7 +89,7 @@ acceptance остаётся pending. Ядро workstation остаётся local
 как installer/live environment. Загрузка live environment — BIOS / SeaBIOS,
 не UEFI.
 
-## Выполненная подготовка до точки остановки
+## Подготовка stage3 и bootstrap (2026-10-08)
 
 Stage3/chroot bootstrap повторно пройден 2026-10-08. Общая процедура — в
 [руководстве по ручной установке Gentoo](../../installation/gentoo-installation/);
@@ -123,13 +138,14 @@ PYTHON_TARGETS="python3_14"
 Эти Python targets пришли из effective profile policy; в `make.conf`
 они явно не записывались.
 
-Файл внутри chroot: `/etc/portage/make.conf`.
+Файл: `/etc/portage/make.conf`.
 Явно заданные значения production policy:
 
 ```makefile
 LLVM_SLOT="22"
 VIDEO_CARDS="intel zink"
 INPUT_DEVICES="libinput"
+GRUB_PLATFORMS="pc"
 
 CC="clang"
 CXX="clang++"
@@ -202,20 +218,56 @@ cycles, переустановка `net-dns/libidn2` и пересборка Per
 metadata. Все bootstrap overrides удалены; решения и проверки вынесены в
 [troubleshooting перехода stage3 → Clang/ThinLTO](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/).
 
-## Следующий шаг: установка VM до first boot
+## Загрузка и runtime
 
-Продолжить base VM installation/configuration: `/etc/fstab`, hostname,
-networking, users/SSH, kernel и bootloader. Затем выполнить first boot
-и guest-side validation. Эти этапы ещё не завершены.
+Постоянные builder-specific boot overrides в `/etc/portage/package.use`:
 
-Private binhost, end-to-end binpkg pilot и проверка fallback при server
-ON/OFF следуют после получения нормально загружающейся и проверенной VM.
+```text
+sys-boot/grub -secureboot
+sys-kernel/installkernel dracut grub
+```
+
+Они адаптируют workstation-compatible global USE policy, содержащую
+`secureboot`, к принятому builder path: SeaBIOS + GRUB `pc`, без Secure Boot.
+Это постоянная boot policy, а не temporary bootstrap exceptions.
+
+Файл: `/usr/lib/kernel/install.conf` (конфигурация установленного installkernel):
+
+```ini
+layout=grub
+initrd_generator=dracut
+uki_generator=none
+```
+
+Builder использует выбранное stable-ядро `6.18.54`; переход к workstation
+`7.2.9` не требуется. Для helper preparation `gentoo-kernel-bin` действует
+package-specific no-LTO/BFD path. Userspace production policy остаётся
+Clang + ThinLTO + LLD. Причина исключения — в
+[troubleshooting kernel helpers](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/#6-gentoo-kernel-bin-thinlto-объекты-и-прямой-вызов-ldbfd).
+
+При отсутствии DHCP после первого запуска причиной в этой установке оказался
+невалидный `/etc/machine-id`. После его инициализации и restart networkd
+появились lease, default route и DNS. Диагностика и границы решения — в
+[networkd troubleshooting](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
+
+Gateway не отвечает на прямой ICMP ping, но routing через него, external
+IPv4 и DNS работают. Это не failure builder network; home-server firewall
+policy ведётся отдельно. QEMU Guest Agent service имеет `static` state:
+при ACTIVE runtime и наблюдаемых `guest-ping` это штатное состояние.
+
+## Следующий шаг: SSH public-key / key-only access
+
+Настроить SSH public-key login, проверить реальный вход и затем key-only
+access. Текущий успешный SSH login не подтверждает key-only configuration.
+После этого — private binhost и end-to-end binpkg pilot; server ON/OFF
+fallback acceptance остаётся последующей проверкой.
 
 ## Verification
 
 Stage3/no-multilib и отдельные toolchain проверки выполнены владельцем
 2026-10-08; repository/package policy и full convergence подтверждены
-2026-10-09. Ниже — команды для сверки состояния;
+2026-10-09. Base installation, first boot и runtime acceptance также
+подтверждены владельцем 2026-10-09. Ниже — команды для сверки состояния;
 при обновлении документации они не запускались на живой VM.
 
 В installer/live environment:
@@ -346,5 +398,38 @@ Nothing to merge; quitting.
 
 Это acceptance gate текущего этапа: repository contract, синхронизация
 package policy и initial full convergence/rebuild — CLOSED / PASS.
-Чистый resolver не подтверждает завершённую установку VM, guest-side
-runtime validation или работающий binhost.
+Сам по себе чистый resolver не подтверждает boot/runtime или работающий
+binhost. Установка и first boot приняты отдельно по проверкам ниже.
+
+### First boot и guest runtime — PASS
+
+В загруженном guest:
+
+```bash
+uname -r
+findmnt /
+findmnt --verify --verbose
+swapon --show
+hostnamectl
+timedatectl
+locale
+id vladimir
+networkctl status ens18
+ip -4 route
+resolvectl status ens18
+getent ahostsv4 gentoo.org
+ping -4 -c 3 1.1.1.1
+readlink /etc/resolv.conf
+systemctl is-active systemd-networkd systemd-resolved sshd qemu-guest-agent
+systemctl is-enabled sshd qemu-guest-agent
+doas journalctl -b -u qemu-guest-agent --no-pager
+```
+
+Получены kernel `6.18.54-gentoo-dist-bin`, root ext4 на `/dev/sda3`,
+active swap 8 GiB и fstab без ошибок/предупреждений. Networkd —
+`routable (configured)` / `online`; DHCP default route, external IPv4
+и DNS через resolved — PASS. OpenSSH enabled/running; владелец подтвердил
+реальный SSH login как `vladimir`. Guest Agent ACTIVE, journal содержит
+реальные `guest-ping`. Key-only SSH, private binhost и binpkg pilot
+этими проверками не приняты. Machine-id, MAC, root UUID и DHCP-адрес
+в документ не включены.

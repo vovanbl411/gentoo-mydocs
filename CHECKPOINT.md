@@ -73,21 +73,20 @@ accepted или merged не подтверждены. v2 готовить тол
 feedback или при обнаружении новой проблемы. Подробности submission — в
 [документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
 
-**Gentoo Builder VM — package-policy этап CLOSED / PASS (2026-10-09):**
-VM `5201` / `gentoo-builder-01`: no-multilib bootstrap, production
-LLVM/Clang/LLD 22.1.8 и portable `x86-64-v3` contract — PASS.
-Совместимость и синхронизация userspace package policy с workstation
-— PASS; `gentoo`, `guru`, `gentoo-zh`, `noctalia-overlay`, `zed-overlay`
-синхронизированы. Full convergence/rebuild завершён; final `@world` resolver
-— `Total: 0 packages, Size of downloads: 0 KiB`. Temporary bootstrap
-exceptions удалены; intentional GCC/BFD fallback для `sys-devel/binutils`
-и `x11-libs/pango` сохранён с portable target.
-Установка VM остаётся незавершённой, builder находится в installer/chroot.
-Следующий шаг — продолжение base VM installation до first boot:
-`/etc/fstab`, hostname, networking, users/SSH, kernel, bootloader,
-затем guest-side validation. Private binhost, end-to-end binpkg pilot
-и server ON/OFF fallback acceptance — будущие этапы после проверки VM.
-Workstation сохраняет Alder Lake policy; kernel остаётся local-only.
+**Gentoo Builder VM — base installation / first boot CLOSED / PASS (2026-10-09):**
+VM `5201` / `gentoo-builder-01` работает с целевого диска. No-multilib,
+LLVM/Clang/LLD 22.1.8, portable `x86-64-v3`, repository/package-policy
+синхронизация и full convergence — PASS; final `@world` resolver —
+`Total: 0 packages, Size of downloads: 0 KiB`. Temporary bootstrap exceptions
+удалены; userspace fallback для binutils/pango сохранён.
+Stable `6.18.54-gentoo-dist-bin`, GRUB `2.14-r5`, BIOS/SeaBIOS + GPT,
+Dracut и fstab — PASS. Persistent systemd-networkd/resolved DHCP/DNS,
+external IPv4, реальный SSH login как `vladimir` и ACTIVE QEMU Guest Agent
+с наблюдаемыми `guest-ping` — PASS.
+Следующий шаг — настроить и проверить SSH public-key login / key-only
+access. Затем private binhost и end-to-end binpkg pilot; server ON/OFF
+fallback acceptance остаётся позже. Workstation сохраняет Alder Lake
+policy; её kernel остаётся local-only.
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 
 ## Open items

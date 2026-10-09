@@ -12,7 +12,8 @@ verified_on: [gentoo-builder-01]
 установленных пакетов. Для наблюдавшихся USE cycles помогло временно
 отключить один флаг, установить bootstrap closure, удалить override
 и повторить пересборку под полной target policy. Для Perl XS потребовалась
-пересборка самого Perl под Clang.
+пересборка самого Perl под Clang. Для kernel helper preparation потребовалось
+package-specific исключение из ThinLTO, описанное отдельно ниже.
 
 ## Когда применять
 
@@ -180,6 +181,56 @@ fallback для этого пакета: они скрывают причину 
 fallback builder для `sys-devel/binutils` и `x11-libs/pango` — отдельная
 принятая policy, которую эти bootstrap fixes не отменяют.
 
+## 6. `gentoo-kernel-bin`: ThinLTO объекты и прямой вызов `ld.bfd`
+
+**Симптом:** установка `sys-kernel/gentoo-kernel-bin-6.18.54` прерывается
+на `modules_prepare` / kernel helper compilation:
+
+```text
+clang ... -flto=thin ... libbpf.o
+x86_64-pc-linux-gnu-ld.bfd -r ...
+libbpf.o: file not recognized: file format not recognized
+```
+
+**Причина:** global userspace ThinLTO flags попали в kernel helper objects,
+но этот build path напрямую вызвал `ld.bfd`, который не смог обработать
+полученный объект. Выбор LLD в userspace `LDFLAGS` не отменяет прямой вызов
+BFD внутри kernel preparation.
+
+**Исправление:** ограничить no-LTO/BFD-compatible policy пакетом
+`sys-kernel/gentoo-kernel-bin`. Сохрани Clang и обычную userspace
+Clang + ThinLTO + LLD policy. Пример адаптации для portable builder:
+
+Файл: `/etc/portage/env/builder-kernel-bin-no-lto` (пример имени env-файла).
+
+```makefile
+CFLAGS="-march=x86-64-v3 -O2 -pipe"
+CXXFLAGS="${CFLAGS}"
+LDFLAGS="-Wl,-O1 -Wl,--as-needed -fuse-ld=bfd"
+```
+
+Файл: `/etc/portage/package.env` (добавь к существующим правилам):
+
+```text
+sys-kernel/gentoo-kernel-bin builder-kernel-bin-no-lto
+```
+
+Если для пакета уже есть env rules, согласуй их порядок: последующие
+настройки не должны снова добавлять `-flto=thin` или несовместимый linker.
+Пример показывает необходимые свойства исправления; точное имя env-файла
+исходной VM не фиксируется. Это package-specific helper exception,
+а не temporary bootstrap USE override.
+
+**Проверка:** повтори установку пакета и проверь build output: helper objects
+собираются без ThinLTO, BFD link проходит. На builder установка завершилась,
+Dracut initramfs создан, first boot с `6.18.54-gentoo-dist-bin` — PASS.
+Для проверки запуска используй `uname -r` после загрузки с целевого диска,
+а не внутри chroot.
+
+Это не свидетельство broken kernel release и не причина отключать ThinLTO
+глобально или переводить builder на GCC. Stable builder kernel `6.18.54`
+выбран отдельно от workstation kernel, который остаётся local-only.
+
 ## Финальная проверка
 
 Удали temporary bootstrap overrides, верни target USE и выполни полную
@@ -214,8 +265,10 @@ Total: 0 packages, Size of downloads: 0 KiB
 Nothing to merge; quitting.
 ```
 
-Это acceptance gate package/toolchain этапа. Он не подтверждает завершённую
-установку VM, first boot, guest-side validation или готовность binhost.
+Это acceptance gate package/toolchain этапа. Сам по себе resolver не
+подтверждает boot/runtime или готовность binhost. Base installation и
+first boot builder приняты отдельно; проверки — в
+[системном документе](../../systems/gentoo-builder-01/#first-boot-и-guest-runtime--pass).
 
 ## Environment и границы проверки
 

@@ -95,18 +95,19 @@ verified_on: [asus-b5402]
 
 ## Gentoo binary build host — план
 
-**No-multilib bootstrap и production toolchain завершены; совместимость
-package policy и binhost ещё pending.** По проверке владельца от 2026-10-08,
-на `gentoo-builder-01` (VMID `5201`) активен профиль
-`default/linux/amd64/23.0/no-multilib/hardened/systemd`, `ABI_X86=64`,
-установлены LLVM/Clang/LLD 22.1.8. C/C++ используют `x86-64-v3`, `-O2`,
-ThinLTO и LLD; Fortran сохраняет `-O2` без ThinLTO. Проверены
-`MAKEOPTS="-j16 -l10"`, совместимый `CPU_FLAGS_X86`, Rust 1.97.1 /
-`x86-64-v3` с Clang/LLD linker и Go 1.27.1 / `GOAMD64=v3`.
-Final `@world` resolver чист. Установка в целом ещё не завершена.
-Следующий шаг — аудит и синхронизация совместимой package policy перед
-выпуском private binpkgs; private binhost и end-to-end ON/OFF pilot
-остаются будущими этапами.
+**Package/toolchain/package-policy и base installation / first boot —
+CLOSED / PASS (2026-10-09).** `gentoo-builder-01` (VMID `5201`) работает
+с целевого диска: no-multilib hardened/systemd, portable `x86-64-v3`,
+LLVM/Clang/LLD 22.1.8, C/C++ `-O2` + ThinLTO. Userspace package policy
+синхронизирована, overlays synced, full convergence завершён;
+final `@world` resolver — `Total: 0 packages`. Fortran сохраняет `-O2`
+без ThinLTO; `MAKEOPTS="-j16 -l10"`, совместимый `CPU_FLAGS_X86`,
+Rust 1.97.1 / `x86-64-v3` с Clang/LLD linker и Go 1.27.1 /
+`GOAMD64=v3` остаются принятыми. Builder использует stable
+`6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB и Dracut;
+networking/DNS, реальный SSH login и QEMU Guest Agent runtime — PASS.
+Следующий шаг — SSH public-key / key-only access. Private binhost,
+end-to-end binpkg pilot и server ON/OFF fallback acceptance ещё pending.
 [Состояние и проверки builder](../../../gentoo-builder-01/).
 
 Назначение отдельной headless VM — сборка userspace binary packages
@@ -136,14 +137,15 @@ Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
   `CHOST="x86_64-pc-linux-gnu"`, amd64/ABI, USE и `package.use`, keywords,
   masks/unmasks, licenses, relevant USE_EXPAND, repositories/overlays и
   package/version/dependency policy workstation, а также package-specific env
-  rules, влияющие на произведённые userspace packages. Полное сравнение и
-  синхронизация ещё pending; это следующий шаг до выпуска private binpkgs.
+  rules, влияющие на произведённые userspace packages. Сравнение и
+  синхронизация завершены 2026-10-09 — PASS.
 - **Execution policy:** ресурсы и compiler execution policy builder отдельны.
   Принят `MAKEOPTS="-j16 -l10"`. Не копируются буквально `env/p-cores`,
   `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`, workstation `MAKEOPTS`,
   `env/ssd` / локальный `PORTAGE_TMPDIR`, `env/zed-lowmem`, пути и размеры
-  ccache/sccache: значения выбираются под ресурсы VM. `env/gcc-fallback`
-  требует адаптации CPU flags, поскольку сейчас использует `-march=alderlake`.
+  ccache/sccache: значения выбираются под ресурсы VM. Builder variant
+  GCC/BFD fallback для binutils/pango уже адаптирован к `-march=x86-64-v3`;
+  workstation сохраняет `-march=alderlake`.
 - **Kernel:** пока исключён из remote build path и остаётся local-only.
   С `CONFIG_X86_NATIVE_CPU=y` локальная сборка использует именно Alder Lake;
   детали — в [CPU optimization](../../hardware/cpu-optimization/).

@@ -97,17 +97,19 @@ The configuration, `sysctl`, `swapon`, and sysfs were checked on 2026-09-27.
 
 ## Gentoo binary build host — plan
 
-**No-multilib bootstrap and production toolchain are complete; package policy
-compatibility and binhost remain pending.** The owner verified on 2026-10-08
-that `gentoo-builder-01` (VMID `5201`) has the active profile
-`default/linux/amd64/23.0/no-multilib/hardened/systemd`, `ABI_X86=64`, and
-LLVM/Clang/LLD 22.1.8. C/C++ use `x86-64-v3`, `-O2`, ThinLTO and LLD;
-Fortran keeps `-O2` without ThinLTO. `MAKEOPTS="-j16 -l10"`, compatible
-`CPU_FLAGS_X86`, Rust 1.97.1 / `x86-64-v3` with Clang/LLD linking, and
-Go 1.27.1 / `GOAMD64=v3` are verified. The final `@world` resolver is clean.
-Installation is still incomplete. The next step is a package-policy
-compatibility audit and synchronization before private binpkg production;
-private binhost and the end-to-end ON/OFF pilot remain future work.
+**Package/toolchain/package-policy and base installation / first boot —
+CLOSED / PASS (2026-10-09).** `gentoo-builder-01` (VMID `5201`) runs
+from its target disk: no-multilib hardened/systemd, portable `x86-64-v3`,
+LLVM/Clang/LLD 22.1.8, C/C++ `-O2` + ThinLTO. Userspace package policy
+is synchronized, overlays are synced, and full convergence is complete;
+the final `@world` resolver shows `Total: 0 packages`. Fortran retains `-O2`
+without ThinLTO; `MAKEOPTS="-j16 -l10"`, compatible `CPU_FLAGS_X86`,
+Rust 1.97.1 / `x86-64-v3` with Clang/LLD linking and Go 1.27.1 /
+`GOAMD64=v3` remain accepted. The builder uses stable
+`6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB and Dracut;
+networking/DNS, a real SSH login and QEMU Guest Agent runtime are PASS.
+The next step is SSH public-key / key-only access. Private binhost,
+the end-to-end binpkg pilot and server ON/OFF fallback acceptance remain pending.
 [Builder state and verification](../../../gentoo-builder-01/).
 
 The separate headless VM is intended to build userspace binary packages
@@ -138,15 +140,16 @@ common baseline for the Broadwell builder and Alder Lake workstation.
   `CHOST="x86_64-pc-linux-gnu"`, amd64/ABI, USE and `package.use`, keywords,
   masks/unmasks, licenses, relevant USE_EXPAND values, repositories/overlays,
   and package/version/dependency policy, plus package-specific env rules
-  affecting produced userspace packages. Full comparison and synchronization
-  are still pending; this is the next step before private binpkg production.
+  affecting produced userspace packages. Comparison and synchronization
+  completed on 2026-10-09 — PASS.
 - **Execution policy:** builder resources and compiler execution policy are
   separate; `MAKEOPTS="-j16 -l10"` is accepted. `env/p-cores`,
   `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`,
   workstation `MAKEOPTS`, `env/ssd` / local `PORTAGE_TMPDIR`, `env/zed-lowmem`,
   and ccache/sccache paths and sizes are not copied literally: values must
-  match the VM's resources. `env/gcc-fallback` needs CPU flag adaptation
-  because it currently uses `-march=alderlake`.
+  match the VM's resources. The builder variant of the GCC/BFD fallback
+  for binutils/pango is already adapted to `-march=x86-64-v3`;
+  the workstation retains `-march=alderlake`.
 - **Kernel:** excluded from the remote build path for now; it remains local-only.
   With `CONFIG_X86_NATIVE_CPU=y`, the local build targets Alder Lake itself;
   see [CPU optimization](../../hardware/cpu-optimization/).
