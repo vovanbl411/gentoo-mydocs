@@ -37,6 +37,9 @@ verified_on: [asus-b5402]
 
 - [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — драйверы ядра,
   TLP и батарея.
+- [Микрофон гарнитуры](hardware/headset-microphone/) — ALC294: локальный quirk
+  активирует headset mic pin; functional acceptance отложена до проверки
+  с совместимой CTIA TRRS-гарнитурой/адаптером. Состояние — 2026-10-10.
 - [User-status indicator](hardware/user-status-indicator/) — kernel LED control
   и userspace-контроллер `auto/busy/off` с Fn+1 integration проверены на живой
   системе; подробности — в отдельном документе.

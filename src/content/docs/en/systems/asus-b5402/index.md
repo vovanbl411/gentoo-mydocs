@@ -41,6 +41,9 @@ the general instructions.
 
 - [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — kernel
   drivers, TLP and the battery.
+- [Headset microphone](hardware/headset-microphone/) — ALC294: a local quirk
+  activates the headset mic pin; functional acceptance is deferred until
+  testing with a compatible CTIA TRRS headset/adapter. State as of 2026-10-10.
 - [User-status indicator](hardware/user-status-indicator/) — kernel LED control
   and the userspace `auto/busy/off` controller with Fn+1 integration are
   live-verified; details are in the dedicated document.

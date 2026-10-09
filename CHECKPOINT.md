@@ -4,9 +4,9 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Checkpoint updated | 2026-10-09 |
+| Checkpoint updated | 2026-10-10 |
 | Full-system audit baseline | 2026-09-22 — опорная сверка ядра, boot/UKI, graphics и polkit; полный аудит `/etc/portage` — 2026-09-14 |
-| Recent partial verification | Ядро + User-status LED — 2026-10-07 |
+| Recent partial verification | Headset mic — 2026-10-10; ядро + User-status LED — 2026-10-07 |
 | Ветка | `main` |
 | Система | Gentoo hardened/systemd, ядро `7.2.9-bdsm`, BIOS `B5402CBA.314` |
 | Аппаратура | ASUS ExpertBook B5402CBA, Intel Core i7-1260P (Alder Lake) |
@@ -36,6 +36,15 @@
 - **Graphics**: текущий live-драйвер — `i915`; тест Xe завершён откатом,
   активной миграции на Xe нет.
   [Графический стек](src/content/docs/systems/asus-b5402/hardware/graphics.md).
+- **Headset mic**: ALC294, SSID `1043:1b2f`, `7.2.9-bdsm` — topology
+  подтверждена 2026-10-10. Локальный `20-asus-b5402-headset-mic.patch` применяет
+  `ALC2XX_FIXUP_HEADSET_MIC`; `CONFIG_SND_HDA_CODEC_ALC269=m` включён.
+  После reboot без `hda_model` (`(null)`) видны `Headset Mic=0x19`,
+  активный pin `IN VREF_80` и `Stereo Microphone`. Functional acceptance
+  не пройдена: `Headset Mic Jack=off`, `plughw:0,0` даёт тишину, VU не реагирует.
+  Проверка отложена до совместимой CTIA TRRS-гарнитуры/адаптера; причина
+  отсутствия сигнала не установлена. Quirk B5402 пока локальный.
+  [Конфигурация и проверка](src/content/docs/systems/asus-b5402/hardware/headset-microphone.md).
 - **Desktop**: pure Wayland, Niri + Noctalia, PipeWire;
   вход через greetd/tuigreet, polkit-агент один.
   [Рабочее окружение](src/content/docs/systems/asus-b5402/desktop/environment.md).
