@@ -108,8 +108,11 @@ Rust 1.97.1 / `x86-64-v3` with Clang/LLD linking and Go 1.27.1 /
 `GOAMD64=v3` remain accepted. The builder uses stable
 `6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB and Dracut;
 networking/DNS, a real SSH login and QEMU Guest Agent runtime are PASS.
-The next step is SSH public-key / key-only access. Private binhost,
-the end-to-end binpkg pilot and server ON/OFF fallback acceptance remain pending.
+The first local binary-package pilot is PASS, confirmed by the owner:
+`app-arch/zstd-1.5.7-r1` was built by the builder in `gpkg` format, and the
+`Packages` index was created. The next step is SSH public-key / key-only
+access. The private HTTP binhost, end-to-end installation on the workstation
+and server ON/OFF fallback acceptance remain pending.
 [Builder state and verification](../../../gentoo-builder-01/).
 
 The separate headless VM is intended to build userspace binary packages
@@ -161,8 +164,8 @@ with package policy/USE, build from source locally with Alder Lake optimization.
 The existing official Gentoo binary repository is retained.
 
 Fallback when the private binhost is unavailable is **not yet confirmed**.
-Once the builder is configured, one end-to-end binpkg pilot is required
-with these mandatory checks:
+Once the private HTTP binhost is configured, end-to-end binpkg installation
+on the workstation requires these mandatory checks:
 
 1. **Server/binhost ON:** a suitable package is actually installed as a binpkg.
 2. **Server/binhost OFF:** ordinary `emerge` continues through an acceptable

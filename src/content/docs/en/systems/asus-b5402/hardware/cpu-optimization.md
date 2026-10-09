@@ -33,6 +33,24 @@ The instruction set recorded for the i7-1260P from `cpuid2cpuflags`:
 CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
 ```
 
+### Empirical benchmark: zstd
+
+The results supplied by the owner compare zstd builds using
+`-march=alderlake` and `-march=x86-64-v3`; the speeds below are medians.
+The supplied confirmation does not specify the execution machine, zstd and
+compiler versions, other build flags, input data, compression level, thread
+count or number of runs. These results therefore do not yet describe a
+reproducible measurement method.
+
+| Workload | `-march=alderlake`, MB/s | `-march=x86-64-v3`, MB/s | Alder Lake advantage |
+|----------|-------------------------|-------------------------|----------------------|
+| Compression | 815.5 | 812.7 | +0.35% |
+| Decompression | 5746.7 | 5728.0 | +0.33% |
+
+No practically significant loss from `x86-64-v3` was found for this workload.
+This is not a universal guarantee for other packages; the result does not
+change the workstation's local Alder Lake policy.
+
 ## Kernel CPU optimization
 
 The owner's check on 2026-10-07 confirmed that `CONFIG_X86_NATIVE_CPU=y`
@@ -44,8 +62,11 @@ commented out. The kernel is planned to remain locally built so that
 The accepted builder target `x86-64-v3` applies only to portable userspace
 binpkgs and does not replace the local Alder Lake policy. The owner verified
 on 2026-10-08 that `-march=x86-64-v3` and the production LLVM/Clang/LLD policy
-are applied; the final `@world` resolver is clean. Package-policy
-compatibility and the binpkg pilot remain pending; see the
+are applied; the final `@world` resolver is clean. Userspace package policy
+synchronization completed on 2026-10-09; the first local
+`app-arch/zstd-1.5.7-r1` pilot is PASS (`gpkg`, `Packages` index created).
+The private HTTP binhost, end-to-end installation on the workstation and
+server ON/OFF fallback remain pending; see the
 [binary build host plan](../../system/boot-and-portage/#gentoo-binary-build-host--plan).
 
 ## Scheduler, Thread Director, and frequency management

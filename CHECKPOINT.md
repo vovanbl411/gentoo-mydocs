@@ -83,10 +83,12 @@ Stable `6.18.54-gentoo-dist-bin`, GRUB `2.14-r5`, BIOS/SeaBIOS + GPT,
 Dracut и fstab — PASS. Persistent systemd-networkd/resolved DHCP/DNS,
 external IPv4, реальный SSH login как `vladimir` и ACTIVE QEMU Guest Agent
 с наблюдаемыми `guest-ping` — PASS.
-Следующий шаг — настроить и проверить SSH public-key login / key-only
-access. Затем private binhost и end-to-end binpkg pilot; server ON/OFF
-fallback acceptance остаётся позже. Workstation сохраняет Alder Lake
-policy; её kernel остаётся local-only.
+Первый локальный binary-package pilot — PASS по подтверждению владельца:
+`app-arch/zstd-1.5.7-r1` собран builder-ом в формате `gpkg`; индекс
+`Packages` создан. Следующий шаг — настроить и проверить SSH public-key
+login / key-only access. Private HTTP binhost, end-to-end установка
+на workstation и server ON/OFF fallback acceptance остаются pending.
+Workstation сохраняет Alder Lake policy; её kernel остаётся local-only.
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 
 ## Open items

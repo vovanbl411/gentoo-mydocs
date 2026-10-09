@@ -33,6 +33,24 @@ verified_on: [asus-b5402]
 CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
 ```
 
+### Empirical benchmark: zstd
+
+По результатам, предоставленным владельцем, сравнивались сборки zstd с
+`-march=alderlake` и `-march=x86-64-v3`; ниже — медианные скорости.
+Машина выполнения, версия zstd и compiler, остальные build flags, входные
+данные, уровень сжатия, число потоков и повторов не указаны в переданном
+подтверждении. Поэтому эти результаты пока не описывают воспроизводимую
+методику измерения.
+
+| Workload | `-march=alderlake`, MB/s | `-march=x86-64-v3`, MB/s | Преимущество Alder Lake |
+|----------|-------------------------|-------------------------|------------------------|
+| Compression | 815.5 | 812.7 | +0.35% |
+| Decompression | 5746.7 | 5728.0 | +0.33% |
+
+Для этого workload практически значимой потери от `x86-64-v3` не обнаружено.
+Это не универсальная гарантия для других пакетов; результат не меняет
+локальную Alder Lake policy workstation.
+
 ## CPU optimization ядра
 
 По проверке владельца от 2026-10-07, `CONFIG_X86_NATIVE_CPU=y` включает
@@ -44,8 +62,11 @@ CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcn
 Принятый builder target `x86-64-v3` относится только к portable userspace
 binpkg и не заменяет локальную Alder Lake policy. По проверке владельца
 от 2026-10-08, `-march=x86-64-v3` и production LLVM/Clang/LLD policy
-применены; final `@world` resolver чист. Совместимость package policy
-и binpkg pilot ещё pending; границы — в
+применены; final `@world` resolver чист. Синхронизация userspace package
+policy завершена 2026-10-09; первый локальный pilot
+`app-arch/zstd-1.5.7-r1` — PASS (`gpkg`, индекс `Packages` создан).
+Private HTTP binhost, end-to-end установка на workstation и server ON/OFF
+fallback ещё pending; границы — в
 [плане binary build host](../../system/boot-and-portage/#gentoo-binary-build-host--план).
 
 ## Планировщик, Thread Director и управление частотами

@@ -13,7 +13,7 @@ verified_on: [gentoo-builder-01]
 VM загружается с целевого диска и работает как Gentoo hardened/systemd guest.
 Package/toolchain/package-policy этапы также остаются CLOSED / PASS.
 
-`gentoo-builder-01` — отдельная headless VM на домашнем Proxmox для будущей
+`gentoo-builder-01` — отдельная headless VM на домашнем Proxmox для
 сборки portable userspace binpkgs (`.gpkg`) для ASUS B5402. Это replaceable
 build appliance: она должна разгружать workstation, сохраняя её независимость
 от сервера. VM создана вручную, Terraform/Packer не используются;
@@ -28,7 +28,9 @@ desktop/UI не устанавливается. Обязательный autosta
 - синхронизация workstation-compatible userspace package policy — PASS;
 - initial full policy convergence/rebuild после stage3 — PASS;
 - base installation, kernel/GRUB и first boot — PASS;
-- persistent networking/DNS, реальный SSH login и QEMU Guest Agent — PASS.
+- persistent networking/DNS, реальный SSH login и QEMU Guest Agent — PASS;
+- первый локальный binary-package pilot — PASS: `app-arch/zstd-1.5.7-r1`
+  собран builder-ом в формате `gpkg`, индекс `Packages` создан.
 
 Финальный `@world` resolver: `Total: 0 packages, Size of downloads: 0 KiB`.
 Временные bootstrap overrides удалены. C/C++ используют LLVM/Clang/LLD
@@ -36,8 +38,8 @@ desktop/UI не устанавливается. Обязательный autosta
 Rust 1.97.1 использует portable CPU target, Go 1.27.1 — `GOAMD64=v3`.
 
 Следующий шаг — настроить и проверить SSH public-key login и key-only
-access. Private binhost не настроен, end-to-end binpkg pilot не начат;
-server ON/OFF fallback acceptance остаётся pending. Ядро workstation
+access. Private HTTP binhost, end-to-end установка на workstation
+и server ON/OFF fallback acceptance остаются pending. Ядро workstation
 остаётся local-only.
 
 | Параметр | Подтверждённое состояние |
@@ -65,7 +67,8 @@ server ON/OFF fallback acceptance остаётся pending. Ядро workstation
 | Resolver | `/etc/resolv.conf` — symlink на systemd-resolved stub |
 | SSH | OpenSSH enabled/running; реальный login как `vladimir` после first boot — PASS; key-only access — pending |
 | QEMU Guest Agent | ACTIVE после boot; service `static`, в journal наблюдаются реальные `guest-ping` |
-| Private binhost / binpkg pilot | Не настроен / не начат |
+| Локальный binary-package pilot | PASS: `app-arch/zstd-1.5.7-r1`, формат `gpkg`; индекс `Packages` создан |
+| Private HTTP binhost / end-to-end установка на workstation | Pending / pending |
 
 > **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
 
@@ -259,8 +262,9 @@ policy ведётся отдельно. QEMU Guest Agent service имеет `sta
 
 Настроить SSH public-key login, проверить реальный вход и затем key-only
 access. Текущий успешный SSH login не подтверждает key-only configuration.
-После этого — private binhost и end-to-end binpkg pilot; server ON/OFF
-fallback acceptance остаётся последующей проверкой.
+После этого — private HTTP binhost и end-to-end установка binpkg
+на workstation; server ON/OFF fallback acceptance остаётся последующей
+проверкой.
 
 ## Verification
 
@@ -430,6 +434,8 @@ active swap 8 GiB и fstab без ошибок/предупреждений. Net
 `routable (configured)` / `online`; DHCP default route, external IPv4
 и DNS через resolved — PASS. OpenSSH enabled/running; владелец подтвердил
 реальный SSH login как `vladimir`. Guest Agent ACTIVE, journal содержит
-реальные `guest-ping`. Key-only SSH, private binhost и binpkg pilot
-этими проверками не приняты. Machine-id, MAC, root UUID и DHCP-адрес
+реальные `guest-ping`. Key-only SSH, private HTTP binhost и end-to-end
+установка binpkg на workstation этими проверками не приняты. Локальный
+pilot `app-arch/zstd-1.5.7-r1` (`gpkg` и индекс `Packages`) отдельно
+подтверждён владельцем как PASS. Machine-id, MAC, root UUID и DHCP-адрес
 в документ не включены.

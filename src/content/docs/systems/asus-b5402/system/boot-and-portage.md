@@ -106,8 +106,11 @@ Rust 1.97.1 / `x86-64-v3` с Clang/LLD linker и Go 1.27.1 /
 `GOAMD64=v3` остаются принятыми. Builder использует stable
 `6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB и Dracut;
 networking/DNS, реальный SSH login и QEMU Guest Agent runtime — PASS.
-Следующий шаг — SSH public-key / key-only access. Private binhost,
-end-to-end binpkg pilot и server ON/OFF fallback acceptance ещё pending.
+Первый локальный binary-package pilot — PASS по подтверждению владельца:
+`app-arch/zstd-1.5.7-r1` собран builder-ом в формате `gpkg`, индекс
+`Packages` создан. Следующий шаг — SSH public-key / key-only access.
+Private HTTP binhost, end-to-end установка на workstation и server ON/OFF
+fallback acceptance ещё pending.
 [Состояние и проверки builder](../../../gentoo-builder-01/).
 
 Назначение отдельной headless VM — сборка userspace binary packages
@@ -158,7 +161,8 @@ Alder Lake optimization. Существующий официальный Gentoo 
 сохраняется.
 
 Fallback при недоступном private binhost **ещё не подтверждён**. После
-настройки builder предстоит один end-to-end binpkg pilot с обязательной проверкой:
+настройки private HTTP binhost предстоит end-to-end установка binpkg
+на workstation с обязательной проверкой:
 
 1. **Server/binhost ON:** подходящий пакет реально устанавливается как binpkg.
 2. **Server/binhost OFF:** обычный `emerge` продолжает работу через допустимый
