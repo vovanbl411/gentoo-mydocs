@@ -80,10 +80,17 @@ corresponding workload is actually used.
 
 For NVMe in `/etc/fstab` you can use the following parameters:
 
-- `ssd` — optimizations for solid-state drives;
+- `ssd` — enables SSD-specific behavior. Btrfs detects non-rotational
+  devices from block-device information and enables this behavior
+  automatically, so on a properly detected SSD/NVMe the option is usually not
+  required; specifying it explicitly is forcing/documentation of intent, not
+  a requirement of modern NVMe;
 - `compress=zstd:3` — transparent compression balancing speed and space
   savings;
-- `discard=async` — background discarding of unused blocks (TRIM).
+- `discard=async` — background discarding of unused blocks (TRIM). Since
+  Linux 6.2 Btrfs uses async discard automatically on devices that support
+  discard, so on modern kernels the option is usually not needed just to
+  enable this behavior, while remaining a valid explicit option.
 
 These are Btrfs-specific options. Like `nodatacow`, they apply to the
 filesystem as a whole and are usually set by its first mount; repeating
@@ -166,8 +173,13 @@ reflinks:
 ```bash
 doas mkdir /var/lib/libvirt/images_new
 doas chattr +C /var/lib/libvirt/images_new
-doas cp -a --reflink=never /var/lib/libvirt/images/* /var/lib/libvirt/images_new/
+doas cp -a --reflink=never \
+  /var/lib/libvirt/images/. \
+  /var/lib/libvirt/images_new/
 ```
+
+The source is given as `images/.` so that the whole directory contents,
+including hidden files, get copied: the `*` glob skips them.
 
 Verify the copy is complete before deleting the original directory. The
 command below irreversibly deletes the original images; run it only after
@@ -183,9 +195,9 @@ transfer, or delete only the new `images_new` and repeat the procedure.
 
 ## Maintenance
 
-Use scrub to monitor Btrfs health; in this example the integrity check runs
-once a month. Balance redistributes data and is relevant when the disk is
-more than 80% full; it is not part of every routine check.
+Use scrub to monitor Btrfs health. In this example a roughly monthly interval
+is considered reasonable: upstream Btrfs calls this order sensible, but the
+actual schedule remains a policy of the system.
 
 ```bash
 # View device error statistics
@@ -195,11 +207,44 @@ doas btrfs device stats /
 doas btrfs scrub start /
 
 # Check the status of a running scrub
-doas btrfs scrub status
+doas btrfs scrub status /
 ```
 
 A scrub can be a long operation on a live filesystem. Plan it with the
 current load in mind and track its state with a separate command.
+
+### Balance
+
+Balance relocates block groups; it is not a "defragment when the disk gets
+full" tool. The main use cases:
+
+- changing block-group profiles;
+- redistributing data after device operations (adding, removing, replacing);
+- targeted compaction of underused block groups;
+- fixing a specific diagnosed allocation/layout issue.
+
+Filesystem fullness by itself is not a signal to run a balance: Btrfs has no
+universal percentage threshold. A full balance without filters rewrites
+practically the whole filesystem, can be very I/O-intensive and needs free
+workspace; on a nearly full filesystem it can itself end up with `ENOSPC`.
+Do not run it as routine maintenance.
+
+Before deciding, look at the actual allocation state:
+
+```bash
+doas btrfs filesystem usage /
+doas btrfs device usage /
+```
+
+The status of a balance that is already running:
+
+```bash
+doas btrfs balance status /
+```
+
+Usage filters (`-dusage=...`, `-musage=...`) are a targeted mechanism for
+selecting underfilled block groups; pick the threshold from the actual state
+of the system rather than a universal percentage.
 
 ## Verification
 

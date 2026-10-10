@@ -95,7 +95,10 @@ doas usbguard add-user <username> \
   --exceptions=listen
 ```
 
-This is an example of granular access, not a policy of a specific system.
+An ACL created via `usbguard add-user` takes effect only after restarting
+`usbguard-daemon`; before the restart keep in mind the
+`PresentDevicePolicy=apply-policy` effect (section 1). This is an example of
+granular access, not a policy of a specific system.
 
 ## 4. `.keep` files in configuration directories
 
@@ -161,11 +164,11 @@ the rules against your devices.
 
 ```text
 # Allow the keyboard and mouse
-allow id 046d:c52b serial="*" name="Logitech Unifying Device" parent-id=1:1
-allow id 046d:c534 serial="*" name="Logitech USB Receiver"
+allow id 046d:c52b name "Logitech Unifying Device"
+allow id 046d:c534 name "Logitech USB Receiver"
 
 # Allow Android devices in PTP mode
-allow id 0fce:71b2 serial="*" name="MTP Device"
+allow id 0fce:71b2 name "MTP Device"
 
 # Block all unknown devices
 block
@@ -224,7 +227,7 @@ usbguard list-devices
 usbguard allow-device 2
 
 # Add a permanent rule
-usbguard append-rule 'allow id 046d:c52b serial="*"'
+usbguard append-rule 'allow id 046d:c52b'
 
 # Block a device at runtime
 usbguard block-device 3
@@ -293,8 +296,8 @@ cat /var/log/usbguard/usbguard-audit.log
 3. **Device identity attributes** — a serial number, when present and
    reliable, makes a rule more specific, but it can be missing, incorrect or
    shared between devices. Combine the relevant attributes (`id`, `serial`,
-   interfaces, hash, parent information) and always review a generated policy
-   before applying it.
+   `name`, `via-port`, `hash`, `parent-hash`, `with-interface`) and always
+   review a generated policy before applying it.
 4. **Audit connections** — log connection events.
 
 ### Threat example

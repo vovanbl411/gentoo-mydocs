@@ -79,9 +79,16 @@ Btrfs-specific mount options: большинство таких параметр
 
 Для NVMe в `/etc/fstab` можно использовать следующие параметры:
 
-- `ssd` — оптимизация под твердотельные накопители;
+- `ssd` — включение SSD-специфичного поведения. Btrfs сам определяет
+  non-rotational devices по block-device information и включает это поведение
+  автоматически, поэтому на нормально определяемом SSD/NVMe опция обычно не
+  требуется; явное указание — это forcing/documentation of intent, а не
+  требование modern NVMe;
 - `compress=zstd:3` — прозрачное сжатие с балансом скорости и экономии места;
-- `discard=async` — фоновая очистка неиспользуемых блоков (TRIM).
+- `discard=async` — фоновая очистка неиспользуемых блоков (TRIM). Начиная с
+  Linux 6.2 Btrfs использует async discard автоматически на devices с
+  поддержкой discard, поэтому на современных kernels опция обычно не нужна
+  именно для включения этого поведения, оставаясь валидной explicit option.
 
 Это Btrfs-specific options. Как и `nodatacow`, они относятся к файловой системе
 целиком и обычно задаются её первым mount; повторное указание разных значений
@@ -164,8 +171,13 @@ doas chattr +C /var/lib/docker/volumes/my_db_volume/_data
 ```bash
 doas mkdir /var/lib/libvirt/images_new
 doas chattr +C /var/lib/libvirt/images_new
-doas cp -a --reflink=never /var/lib/libvirt/images/* /var/lib/libvirt/images_new/
+doas cp -a --reflink=never \
+  /var/lib/libvirt/images/. \
+  /var/lib/libvirt/images_new/
 ```
+
+Источник указан как `images/.`, чтобы скопировать всё содержимое каталога,
+включая hidden-файлы: glob `*` их пропускает.
 
 Проверь полноту копии до удаления исходного каталога. Команда ниже
 безвозвратно удаляет исходные образы; выполняй её только после проверки и при
@@ -181,10 +193,9 @@ doas mv /var/lib/libvirt/images_new /var/lib/libvirt/images
 
 ## Maintenance
 
-Для контроля состояния Btrfs используй scrub; в этом примере проверка
-целостности запускается раз в месяц. Balance перераспределяет данные и
-актуален, если диск заполнен более чем на 80%; это не часть каждой обычной
-проверки.
+Для контроля состояния Btrfs используй scrub. В этом примере разумной
+периодичностью считается примерно раз в месяц: upstream Btrfs называет такой
+порядок разумным, но конкретное расписание остаётся policy системы.
 
 ```bash
 # Просмотр статистики ошибок устройства
@@ -194,11 +205,45 @@ doas btrfs device stats /
 doas btrfs scrub start /
 
 # Проверка статуса запущенного scrub
-doas btrfs scrub status
+doas btrfs scrub status /
 ```
 
 Запуск scrub может быть долгой операцией на живой файловой системе. Планируй
 его с учётом текущей нагрузки и отслеживай состояние отдельной командой.
+
+### Balance
+
+Balance выполняет relocation block groups, а не «оптимизацию при заполнении
+диска». Основные сценарии:
+
+- изменение block-group profiles;
+- перераспределение данных после операций с устройствами (добавление,
+  удаление, замена);
+- выборочное уплотнение недоиспользованных block groups;
+- исправление конкретного диагностированного allocation/layout issue.
+
+Заполненность файловой системы сама по себе не сигнал «пора делать balance»:
+универсального percentage threshold у Btrfs нет. Полный balance без filters
+перемещает практически всю файловую систему, может быть очень I/O-intensive
+и требует свободного workspace; на почти заполненной файловой системе он сам
+может закончиться `ENOSPC`. Не запускай его как routine maintenance.
+
+Перед решением посмотри фактическое allocation state:
+
+```bash
+doas btrfs filesystem usage /
+doas btrfs device usage /
+```
+
+Статус уже запущенного balance:
+
+```bash
+doas btrfs balance status /
+```
+
+Usage filters (`-dusage=...`, `-musage=...`) — targeted mechanism выбора
+недостаточно заполненных block groups; порог подбирай по фактическому
+состоянию системы, а не по универсальному проценту.
 
 ## Verification
 

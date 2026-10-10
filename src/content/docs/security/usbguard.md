@@ -96,7 +96,10 @@ doas usbguard add-user <username> \
   --exceptions=listen
 ```
 
-Это пример гранулярного доступа, а не policy конкретной системы.
+ACL, созданный через `usbguard add-user`, вступает в силу только после
+перезапуска `usbguard-daemon`; перед restart учти эффект
+`PresentDevicePolicy=apply-policy` (раздел 1). Это пример гранулярного
+доступа, а не policy конкретной системы.
 
 ## 4. `.keep`-файлы в каталогах конфигурации
 
@@ -161,11 +164,11 @@ doas install -m 0600 -o root -g root \
 
 ```text
 # Разрешить клавиатуру и мышь
-allow id 046d:c52b serial="*" name="Logitech Unifying Device" parent-id=1:1
-allow id 046d:c534 serial="*" name="Logitech USB Receiver"
+allow id 046d:c52b name "Logitech Unifying Device"
+allow id 046d:c534 name "Logitech USB Receiver"
 
 # Разрешить Android-устройства в режиме PTP
-allow id 0fce:71b2 serial="*" name="MTP Device"
+allow id 0fce:71b2 name "MTP Device"
 
 # Блокировать все неизвестные устройства
 block
@@ -224,7 +227,7 @@ usbguard list-devices
 usbguard allow-device 2
 
 # Добавить постоянное правило
-usbguard append-rule 'allow id 046d:c52b serial="*"'
+usbguard append-rule 'allow id 046d:c52b'
 
 # Заблокировать устройство в runtime
 usbguard block-device 3
@@ -292,8 +295,9 @@ cat /var/log/usbguard/usbguard-audit.log
 3. **Атрибуты идентификации устройства** — serial number при наличии и
    надёжности делает правило более специфичным, но он может отсутствовать,
    быть некорректным или совпадать у разных устройств. Комбинируй подходящие
-   атрибуты (`id`, `serial`, interfaces, hash, parent information) и всегда
-   просматривай сгенерированную policy до применения.
+   атрибуты (`id`, `serial`, `name`, `via-port`, `hash`, `parent-hash`,
+   `with-interface`) и всегда просматривай сгенерированную policy до
+   применения.
 4. **Аудит подключений** — логировать события подключений.
 
 ### Пример угрозы
