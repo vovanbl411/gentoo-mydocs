@@ -51,43 +51,82 @@ max_log_file = 100
 # Действие при переполнении
 max_log_file_action = rotate
 
-# Формат времени
-disp_format = raw
-time_format = %Y-%m-%d %H:%M:%S
+# Формат записей на диске
+log_format = RAW
 ```
+
+Допустимые значения `log_format` — `RAW` и `ENRICHED`. Формат timestamp в
+audit records не конфигурируется через `auditd.conf`.
 
 ## 4. Правила аудита
 
 Файл: `/etc/audit/rules.d/security.rules`
 
-Ниже сохранён существующий пример политики. Не применяй его как универсальный
-production ruleset без проверки и адаптации к своей системе и модели угроз.
+Каталог `/etc/audit/rules.d/` содержит fragment-файлы `*.rules`, которые
+обрабатывает `augenrules` (раздел 5). Ниже — пример политики, не
+универсальная рекомендация: адаптируй набор под конкретную систему и модель
+угроз.
 
 ```bash
-# Мониторинг изменений в важных директориях
--w /etc/passwd -p wa -k passwd_changes
--w /etc/shadow -p wa -k shadow_changes
--w /etc/sudoers -p wa -k sudoers_changes
--w /etc/ssh/sshd_config -p wa -k sshd_config_changes
+# Изменения критичных файлов
+-a always,exit -F arch=b64 -F path=/etc/passwd -F perm=wa -F key=passwd_changes
+-a always,exit -F arch=b64 -F path=/etc/shadow -F perm=wa -F key=shadow_changes
+-a always,exit -F arch=b64 -F path=/etc/doas.conf -F perm=wa -F key=doas_conf_changes
+# Опционально, только если используется sudo:
+# -a always,exit -F arch=b64 -F path=/etc/sudoers -F perm=wa -F key=sudoers_changes
+# Опционально, только если используется OpenSSH server и файл существует:
+# -a always,exit -F arch=b64 -F path=/etc/ssh/sshd_config -F perm=wa -F key=sshd_config_changes
 
-# Мониторинг выполнения программ
--a always,exit -F arch=b64 -S execve -F path=/usr/bin/sudo -F key=sudo_exec
--a always,exit -F arch=b64 -S execve -F path=/usr/bin/doas -F key=doas_exec
+# Выполнение инструментов повышения привилегий
+-a always,exit -F arch=b64 -F path=/usr/bin/doas -F perm=x -F key=doas_exec
+# Опционально, только если используется sudo:
+# -a always,exit -F arch=b64 -F path=/usr/bin/sudo -F perm=x -F key=sudo_exec
 
-# Мониторинг сетевых соединений
+# Загрузка и выгрузка модулей ядра
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F key=kernel_modules
+
+# Опциональный широкий пример: все вызовы connect()
 -a always,exit -F arch=b64 -S connect -F key=network_connect
-
-# Мониторинг загрузки модулей ядра
--w /usr/lib/modules/ -p wa -k modules
 ```
+
+Оставляй в правилах только реально существующие и нужные пути:
+
+- `/etc/doas.conf` — relevant example для reference-системы этого проекта,
+  а не универсальное требование;
+- `/etc/sudoers` — имеет смысл только при использовании sudo;
+- `/etc/ssh/sshd_config` — только если используется OpenSSH server и этот
+  путь существует.
+
+> **Примечание**: примеры используют `arch=b64` — правила для 64-bit syscall
+> ABI. На bi-arch системах syscall rules могут требовать соответствующие
+> `b32` variants; нельзя механически считать `b64` универсальным для любой
+> архитектуры.
+
+Правило `kernel_modules` отслеживает именно загрузку и выгрузку модулей
+ядра (системные вызовы `init_module`, `finit_module`, `delete_module`). Это
+не то же самое, что изменение файлов в `/usr/lib/modules`: для последнего
+нужен отдельный filesystem watch, и он не фиксирует факт загрузки модуля.
+
+> **Важно**: правило с `-S connect` очень широкое: оно фиксирует все вызовы
+> `connect()`, включая локальные сокеты, а не только удалённые подключения.
+> Такой watch может создавать большой объём событий, поэтому он оставлен как
+> optional broad example.
 
 ## 5. Применение правил
 
-Загрузи правила из файла:
-
 ```bash
-doas auditctl -R /etc/audit/rules.d/security.rules
+doas augenrules --load
+doas auditctl -l
 ```
+
+`augenrules` собирает все fragment-файлы `*.rules` из `/etc/audit/rules.d/`
+в итоговый `/etc/audit/audit.rules` и загружает получившийся набор.
+`auditctl -l` показывает фактически загруженные правила — проверяй их после
+каждой загрузки.
+
+Команда `auditctl -R <файл>` тоже умеет загрузить конкретный файл правил,
+но при работе с `rules.d` она не должна быть основным способом: она обходит
+остальные fragments каталога.
 
 ## 6. Проверка и использование
 
@@ -97,7 +136,7 @@ doas auditctl -R /etc/audit/rules.d/security.rules
 |---------|----------|
 | `auditctl -l` | Показать текущие правила |
 | `auditctl -s` | Показать статус |
-| `ausearch -k sudo_exec` | Поиск по ключу |
+| `ausearch -k doas_exec` | Поиск по ключу |
 | `ausearch -ui 1000` | Поиск по UID пользователя |
 | `aureport --summary` | Сводный отчёт |
 | `aureport --failed` | Только неудачные попытки |
@@ -108,50 +147,48 @@ doas auditctl -R /etc/audit/rules.d/security.rules
 # Просмотр в реальном времени
 tail -f /var/log/audit/audit.log
 
-# Поиск событий
-ausearch -ts today -k sudo_exec
+# Поиск событий по ключу
+ausearch -ts today -k doas_exec
 
 # Отчёт за сегодня
 aureport -ts today
 ```
 
-### 6.3. Примеры анализа безопасности
+### 6.3. Примеры поиска
+
+Команды ниже ищут конкретные типы наблюдаемых записей. Наличие записи в
+журнале само по себе не является security-интерпретацией — оценивай события
+в контексте системы.
 
 ```bash
-# Несанкционированные попытки доступа
-ausearch -i --msg type=AVC
+# AVC records (например, denials MAC-подсистем вроде AppArmor)
+ausearch -i -m AVC
 
-# Удалённые подключения
-ausearch -sc connect -i
+# Записи вызовов connect() — включая локальные сокеты
+ausearch -i -sc connect
 
-# Подозрительные процессы
-ausearch -sc execve -i | grep -v sudo
+# Записи выполнения программ (execve)
+ausearch -i -sc execve
 ```
 
 ## 7. Интеграция с AppArmor
 
-Auditd может работать вместе с AppArmor и записывать связанные события
-безопасности. В руководстве уже использовался следующий пример правила:
+AppArmor генерирует собственные audit/security события, и auditd может их
+сохранять: AppArmor denials попадают в audit log как AVC records и ищутся
+командой из раздела 6.3. Дополнительный filesystem watch на файл системного
+журнала для этого не нужен — такой watch фиксировал бы запись в файл
+журнала, а не само security event.
 
-```bash
-# Добавить правило для отслеживания отклонённых AppArmor событий
--w /var/log/kern.log -p wa -k apparmor_denied
-```
-
-Это существующий пример из документа, а не подтверждённая настройка для любой
-systemd-системы. Путь `/var/log/kern.log` нужно проверить с учётом конкретной
-конфигурации журналирования; во время этой миграции он не исправлялся.
-Для настройки и диагностики профилей см. [руководство по AppArmor](../app-armor/).
-
-События AppArmor можно искать через сохранённый выше пример
-`ausearch -i --msg type=AVC`.
+Настройка и диагностика профилей — в [руководстве по AppArmor](../app-armor/).
 
 ## 8. Rollback и восстановление
 
-Если новый ruleset создаёт проблемы, верни предыдущую версию файла
-`/etc/audit/rules.d/security.rules`, повторно загрузи её командой
-`doas auditctl -R /etc/audit/rules.d/security.rules` и проверь фактически
-загруженные правила через `auditctl -l`.
+Если новый ruleset создаёт проблемы:
+
+1. верни предыдущую версию fragment-файла
+   `/etc/audit/rules.d/security.rules`;
+2. перезагрузи правила: `doas augenrules --load`;
+3. проверь фактически загруженные правила: `doas auditctl -l`.
 
 ## Related docs
 
