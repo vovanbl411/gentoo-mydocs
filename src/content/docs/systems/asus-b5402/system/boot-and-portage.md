@@ -3,7 +3,7 @@ title: Загрузка и Portage на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-07"
+last_verified: "2026-10-10"
 verified_on: [asus-b5402]
 ---
 
@@ -106,15 +106,16 @@ Rust 1.97.1 / `x86-64-v3` с Clang/LLD linker и Go 1.27.1 /
 `GOAMD64=v3` остаются принятыми. Builder использует stable
 `6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB и Dracut;
 networking/DNS, реальный SSH login и QEMU Guest Agent runtime — PASS.
-Первый локальный binary-package pilot — PASS по подтверждению владельца:
-`app-arch/zstd-1.5.7-r1` собран builder-ом в формате `gpkg`, индекс
-`Packages` создан. Следующий шаг — SSH public-key / key-only access.
-Private HTTP binhost, end-to-end установка на workstation и server ON/OFF
-fallback acceptance ещё pending.
+Local GPKG production, internal HTTP backend, canonical HTTPS ingress через
+`proxy-01` / Caddy и Portage discovery/fetch/E2E на workstation — PASS
+по evidence владельца 2026-10-10. Установлен private binpkg
+`app-arch/zstd-1.5.7-r1` через явный `emerge -g`, без локальной компиляции.
+Server/binhost OFF fallback, automatic production consumption, signing
+private binrepo и SSH key-only acceptance остаются pending.
 [Состояние и проверки builder](../../../gentoo-builder-01/).
 
 Назначение отдельной headless VM — сборка userspace binary packages
-(`.gpkg`) и выдача через будущий private Portage binary repository, чтобы
+(`.gpkg`) и выдача через private Portage binary repository, чтобы
 разгрузить ноутбук от тяжёлых сборок. Workstation должна оставаться независимой
 от сервера. Согласованные архитектурные решения от 2026-10-07 сохраняются.
 
@@ -153,20 +154,69 @@ Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
   С `CONFIG_X86_NATIVE_CPU=y` локальная сборка использует именно Alder Lake;
   детали — в [CPU optimization](../../hardware/cpu-optimization/).
 
-### Целевое поведение и обязательная проверка pilot
+### Private binrepo на workstation
 
-Если подходящий private binpkg есть — использовать его; если отсутствует
-или несовместим по package policy/USE — собирать из source локально с
-Alder Lake optimization. Существующий официальный Gentoo binary repository
-сохраняется.
+По evidence владельца 2026-10-10 **server/binhost ON acceptance — PASS**:
+HTTPS ingress, Portage discovery/fetch и end-to-end установка private binpkg
+подтверждены на `app-arch/zstd-1.5.7-r1` без локальной компиляции.
 
-Fallback при недоступном private binhost **ещё не подтверждён**. После
-настройки private HTTP binhost предстоит end-to-end установка binpkg
-на workstation с обязательной проверкой:
+Существующий официальный Gentoo binrepo сохранён в
+`/etc/portage/binrepos.conf/gentoobinhost.conf`: секция `[gentoo]`,
+`priority = 1`, `verify-signature = true`.
 
-1. **Server/binhost ON:** подходящий пакет реально устанавливается как binpkg.
-2. **Server/binhost OFF:** обычный `emerge` продолжает работу через допустимый
-   fallback, не превращая домашний сервер в обязательную зависимость.
+Файл: `/etc/portage/binrepos.conf/gentoo-builder.conf`.
+Текущая конфигурация private repo:
+
+```ini
+[gentoo-builder]
+priority = 9999
+sync-uri = https://binhost.apps.home.9fans.uk
+location = /var/cache/binhost/gentoo-builder
+verify-signature = false
+```
+
+`verify-signature = false` — текущее состояние этого private unsigned repo,
+а не универсальная рекомендация. Решение по signing private binrepo пока
+pending. На workstation глобальный `FEATURES=getbinpkg` **не включён**:
+pilot/E2E выполнен явно через `emerge -g`. Окончательная policy automatic
+production consumption (`FEATURES=getbinpkg` или иной вариант) ещё не принята.
+
+### Server/binhost ON acceptance — PASS
+
+Ниже — проверки владельца 2026-10-10; при обновлении документации команды
+не запускались на живой системе.
+
+```bash
+curl -I https://binhost.apps.home.9fans.uk/Packages
+```
+
+Ответ: HTTP/2 200, `via: 1.0 Caddy`. Canonical endpoint —
+`https://binhost.apps.home.9fans.uk`; TLS termination — на существующем
+`proxy-01` / Caddy. Internal backend builder — `10.1.20.99:8080`,
+Python 3 `http.server`, каталог `/var/cache/binpkgs`.
+
+| Проверка на workstation | Результат |
+|-------------------------|-----------|
+| `emerge -gpv1 app-arch/zstd` | `[binary Rg]`; 1 reinstall, 1 binary |
+| `emerge -gfv1 app-arch/zstd` | Реальная загрузка private GPKG, HTTP 200 |
+| `emerge -g -1v app-arch/zstd` | `[binary Rg]`, `>>> Emerging binary`, package merged successfully; без локальной компиляции zstd |
+
+Загружен пакет
+`https://binhost.apps.home.9fans.uk/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`;
+сохранён в
+`/var/cache/binhost/gentoo-builder/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`.
+
+### Server/binhost OFF acceptance — PENDING
+
+Это единственная незакрытая acceptance-проверка этой части. При недоступном
+private binhost обычный `emerge` должен продолжать работу через допустимый
+fallback, не превращая домашний сервер в обязательную зависимость;
+фактическое поведение **ещё не подтверждено**.
+
+Целевое поведение сохраняется: использовать подходящий private binpkg;
+при отсутствии пакета или несовместимости по package policy/USE — собирать
+из source локально с Alder Lake optimization. Успешный ON pilot не закрывает
+решение по automatic production consumption, signing или SSH key-only access.
 
 ## Оптимизация
 

@@ -3,7 +3,7 @@ title: Boot and Portage on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-07"
+last_verified: "2026-10-10"
 verified_on: [asus-b5402]
 ---
 
@@ -108,15 +108,16 @@ Rust 1.97.1 / `x86-64-v3` with Clang/LLD linking and Go 1.27.1 /
 `GOAMD64=v3` remain accepted. The builder uses stable
 `6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB and Dracut;
 networking/DNS, a real SSH login and QEMU Guest Agent runtime are PASS.
-The first local binary-package pilot is PASS, confirmed by the owner:
-`app-arch/zstd-1.5.7-r1` was built by the builder in `gpkg` format, and the
-`Packages` index was created. The next step is SSH public-key / key-only
-access. The private HTTP binhost, end-to-end installation on the workstation
-and server ON/OFF fallback acceptance remain pending.
+Local GPKG production, the internal HTTP backend, canonical HTTPS ingress
+through `proxy-01` / Caddy and workstation Portage discovery/fetch/E2E are
+PASS, confirmed by the owner on 2026-10-10. The private
+`app-arch/zstd-1.5.7-r1` binpkg was installed with explicit `emerge -g`,
+without local compilation. Server/binhost OFF fallback, automatic production
+consumption, private binrepo signing and SSH key-only acceptance remain pending.
 [Builder state and verification](../../../gentoo-builder-01/).
 
 The separate headless VM is intended to build userspace binary packages
-(`.gpkg`) and serve them through a future private Portage binary repository,
+(`.gpkg`) and serve them through a private Portage binary repository,
 reducing heavy builds on the laptop. The workstation must remain independent
 of the server. The architectural decisions agreed on 2026-10-07 remain unchanged.
 
@@ -157,19 +158,70 @@ common baseline for the Broadwell builder and Alder Lake workstation.
   With `CONFIG_X86_NATIVE_CPU=y`, the local build targets Alder Lake itself;
   see [CPU optimization](../../hardware/cpu-optimization/).
 
-### Target behavior and required pilot validation
+### Private binrepo on the workstation
 
-Use a suitable private binpkg when available; if it is missing or incompatible
-with package policy/USE, build from source locally with Alder Lake optimization.
-The existing official Gentoo binary repository is retained.
+The owner's evidence on 2026-10-10 confirms **server/binhost ON acceptance —
+PASS**: HTTPS ingress, Portage discovery/fetch and end-to-end private binpkg
+installation were verified with `app-arch/zstd-1.5.7-r1`, without local compilation.
 
-Fallback when the private binhost is unavailable is **not yet confirmed**.
-Once the private HTTP binhost is configured, end-to-end binpkg installation
-on the workstation requires these mandatory checks:
+The existing official Gentoo binrepo is retained in
+`/etc/portage/binrepos.conf/gentoobinhost.conf`: section `[gentoo]`,
+`priority = 1`, `verify-signature = true`.
 
-1. **Server/binhost ON:** a suitable package is actually installed as a binpkg.
-2. **Server/binhost OFF:** ordinary `emerge` continues through an acceptable
-   fallback, without making the home server a required dependency.
+File: `/etc/portage/binrepos.conf/gentoo-builder.conf`.
+Current private repo configuration:
+
+```ini
+[gentoo-builder]
+priority = 9999
+sync-uri = https://binhost.apps.home.9fans.uk
+location = /var/cache/binhost/gentoo-builder
+verify-signature = false
+```
+
+`verify-signature = false` records the current state of this private unsigned
+repo, not a universal recommendation. The private binrepo signing decision
+remains pending. Global `FEATURES=getbinpkg` is **not enabled** on the
+workstation: the pilot/E2E explicitly used `emerge -g`. The final automatic
+production consumption policy (`FEATURES=getbinpkg` or another option) is
+still undecided.
+
+### Server/binhost ON acceptance — PASS
+
+These checks were performed by the owner on 2026-10-10; the commands were not
+run on the live system during this documentation update.
+
+```bash
+curl -I https://binhost.apps.home.9fans.uk/Packages
+```
+
+Response: HTTP/2 200, `via: 1.0 Caddy`. The canonical endpoint is
+`https://binhost.apps.home.9fans.uk`; TLS terminates on the existing
+`proxy-01` / Caddy. The builder's internal backend is `10.1.20.99:8080`,
+Python 3 `http.server`, serving `/var/cache/binpkgs`.
+
+| Workstation check | Result |
+|-------------------|--------|
+| `emerge -gpv1 app-arch/zstd` | `[binary Rg]`; 1 reinstall, 1 binary |
+| `emerge -gfv1 app-arch/zstd` | Actual private GPKG download, HTTP 200 |
+| `emerge -g -1v app-arch/zstd` | `[binary Rg]`, `>>> Emerging binary`, package merged successfully; no local zstd compilation |
+
+Downloaded package:
+`https://binhost.apps.home.9fans.uk/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`;
+saved to
+`/var/cache/binhost/gentoo-builder/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`.
+
+### Server/binhost OFF acceptance — PENDING
+
+This is the only outstanding acceptance check for this part. When the private
+binhost is unavailable, ordinary `emerge` must continue through an acceptable
+fallback without making the home server a required dependency; the actual
+behavior is **not yet confirmed**.
+
+The target behavior remains: use a suitable private binpkg; if it is missing
+or incompatible with package policy/USE, build from source locally with
+Alder Lake optimization. The successful ON pilot does not settle automatic
+production consumption, signing or SSH key-only access.
 
 ## Optimization
 

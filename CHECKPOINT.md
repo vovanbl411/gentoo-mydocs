@@ -104,10 +104,16 @@ Internal HTTP binhost backend — PASS по evidence владельца 2026-10-
 `gentoo-binhost.service` enabled/active, раздаёт `/var/cache/binpkgs`
 на `10.1.20.99:8080`; `Packages` с workstation по IP и FQDN — HTTP 200.
 Это backend для `proxy-01` / Caddy; TLS и canonical client-facing endpoint
-остаются на proxy. Следующий шаг — настроить и проверить SSH public-key
-login / key-only access. HTTPS ingress через `binhost.apps.home.9fans.uk`,
-Portage `binrepos.conf` на workstation, end-to-end установка из private
-binhost и server ON/OFF fallback acceptance остаются pending.
+остаются на proxy. Canonical HTTPS ingress — PASS:
+`https://binhost.apps.home.9fans.uk/Packages` — HTTP/2 200, `via: 1.0 Caddy`.
+Workstation Portage discovery/fetch и end-to-end установка private
+`app-arch/zstd-1.5.7-r1` — PASS через явный `emerge -g`, без локальной
+компиляции. Официальный Gentoo binrepo сохранён; private repo добавлен.
+Server/binhost ON acceptance закрыта. PENDING: server/binhost OFF fallback,
+automatic production consumption (глобальный `FEATURES=getbinpkg` не включён),
+signing private unsigned binrepo и SSH key-only acceptance.
+Конфигурация и evidence — в
+[workstation Portage](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#private-binrepo-на-workstation).
 Workstation сохраняет Alder Lake policy; её kernel остаётся local-only.
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 

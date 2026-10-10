@@ -24,7 +24,9 @@ guest; internal HTTP binhost service enabled/active.
 Builder раздаёт `/var/cache/binpkgs` на `10.1.20.99:8080`; запросы к
 `Packages` с workstation по IP и FQDN возвращают HTTP 200. Это backend
 для существующего `proxy-01` / Caddy: TLS и canonical client-facing endpoint
-остаются на `proxy-01`.
+остаются на `proxy-01`. Canonical HTTPS ingress и workstation
+Portage discovery/fetch/E2E — PASS: private `app-arch/zstd-1.5.7-r1`
+установлен через явный `emerge -g` без локальной компиляции.
 
 По проверкам владельца завершены:
 
@@ -49,10 +51,9 @@ Builder раздаёт `/var/cache/binpkgs` на `10.1.20.99:8080`; запрос
 Rust 1.97.1 использует portable CPU target, Go 1.27.1 — `GOAMD64=v3`.
 
 Следующий шаг — настроить и проверить SSH public-key login и key-only
-access. HTTPS ingress через `binhost.apps.home.9fans.uk`, Portage
-`binrepos.conf` на workstation, end-to-end установка из private binhost
-и server ON/OFF fallback acceptance остаются pending. Ядро workstation
-остаётся local-only.
+access. Server/binhost OFF fallback acceptance, automatic production
+consumption и решение по signing private binrepo остаются pending.
+Ядро workstation остаётся local-only.
 
 | Параметр | Подтверждённое состояние |
 |----------|--------------------------|
@@ -84,7 +85,9 @@ access. HTTPS ingress через `binhost.apps.home.9fans.uk`, Portage
 | Builder DNS | `gentoo-builder-01.home.9fans.uk` → `10.1.20.99` |
 | Internal HTTP binhost backend | PASS: `gentoo-binhost.service` enabled/active; слушает `10.1.20.99:8080`, раздаёт `/var/cache/binpkgs` |
 | HTTP с workstation | `Packages` по IP и FQDN — HTTP 200; Server: `SimpleHTTP/0.6 Python/3.14.7` |
-| HTTPS ingress / workstation consumption | `binhost.apps.home.9fans.uk`, `binrepos.conf`, end-to-end installation и server ON/OFF fallback — pending |
+| Canonical HTTPS ingress | PASS: `https://binhost.apps.home.9fans.uk/Packages` — HTTP/2 200, `via: 1.0 Caddy`; TLS termination — `proxy-01` |
+| Workstation Portage discovery/fetch/E2E | PASS: private repo настроен; `app-arch/zstd-1.5.7-r1` загружен и установлен как binpkg через `emerge -g`, без локальной компиляции |
+| Оставшиеся binhost этапы | Server/binhost OFF fallback, automatic production consumption и signing private binrepo — pending |
 
 > **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
 
@@ -290,20 +293,38 @@ curl -I http://gentoo-builder-01.home.9fans.uk:8080/Packages
 ```
 
 Фактически наблюдавшийся Server header: `SimpleHTTP/0.6 Python/3.14.7`.
-Эти проверки подтверждают доступность internal HTTP backend и индекса;
-HTTPS ingress, настройка Portage клиента и установка binpkg ими не проверены.
-TLS и canonical client-facing endpoint `binhost.apps.home.9fans.uk` должны
-оставаться на существующем `proxy-01` / Caddy. Builder обслуживает backend;
-HTTPS ingress через этот endpoint пока pending.
+HTTP-проверки подтверждают доступность internal backend и индекса.
+TLS termination остаётся на существующем `proxy-01` / Caddy.
+
+### Canonical HTTPS ingress и workstation E2E — PASS
+
+По evidence владельца 2026-10-10 с workstation:
+
+```bash
+curl -I https://binhost.apps.home.9fans.uk/Packages
+```
+
+Ответ — HTTP/2 200, `via: 1.0 Caddy`. Canonical client-facing endpoint:
+`https://binhost.apps.home.9fans.uk`.
+
+На workstation сохранён официальный Gentoo binrepo и добавлен private
+`gentoo-builder`. Portage discovery и fetch — PASS; end-to-end установка
+`app-arch/zstd-1.5.7-r1` через явный `emerge -g` завершилась как binary merge,
+без локальной компиляции. Конфигурация `binrepos.conf`, URL/cache path
+и результаты pretend/fetch/install — в
+[workstation Portage](../asus-b5402/system/boot-and-portage/#private-binrepo-на-workstation).
+
+Глобальный `FEATURES=getbinpkg` на workstation не включён; automatic
+production consumption ещё не выбран. Private repo сейчас unsigned,
+`verify-signature = false` относится только к нему; решение по signing pending.
 
 ## Следующий шаг: SSH public-key / key-only access
 
 Настроить SSH public-key login, проверить реальный вход и затем key-only
 access. Текущий успешный SSH login не подтверждает key-only configuration.
-Internal HTTP backend уже PASS. Остаются HTTPS ingress через
-`binhost.apps.home.9fans.uk`, Portage `binrepos.conf` на workstation
-и end-to-end установка из private binhost; server ON/OFF fallback acceptance
-остаётся последующей проверкой.
+Internal HTTP backend, canonical HTTPS ingress и workstation E2E уже PASS.
+Остаются server/binhost OFF fallback acceptance, окончательная policy
+automatic production consumption и решение по signing private binrepo.
 
 ## Verification
 
@@ -314,7 +335,8 @@ Stage3/no-multilib и отдельные toolchain проверки выполн
 OpenSSL и Mesa и empirical comparison portable V3 vs Alder Lake подтверждены
 владельцем 2026-10-10; методика и ограничения — по ссылке выше.
 Internal HTTP backend, binpkg policy и HTTP 200 с workstation подтверждены
-владельцем 2026-10-10 в разделе Internal HTTP binhost backend.
+владельцем 2026-10-10; canonical HTTPS ingress, Portage discovery/fetch
+и workstation E2E также PASS по отдельным проверкам владельца этой даты.
 Ниже — команды для сверки состояния;
 при обновлении документации они не запускались на живой VM.
 
@@ -480,6 +502,6 @@ active swap 8 GiB и fstab без ошибок/предупреждений. Net
 реальный SSH login как `vladimir`. Guest Agent ACTIVE, journal содержит
 реальные `guest-ping`. Key-only SSH и end-to-end установка binpkg
 на workstation этими first-boot проверками не приняты. Internal HTTP backend
-подтверждён отдельно 2026-10-10, как указано выше. Local binpkg
-production подтверждена отдельно, как указано в Current state.
+и workstation E2E подтверждены отдельно 2026-10-10, как указано выше.
+Local binpkg production подтверждена отдельно, как указано в Current state.
 Machine-id, MAC и root UUID в документ не включены.
