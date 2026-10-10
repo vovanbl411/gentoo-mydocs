@@ -165,15 +165,15 @@ the toolchain.
 File: `/etc/doas.conf`
 
 ```conf
-# Разрешить пользователю выполнять команды от root с сохранением пароля на время сессии
-permit persist :wheel
-
-# Сохранять переменные окружения для конкретного пользователя
-permit keepenv <username>
-
-# Разрешить выполнение snapper без ввода пароля (для снапшотов)
-permit persist :wheel as root cmd snapper
+# wheel: authentication required, temporary persist, environment retained
+permit persist keepenv :wheel
 ```
+
+Both options sit in a single rule: doas applies the last matching rule and
+does not combine options from several rules. On Gentoo, `persist` requires
+building `app-admin/doas[persist]`. Command-specific and passwordless
+policies are not duplicated here — see
+[Configuring doas](../../security/doas-configuration/).
 
 This is a generic example, not the actual policy of a particular
 machine: the privilege setup of the reference ASUS B5402 is described in

@@ -161,15 +161,14 @@ Doas — отдельная часть базовой системы, к toolcha
 Файл: `/etc/doas.conf`
 
 ```conf
-# Разрешить пользователю выполнять команды от root с сохранением пароля на время сессии
-permit persist :wheel
-
-# Сохранять переменные окружения для конкретного пользователя
-permit keepenv <username>
-
-# Разрешить выполнение snapper без ввода пароля (для снапшотов)
-permit persist :wheel as root cmd snapper
+# wheel: требуется аутентификация, временный persist и сохранение окружения
+permit persist keepenv :wheel
 ```
+
+Обе опции стоят в одном правиле: doas применяет последнее совпавшее правило
+и не объединяет опции нескольких правил. В Gentoo `persist` требует сборки
+`app-admin/doas[persist]`. Command-specific и passwordless-политики здесь не
+дублируются — см. [doas: конфигурация](../../security/doas-configuration/).
 
 Это общий пример, а не фактическая policy конкретной машины: систему
 привилегий эталонного ASUS B5402 описывает
