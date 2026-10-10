@@ -31,33 +31,34 @@ checked after the change.
 
 ## 2. Kernel build hardening
 
-### Hardened gentoo-sources
+`sys-kernel/gentoo-sources` provides Linux sources with the Gentoo patchset.
+Using `gentoo-sources` by itself does not imply any specific set of hardening
+options: for a kernel you build yourself, hardening is determined primarily by
+its Kconfig.
 
-The kernel is built with additional protective measures:
+`sys-kernel/gentoo-kernel` has a local USE flag `hardened`, which enables a
+selection of hardening options recommended by the Kernel Self Protection
+Project.
 
-- PIE (Position Independent Executable);
-- Stack Protector;
-- RELRO (Relocation Read-Only).
-
-The wording about Hardened gentoo-sources was not verified and not replaced
-with new technical claims during the structural migration.
+`PIE`, ELF `RELRO` and similar mechanisms are userspace toolchain hardening —
+a separate protection level that should not be conflated with kernel Kconfig
+hardening.
 
 ## 3. Example sysctl policy
 
 File: `/etc/sysctl.d/99-hardened-kernel.conf`
 
-The existing hardening policy example is preserved below. The specific values
-and comments need to be checked and adapted to the environment; they were not
-fixed as part of this editorial migration.
+The policy below is an example, not a recommendation for an arbitrary system
+and not a description of an applied configuration on a specific machine. Check
+and adapt the values and comments to the environment.
 
 ```conf
-# Enable Reverse Path Filtering (protection against IP spoofing)
+# Reverse Path Filtering: 1 is strict mode (protection against IP spoofing)
 net.ipv4.conf.all.rp_filter = 1
 net.ipv4.conf.default.rp_filter = 1
 
 # --- Filesystem protection ---
 # Restrictions on FIFOs and regular files in sticky directories (/tmp)
-# Value 2 is the strictest mode (Full)
 fs.protected_fifos = 2
 fs.protected_regular = 2
 
@@ -70,25 +71,72 @@ kernel.unprivileged_bpf_disabled = 1
 net.core.bpf_jit_harden = 2
 
 # --- System integrity and dumps ---
-# Critical for the Secure Boot + UKI combination
 kernel.kexec_load_disabled = 1
 fs.suid_dumpable = 0
 
 # TTY restriction
 dev.tty.ldisc_autoload = 0
 
-# Restriction on creating memory dumps
+# The core dump is piped to a userspace helper via stdin (/bin/false discards it)
 kernel.core_pattern = |/bin/false
 
-# Protection against attacks via reboots (cold boot attack)
-kernel.panic = 10
+# panic_on_oops = 1: a kernel oops/BUG becomes a panic
+# panic = 10: reboot 10 seconds after a panic
 kernel.panic_on_oops = 1
+kernel.panic = 10
 ```
 
-## 4. Module silencing
+### Notes on individual parameters
 
-Disabling the loading of unused modules and restricting access to module
-information.
+**rp_filter.** `1` is strict reverse-path filtering: the best reverse route for
+an incoming source address must go through the same interface the packet
+arrived on. Strict mode can interfere with asymmetric routing, policy routing,
+multihoming and some VPN/network setups; loose mode (`2`) sometimes fits such
+environments better.
+
+**fs.protected_fifos / fs.protected_regular.** `1` restricts `O_CREAT` for
+objects owned by others in world-writable sticky directories; `2` extends this
+protection to group-writable sticky directories as well.
+
+**kernel.unprivileged_bpf_disabled.** `1` disables unprivileged `bpf()` and,
+once set to `1`, cannot be returned to `0` until a reboot. The value `2` also
+disables unprivileged BPF but remains reversible.
+
+**net.core.bpf_jit_harden.** `2` enables JIT hardening for all users. It has a
+performance cost and only makes sense in the context of the BPF JIT in use.
+
+**kernel.kexec_load_disabled.** Disables the `kexec_load` and `kexec_file_load`
+syscalls; the transition to `1` is irreversible until the next boot. It reduces
+the ability to replace or load a new kernel image via kexec, but is
+incompatible with normal subsequent kexec use and may affect
+kdump/crash-kernel workflows. The parameter is not required for Secure Boot,
+UKI or systemd-boot.
+
+**kernel.core_pattern.** A string starting with `|` means the kernel passes the
+core dump to a userspace helper via stdin. `|/bin/false` effectively directs
+the core stream to `/bin/false`, which discards it.
+
+> ⚠️ **Important nuance**: such a setting replaces the normal core-dump
+> collector and can interfere with crash diagnostics and system coredump
+> handling. Apply it only if the intent is really to opt out of userspace core
+> dumps.
+
+**fs.suid_dumpable = 0** separately forbids core dumps for setuid and other
+protected processes in the standard mode.
+
+**kernel.panic_on_oops / kernel.panic.** `panic_on_oops = 1` turns a kernel
+oops/BUG into a panic; `panic = 10` reboots the system 10 seconds after a
+panic. This is an availability/recovery policy, not protection against cold
+boot attacks or RAM remanence. Trade-off: failing fast can be preferable to
+continuing on corrupted kernel state, but an automatic reboot can interfere
+with crash-dump/debugging workflows and, with a persistent panic cause, can
+lead to a reboot loop.
+
+## 4. Module loading considerations
+
+Restricting module loading (a full ban, blacklisting, signing requirements) is
+a separate policy with possible compatibility consequences for hardware and
+workloads. This document does not define specific rules.
 
 ## 5. Verification
 
@@ -99,11 +147,12 @@ document does not record the results of such checks.
 ## 6. Verification tools
 
 The following tools are listed as possible verification means; the document
-does not claim they are installed or have already been used:
+does not claim they are installed, present in the Gentoo repository or have
+already been used:
 
-- `hardened-gentoo-hardened-check` — checking the protection status;
-- `lynis` — security audit;
-- `aide` — intrusion detection.
+- `kernel-hardening-checker` — an external tool for checking Kconfig, the
+  kernel command line and sysctl;
+- `lynis` — general security auditing.
 
 ## 7. Rollback
 
