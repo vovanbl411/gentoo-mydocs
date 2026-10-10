@@ -7,6 +7,7 @@
 | Checkpoint updated | 2026-10-10 |
 | Full-system audit baseline | 2026-09-22 — опорная сверка ядра, boot/UKI, graphics и polkit; полный аудит `/etc/portage` — 2026-09-14 |
 | Recent partial verification | Headset mic — 2026-10-10; ядро + User-status LED — 2026-10-07 |
+| Builder/binhost production acceptance | CLOSED / PASS — 2026-10-10; automatic private binpkg consumption и OFF source fallback приняты |
 | Ветка | `main` |
 | Система | Gentoo hardened/systemd, ядро `7.2.9-bdsm`, BIOS `B5402CBA.314` |
 | Аппаратура | ASUS ExpertBook B5402CBA, Intel Core i7-1260P (Alder Lake) |
@@ -82,39 +83,40 @@ accepted или merged не подтверждены. v2 готовить тол
 feedback или при обнаружении новой проблемы. Подробности submission — в
 [документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
 
-**Gentoo Builder VM — base installation / first boot CLOSED / PASS (2026-10-09):**
+**Gentoo Builder → private binrepo → workstation — CLOSED / PASS (2026-10-10):**
 VM `5201` / `gentoo-builder-01` работает с целевого диска. No-multilib,
 LLVM/Clang/LLD 22.1.8, portable `x86-64-v3`, repository/package-policy
-синхронизация и full convergence — PASS; final `@world` resolver —
-`Total: 0 packages, Size of downloads: 0 KiB`. Temporary bootstrap exceptions
-удалены; userspace fallback для binutils/pango сохранён.
+синхронизация и full convergence — PASS с 2026-10-09; temporary bootstrap
+exceptions удалены, userspace fallback для binutils/pango сохранён.
 Stable `6.18.54-gentoo-dist-bin`, GRUB `2.14-r5`, BIOS/SeaBIOS + GPT,
-Dracut и fstab — PASS. Persistent systemd-networkd/resolved DHCP/DNS,
-external IPv4, реальный SSH login как `vladimir` и ACTIVE QEMU Guest Agent
-с наблюдаемыми `guest-ping` — PASS.
-Local binpkg production — PASS по подтверждению владельца 2026-10-10:
-успешно собраны GPKG для `app-arch/zstd-1.5.7-r1`,
-`dev-libs/openssl-3.5.8` и `media-libs/mesa-26.2.4`; индекс `Packages`
-создан при первом zstd pilot. Empirical comparison portable V3 vs Alder Lake
-завершён: практически значимой регрессии V3 в протестированных workload
-(compression/decompression, crypto/SIMD, Mesa shader compilation) не обнаружено.
-Результаты и ограничения — в
-[CPU optimization](src/content/docs/systems/asus-b5402/hardware/cpu-optimization.md#empirical-validation--marchalderlake-vs--marchx86-64-v3).
-Internal HTTP binhost backend — PASS по evidence владельца 2026-10-10:
-`gentoo-binhost.service` enabled/active, раздаёт `/var/cache/binpkgs`
-на `10.1.20.99:8080`; `Packages` с workstation по IP и FQDN — HTTP 200.
-Это backend для `proxy-01` / Caddy; TLS и canonical client-facing endpoint
-остаются на proxy. Canonical HTTPS ingress — PASS:
+Dracut, networking/DNS, SSH login и QEMU Guest Agent runtime — PASS.
+Local GPKG production для zstd, OpenSSL и Mesa, индекс `Packages`, internal
+HTTP backend `10.1.20.99:8080` и canonical HTTPS ingress через
+`proxy-01` / Caddy — PASS:
 `https://binhost.apps.home.9fans.uk/Packages` — HTTP/2 200, `via: 1.0 Caddy`.
-Workstation Portage discovery/fetch и end-to-end установка private
-`app-arch/zstd-1.5.7-r1` — PASS через явный `emerge -g`, без локальной
-компиляции. Официальный Gentoo binrepo сохранён; private repo добавлен.
-Server/binhost ON acceptance закрыта. PENDING: server/binhost OFF fallback,
-automatic production consumption (глобальный `FEATURES=getbinpkg` не включён),
-signing private unsigned binrepo и SSH key-only acceptance.
-Конфигурация и evidence — в
+
+Workstation: `FEATURES=getbinpkg` включён; единственный active remote binrepo
+— private `gentoo-builder`. Official Gentoo binary repo inactive:
+конфиг перенесён в `/etc/portage/gentoobinhost.conf.disabled`; Gentoo ebuild
+repository остаётся source repository. ON E2E binary merge и automatic
+consumption обычным `emerge` без `-g` — CLOSED / PASS.
+OFF source fallback без cached GPKG — CLOSED / PASS: после HTTP 502 Portage
+выбрал ebuild и вошёл в source build path. Тест остановлен Ctrl+C после
+доказательства source path; полный fallback rebuild/merge не подтверждён.
+Private repo принят unsigned (`verify-signature = false`); signing не blocker.
+
+Routine update — вручную, builder-first: sync/resolve/update `@world` на
+builder (`buildpkg` создаёт GPKG) → только после PASS sync/update `@world`
+на workstation. При failure builder routine update workstation не продолжается
+до разбора причины. Scheduled update не используется; exact repository
+snapshot pinning не реализован. Подходящие private V3 binpkgs используются
+автоматически, остальное собирается локально с Alder Lake policy; срочное
+независимое обновление workstation возможно через source. Kernel local-only.
+Конфигурация, acceptance evidence и workflow — в
 [workstation Portage](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#private-binrepo-на-workstation).
-Workstation сохраняет Alder Lake policy; её kernel остаётся local-only.
+Empirical comparison portable V3 vs Alder Lake завершён без практически
+значимой регрессии в протестированных workload; результаты и ограничения — в
+[CPU optimization](src/content/docs/systems/asus-b5402/hardware/cpu-optimization.md#empirical-validation--marchalderlake-vs--marchx86-64-v3).
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 
 ## Open items
@@ -125,6 +127,7 @@ Workstation сохраняет Alder Lake policy; её kernel остаётся l
 
 | Пункт | Текущий статус | Следующее действие / trigger |
 |-------|----------------|-----------------------------|
+| Builder SSH public-key / key-only access | PENDING; обычный SSH login — PASS | Проверить public-key login и key-only configuration отдельно от закрытого binhost scope |
 | KeePassXC conflict/merge recovery | PENDING / NOT YET ACCEPTED | Проверить восстановление после двух одновременно изменённых копий и KeePassXC merge по [phone-sync guide](src/content/docs/settings/keepassxc-phone-sync.md) |
 | Waydroid `=1.6.3` | Маска; снятие не подтверждено | При появлении исправленного релиза проверить его и решить вопрос снятия маски |
 | LLVM 23 для остальных пакетов | Перевод не начат; ядро уже на LLVM 23 | Когда ebuild'ы потребителей объявят `llvm_slot_23`, проверить resolver и принять решение о переходе; [policy](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#package-policy) |

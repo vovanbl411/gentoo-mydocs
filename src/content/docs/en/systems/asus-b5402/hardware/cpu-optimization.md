@@ -116,9 +116,11 @@ production on 2026-10-10: GPKGs were successfully built for
 `app-arch/zstd-1.5.7-r1`, `dev-libs/openssl-3.5.8` and
 `media-libs/mesa-26.2.4`; the `Packages` index was created during the first
 zstd pilot.
-The private HTTP binhost, end-to-end installation on the workstation and
-server ON/OFF fallback remain pending; see the
-[binary build host plan](../../system/boot-and-portage/#gentoo-binary-build-host--plan).
+The private binhost, end-to-end installation, automatic consumption and
+server ON/OFF source fallback are CLOSED / PASS, accepted by the owner on
+2026-10-10; see the
+[binary build host production workflow](../../system/boot-and-portage/#gentoo-binary-build-host--production)
+for OFF-test limits (source path confirmed; the full rebuild/merge was stopped).
 
 ## Scheduler, Thread Director, and frequency management
 

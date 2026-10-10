@@ -20,6 +20,7 @@ verified_on: [asus-b5402]
 | UKI generator | Dracut — `ukify` is not in the generation path |
 | Root | LUKS2 → TPM2 unlock → Btrfs subvolume `@` |
 | Portage env | 4 files in `env/`, 3 files in `package.env/` |
+| Binary packages | `FEATURES=getbinpkg`; the only remote binrepo is private `gentoo-builder`; local source fallback — PASS |
 
 ## Memory management
 
@@ -95,7 +96,13 @@ The configuration, `sysctl`, `swapon`, and sysfs were checked on 2026-09-27.
   `ccache -s` after 2–4 weeks of ordinary work; if the hit rate drops
   noticeably below ~15%, raise the limit to 30G.
 
-## Gentoo binary build host — plan
+## Gentoo binary build host — production
+
+**Gentoo Builder → private binrepo → workstation — CLOSED / PASS
+(2026-10-10), accepted by the owner.** Ordinary `emerge` automatically uses
+suitable private V3 binpkgs; when they are missing, incompatible or the
+binhost is unavailable, local source builds with the Alder Lake policy are
+allowed. Routine updates are manual: builder first → PASS → workstation.
 
 **Package/toolchain/package-policy and base installation / first boot —
 CLOSED / PASS (2026-10-09).** `gentoo-builder-01` (VMID `5201`) runs
@@ -109,11 +116,9 @@ Rust 1.97.1 / `x86-64-v3` with Clang/LLD linking and Go 1.27.1 /
 `6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB and Dracut;
 networking/DNS, a real SSH login and QEMU Guest Agent runtime are PASS.
 Local GPKG production, the internal HTTP backend, canonical HTTPS ingress
-through `proxy-01` / Caddy and workstation Portage discovery/fetch/E2E are
-PASS, confirmed by the owner on 2026-10-10. The private
-`app-arch/zstd-1.5.7-r1` binpkg was installed with explicit `emerge -g`,
-without local compilation. Server/binhost OFF fallback, automatic production
-consumption, private binrepo signing and SSH key-only acceptance remain pending.
+through `proxy-01` / Caddy, Portage discovery/fetch/E2E, automatic consumption
+and server/binhost OFF source fallback are CLOSED / PASS, verified by the
+owner on 2026-10-10. SSH key-only acceptance remains a separate open check.
 [Builder state and verification](../../../gentoo-builder-01/).
 
 The separate headless VM is intended to build userspace binary packages
@@ -160,16 +165,30 @@ common baseline for the Broadwell builder and Alder Lake workstation.
 
 ### Private binrepo on the workstation
 
-The owner's evidence on 2026-10-10 confirms **server/binhost ON acceptance —
-PASS**: HTTPS ingress, Portage discovery/fetch and end-to-end private binpkg
-installation were verified with `app-arch/zstd-1.5.7-r1`, without local compilation.
+**Production policy was accepted on 2026-10-10.** Ordinary `emerge`
+automatically uses a suitable private binpkg. If the package is missing,
+incompatible with package policy/USE or the private binhost is unavailable,
+Portage allows ordinary local source builds with Alder Lake optimization.
+Official Gentoo binary packages do not participate in this production path;
+the kernel remains local-only.
 
-The existing official Gentoo binrepo is retained in
-`/etc/portage/binrepos.conf/gentoobinhost.conf`: section `[gentoo]`,
-`priority = 1`, `verify-signature = true`.
+File: `/etc/portage/make.conf`.
+
+```makefile
+FEATURES="${FEATURES} getbinpkg"
+```
+
+The existing later line `FEATURES="${FEATURES} ccache"` adds to effective
+`FEATURES` and preserves `getbinpkg`.
+
+The official Gentoo **binary repository** has been removed from active
+`binrepos.conf`: its configuration was moved from
+`/etc/portage/binrepos.conf/gentoobinhost.conf` to
+`/etc/portage/gentoobinhost.conf.disabled`. The ordinary Gentoo ebuild
+repository remains the system's source repository.
 
 File: `/etc/portage/binrepos.conf/gentoo-builder.conf`.
-Current private repo configuration:
+The only active remote binary repository:
 
 ```ini
 [gentoo-builder]
@@ -179,14 +198,27 @@ location = /var/cache/binhost/gentoo-builder
 verify-signature = false
 ```
 
-`verify-signature = false` records the current state of this private unsigned
-repo, not a universal recommendation. The private binrepo signing decision
-remains pending. Global `FEATURES=getbinpkg` is **not enabled** on the
-workstation: the pilot/E2E explicitly used `emerge -g`. The final automatic
-production consumption policy (`FEATURES=getbinpkg` or another option) is
-still undecided.
+The private repo is currently unsigned: `verify-signature = false` is its
+accepted current state. Signing is not a blocker or a required next step
+for the production path.
 
-### Server/binhost ON acceptance — PASS
+### Manual update: builder first → PASS → workstation
+
+1. On `gentoo-builder-01`, sync Gentoo repositories / overlays, check the
+   resolver and run an ordinary `@world` update. `buildpkg` automatically
+   creates new GPKGs; the update must finish successfully.
+2. Only after the builder passes, sync repositories / overlays on the
+   workstation and run an ordinary `@world` update. Suitable private GPKGs
+   are used automatically; everything else is built locally from source.
+
+The builder is a simple staging/build gate. If its update fails, the routine
+workstation update does not proceed until the cause is investigated.
+Scheduled builder updates are not used and are not currently required;
+exact repository snapshot pinning is not implemented. Urgent independent
+workstation updates can use local source builds; the routine workflow
+remains builder-first.
+
+### Server/binhost ON and automatic consumption — CLOSED / PASS
 
 These checks were performed by the owner on 2026-10-10; the commands were not
 run on the live system during this documentation update.
@@ -199,29 +231,49 @@ Response: HTTP/2 200, `via: 1.0 Caddy`. The canonical endpoint is
 `https://binhost.apps.home.9fans.uk`; TLS terminates on the existing
 `proxy-01` / Caddy. The builder's internal backend is `10.1.20.99:8080`,
 Python 3 `http.server`, serving `/var/cache/binpkgs`.
+Caddy route: `binhost.apps.home.9fans.uk` →
+`http://gentoo-builder-01.home.9fans.uk:8080`; the builder does not run TLS.
 
 | Workstation check | Result |
 |-------------------|--------|
 | `emerge -gpv1 app-arch/zstd` | `[binary Rg]`; 1 reinstall, 1 binary |
 | `emerge -gfv1 app-arch/zstd` | Actual private GPKG download, HTTP 200 |
 | `emerge -g -1v app-arch/zstd` | `[binary Rg]`, `>>> Emerging binary`, package merged successfully; no local zstd compilation |
+| `emerge -pv1 app-arch/zstd` after enabling `getbinpkg` and excluding the official binrepo | `[binary   Rg   ] app-arch/zstd-1.5.7-r1-1`; automatic consumption without `-g` — PASS |
 
 Downloaded package:
 `https://binhost.apps.home.9fans.uk/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`;
 saved to
 `/var/cache/binhost/gentoo-builder/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`.
 
-### Server/binhost OFF acceptance — PENDING
+In the last pretend check, `0 KiB` means that the GPKG was already cached
+after the earlier E2E fetch. A binary package was selected, rather than a
+source build.
 
-This is the only outstanding acceptance check for this part. When the private
-binhost is unavailable, ordinary `emerge` must continue through an acceptable
-fallback without making the home server a required dependency; the actual
-behavior is **not yet confirmed**.
+### Server/binhost OFF acceptance — CLOSED / PASS
 
-The target behavior remains: use a suitable private binpkg; if it is missing
-or incompatible with package policy/USE, build from source locally with
-Alder Lake optimization. The successful ON pilot does not settle automatic
-production consumption, signing or SSH key-only access.
+The owner tested fallback separately on 2026-10-10, excluding a cache false
+positive. Before the test, the cached private GPKG
+`/var/cache/binhost/gentoo-builder/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`
+was temporarily renamed to `zstd-1.5.7-r1-1.gpkg.tar.saved` in the same
+directory; `gentoo-binhost.service` was stopped on the builder.
+
+Ordinary production-style invocation without `-g`:
+
+```bash
+emerge -1v app-arch/zstd
+```
+
+Portage reported `[gentoo-builder] HTTP Error 502: Bad Gateway`, but did not
+exit with an error and selected `[ebuild   R    ] app-arch/zstd-1.5.7-r1`.
+It began verifying ebuild manifests, successfully verified the source archive
+signature and unpacked the source into `PORTAGE_TMPDIR`.
+
+**PASS:** resolver/source fallback with an unavailable private binhost and
+actual entry into the source build path. After proving the source path, the
+owner intentionally stopped the build with Ctrl+C; this test does not confirm
+a complete fallback source rebuild/merge of zstd. The architectural requirement
+that the workstation remain independent of builder availability was accepted.
 
 ## Optimization
 

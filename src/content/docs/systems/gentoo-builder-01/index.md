@@ -9,6 +9,13 @@ verified_on: [gentoo-builder-01]
 
 ## Current state
 
+**Gentoo Builder → private binrepo → workstation — CLOSED / PASS
+по приёмке владельца 2026-10-10.** Workstation автоматически использует
+подходящие private V3 GPKG через обычный `emerge` с `FEATURES=getbinpkg`.
+При отсутствии или несовместимости пакета либо недоступности binhost
+разрешена local source build с Alder Lake policy; OFF source fallback — PASS.
+Routine update выполняется вручную: builder first → PASS → workstation.
+
 **Base VM installation и first boot — CLOSED / PASS на 2026-10-09.**
 VM загружается с целевого диска и работает как Gentoo hardened/systemd guest.
 Package/toolchain/package-policy этапы также остаются CLOSED / PASS.
@@ -24,9 +31,10 @@ guest; internal HTTP binhost service enabled/active.
 Builder раздаёт `/var/cache/binpkgs` на `10.1.20.99:8080`; запросы к
 `Packages` с workstation по IP и FQDN возвращают HTTP 200. Это backend
 для существующего `proxy-01` / Caddy: TLS и canonical client-facing endpoint
-остаются на `proxy-01`. Canonical HTTPS ingress и workstation
-Portage discovery/fetch/E2E — PASS: private `app-arch/zstd-1.5.7-r1`
-установлен через явный `emerge -g` без локальной компиляции.
+остаются на `proxy-01`. Canonical HTTPS ingress, workstation
+Portage discovery/fetch/E2E и automatic consumption — CLOSED / PASS:
+private `app-arch/zstd-1.5.7-r1` установлен без локальной компиляции;
+обычный pretend без `-g` выбирает private binary package.
 
 По проверкам владельца завершены:
 
@@ -50,10 +58,9 @@ Portage discovery/fetch/E2E — PASS: private `app-arch/zstd-1.5.7-r1`
 22.1.8, `x86-64-v3`, `-O2` и ThinLTO; Fortran сохраняет `-O2` без ThinLTO.
 Rust 1.97.1 использует portable CPU target, Go 1.27.1 — `GOAMD64=v3`.
 
-Следующий шаг — настроить и проверить SSH public-key login и key-only
-access. Server/binhost OFF fallback acceptance, automatic production
-consumption и решение по signing private binrepo остаются pending.
-Ядро workstation остаётся local-only.
+SSH public-key login и key-only access остаются отдельной незакрытой
+проверкой. Private repo принят unsigned (`verify-signature = false`);
+signing не является blocker production path. Ядро workstation остаётся local-only.
 
 | Параметр | Подтверждённое состояние |
 |----------|--------------------------|
@@ -86,8 +93,12 @@ consumption и решение по signing private binrepo остаются pend
 | Internal HTTP binhost backend | PASS: `gentoo-binhost.service` enabled/active; слушает `10.1.20.99:8080`, раздаёт `/var/cache/binpkgs` |
 | HTTP с workstation | `Packages` по IP и FQDN — HTTP 200; Server: `SimpleHTTP/0.6 Python/3.14.7` |
 | Canonical HTTPS ingress | PASS: `https://binhost.apps.home.9fans.uk/Packages` — HTTP/2 200, `via: 1.0 Caddy`; TLS termination — `proxy-01` |
-| Workstation Portage discovery/fetch/E2E | PASS: private repo настроен; `app-arch/zstd-1.5.7-r1` загружен и установлен как binpkg через `emerge -g`, без локальной компиляции |
-| Оставшиеся binhost этапы | Server/binhost OFF fallback, automatic production consumption и signing private binrepo — pending |
+| Workstation Portage discovery/fetch/E2E | CLOSED / PASS: `app-arch/zstd-1.5.7-r1` загружен и установлен как private binpkg, без локальной компиляции |
+| Automatic production consumption | CLOSED / PASS: `FEATURES=getbinpkg`; обычный `emerge -pv1 app-arch/zstd` без `-g` выбирает private binpkg |
+| Workstation remote binrepo | Единственный active — `gentoo-builder`; official Gentoo binary repo inactive, Gentoo ebuild repository сохранён |
+| Server/binhost OFF fallback | CLOSED / PASS: без cached GPKG Portage пережил HTTP 502 и вошёл в source build path; тест остановлен Ctrl+C до полного rebuild/merge |
+| Update policy | Вручную: sync/resolve/update `@world` на builder → PASS → sync/update `@world` на workstation; scheduled update не используется |
+| Private binrepo signing | Unsigned, `verify-signature = false` — принятое production состояние |
 
 > **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
 
@@ -225,7 +236,7 @@ workstation `-march=alderlake`: это принятая package/toolchain policy
 а не временное bootstrap-исключение.
 
 Архитектурные границы — в
-[плане binary build host](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--план).
+[production workflow binary build host](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--production).
 Workstation сохраняет Alder Lake optimization и локальную сборку ядра.
 Builder использует portable `x86-64-v3`; userspace targets `-march=native`,
 `-march=broadwell` и `-march=alderlake` не используются.
@@ -306,25 +317,59 @@ curl -I https://binhost.apps.home.9fans.uk/Packages
 
 Ответ — HTTP/2 200, `via: 1.0 Caddy`. Canonical client-facing endpoint:
 `https://binhost.apps.home.9fans.uk`.
+Маршрут Caddy: `binhost.apps.home.9fans.uk` →
+`http://gentoo-builder-01.home.9fans.uk:8080`. TLS на builder не поднимается.
 
-На workstation сохранён официальный Gentoo binrepo и добавлен private
-`gentoo-builder`. Portage discovery и fetch — PASS; end-to-end установка
+На workstation единственный active remote binrepo — private `gentoo-builder`.
+Конфиг official Gentoo binary repo перенесён из
+`/etc/portage/binrepos.conf/gentoobinhost.conf` в
+`/etc/portage/gentoobinhost.conf.disabled`; Gentoo ebuild repository остаётся
+source repository. Portage discovery и fetch — PASS; end-to-end установка
 `app-arch/zstd-1.5.7-r1` через явный `emerge -g` завершилась как binary merge,
 без локальной компиляции. Конфигурация `binrepos.conf`, URL/cache path
 и результаты pretend/fetch/install — в
 [workstation Portage](../asus-b5402/system/boot-and-portage/#private-binrepo-на-workstation).
 
-Глобальный `FEATURES=getbinpkg` на workstation не включён; automatic
-production consumption ещё не выбран. Private repo сейчас unsigned,
-`verify-signature = false` относится только к нему; решение по signing pending.
+Automatic production consumption — CLOSED / PASS: в workstation
+`make.conf` включён `FEATURES="${FEATURES} getbinpkg"`, последующая строка
+`FEATURES="${FEATURES} ccache"` сохраняет `getbinpkg`. Обычный
+`emerge -pv1 app-arch/zstd` без `-g` выбрал
+`[binary   Rg   ] app-arch/zstd-1.5.7-r1-1`. `0 KiB` объясняется cached
+GPKG после предыдущего E2E fetch.
+
+Server/binhost OFF source fallback — CLOSED / PASS. Перед отдельным тестом
+cached GPKG временно убран, а `gentoo-binhost.service` остановлен.
+Обычный `emerge -1v app-arch/zstd` без `-g` получил
+`[gentoo-builder] HTTP Error 502: Bad Gateway`, но выбрал
+`[ebuild   R    ] app-arch/zstd-1.5.7-r1` и реально вошёл в source path:
+проверены manifests и подпись source archive, source распакован в `PORTAGE_TMPDIR`.
+После этого владелец остановил сборку Ctrl+C; полный source rebuild/merge
+не подтверждён. Подробности теста — на странице workstation Portage выше.
+
+Private repo сейчас unsigned; `verify-signature = false` — принятое текущее
+состояние, signing не блокирует production path.
+
+### Ручной builder-first update
+
+Сначала на builder: sync Gentoo repositories / overlays, resolve и обычный
+update `@world`; `buildpkg` автоматически создаёт новые GPKG. Только после
+успешного update builder — sync и обычный update `@world` на workstation:
+подходящие private GPKG используются автоматически, остальное собирается
+локально из source. При failure builder routine update workstation
+не продолжается до разбора причины.
+
+Scheduled обновление builder не используется и сейчас не требуется;
+exact repository snapshot pinning не реализован. Срочное независимое
+обновление workstation возможно через local source build.
+Полная operational policy — в
+[workstation Portage](../asus-b5402/system/boot-and-portage/#ручной-update-builder-first--pass--workstation).
 
 ## Следующий шаг: SSH public-key / key-only access
 
 Настроить SSH public-key login, проверить реальный вход и затем key-only
 access. Текущий успешный SSH login не подтверждает key-only configuration.
-Internal HTTP backend, canonical HTTPS ingress и workstation E2E уже PASS.
-Остаются server/binhost OFF fallback acceptance, окончательная policy
-automatic production consumption и решение по signing private binrepo.
+Binhost production workflow, automatic consumption и OFF source fallback
+уже CLOSED / PASS; SSH key-only acceptance проверяется отдельно.
 
 ## Verification
 
@@ -336,7 +381,9 @@ OpenSSL и Mesa и empirical comparison portable V3 vs Alder Lake подтвер
 владельцем 2026-10-10; методика и ограничения — по ссылке выше.
 Internal HTTP backend, binpkg policy и HTTP 200 с workstation подтверждены
 владельцем 2026-10-10; canonical HTTPS ingress, Portage discovery/fetch
-и workstation E2E также PASS по отдельным проверкам владельца этой даты.
+и workstation E2E, automatic consumption и OFF source fallback также
+CLOSED / PASS по отдельным проверкам владельца этой даты. OFF-тест остановлен
+после подтверждения source path, до полного rebuild/merge.
 Ниже — команды для сверки состояния;
 при обновлении документации они не запускались на живой VM.
 

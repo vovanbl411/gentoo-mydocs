@@ -113,9 +113,10 @@ policy завершена 2026-10-09; local binpkg production подтвержд
 2026-10-10: успешно собраны GPKG для `app-arch/zstd-1.5.7-r1`,
 `dev-libs/openssl-3.5.8` и `media-libs/mesa-26.2.4`; индекс `Packages` создан
 при первом zstd pilot.
-Private HTTP binhost, end-to-end установка на workstation и server ON/OFF
-fallback ещё pending; границы — в
-[плане binary build host](../../system/boot-and-portage/#gentoo-binary-build-host--план).
+Private binhost, end-to-end установка, automatic consumption и server ON/OFF
+source fallback — CLOSED / PASS по приёмке владельца 2026-10-10; границы
+OFF-теста (source path подтверждён, полный rebuild/merge остановлен) — в
+[production workflow binary build host](../../system/boot-and-portage/#gentoo-binary-build-host--production).
 
 ## Планировщик, Thread Director и управление частотами
 
