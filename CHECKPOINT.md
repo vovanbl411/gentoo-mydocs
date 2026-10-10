@@ -100,9 +100,14 @@ Local binpkg production — PASS по подтверждению владель�
 (compression/decompression, crypto/SIMD, Mesa shader compilation) не обнаружено.
 Результаты и ограничения — в
 [CPU optimization](src/content/docs/systems/asus-b5402/hardware/cpu-optimization.md#empirical-validation--marchalderlake-vs--marchx86-64-v3).
-Следующий шаг — настроить и проверить SSH public-key
-login / key-only access. Private HTTP binhost, end-to-end установка
-на workstation и server ON/OFF fallback acceptance остаются pending.
+Internal HTTP binhost backend — PASS по evidence владельца 2026-10-10:
+`gentoo-binhost.service` enabled/active, раздаёт `/var/cache/binpkgs`
+на `10.1.20.99:8080`; `Packages` с workstation по IP и FQDN — HTTP 200.
+Это backend для `proxy-01` / Caddy; TLS и canonical client-facing endpoint
+остаются на proxy. Следующий шаг — настроить и проверить SSH public-key
+login / key-only access. HTTPS ingress через `binhost.apps.home.9fans.uk`,
+Portage `binrepos.conf` на workstation, end-to-end установка из private
+binhost и server ON/OFF fallback acceptance остаются pending.
 Workstation сохраняет Alder Lake policy; её kernel остаётся local-only.
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 

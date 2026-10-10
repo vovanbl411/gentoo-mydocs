@@ -17,8 +17,14 @@ Package/toolchain/package-policy этапы также остаются CLOSED /
 сборки portable userspace binpkgs (`.gpkg`) для ASUS B5402. Это replaceable
 build appliance: она должна разгружать workstation, сохраняя её независимость
 от сервера. VM создана вручную, Terraform/Packer не используются;
-desktop/UI не устанавливается. Обязательный autostart будущего binhost
-сервиса не предусмотрен; SSH и network services включены для работы guest.
+desktop/UI не устанавливается. SSH и network services включены для работы
+guest; internal HTTP binhost service enabled/active.
+
+**Internal HTTP binhost backend — PASS по evidence владельца 2026-10-10.**
+Builder раздаёт `/var/cache/binpkgs` на `10.1.20.99:8080`; запросы к
+`Packages` с workstation по IP и FQDN возвращают HTTP 200. Это backend
+для существующего `proxy-01` / Caddy: TLS и canonical client-facing endpoint
+остаются на `proxy-01`.
 
 По проверкам владельца завершены:
 
@@ -43,7 +49,8 @@ desktop/UI не устанавливается. Обязательный autosta
 Rust 1.97.1 использует portable CPU target, Go 1.27.1 — `GOAMD64=v3`.
 
 Следующий шаг — настроить и проверить SSH public-key login и key-only
-access. Private HTTP binhost, end-to-end установка на workstation
+access. HTTPS ingress через `binhost.apps.home.9fans.uk`, Portage
+`binrepos.conf` на workstation, end-to-end установка из private binhost
 и server ON/OFF fallback acceptance остаются pending. Ядро workstation
 остаётся local-only.
 
@@ -73,7 +80,11 @@ access. Private HTTP binhost, end-to-end установка на workstation
 | SSH | OpenSSH enabled/running; реальный login как `vladimir` после first boot — PASS; key-only access — pending |
 | QEMU Guest Agent | ACTIVE после boot; service `static`, в journal наблюдаются реальные `guest-ping` |
 | Local binpkg production | PASS: GPKG для `app-arch/zstd-1.5.7-r1`, `dev-libs/openssl-3.5.8`, `media-libs/mesa-26.2.4`; индекс `Packages` создан при первом zstd pilot |
-| Private HTTP binhost / end-to-end установка на workstation | Pending / pending |
+| Binpkg policy | `FEATURES` содержит `buildpkg`; `BINPKG_FORMAT=gpkg`; `PKGDIR=/var/cache/binpkgs` |
+| Builder DNS | `gentoo-builder-01.home.9fans.uk` → `10.1.20.99` |
+| Internal HTTP binhost backend | PASS: `gentoo-binhost.service` enabled/active; слушает `10.1.20.99:8080`, раздаёт `/var/cache/binpkgs` |
+| HTTP с workstation | `Packages` по IP и FQDN — HTTP 200; Server: `SimpleHTTP/0.6 Python/3.14.7` |
+| HTTPS ingress / workstation consumption | `binhost.apps.home.9fans.uk`, `binrepos.conf`, end-to-end installation и server ON/OFF fallback — pending |
 
 > **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
 
@@ -263,13 +274,36 @@ IPv4 и DNS работают. Это не failure builder network; home-server f
 policy ведётся отдельно. QEMU Guest Agent service имеет `static` state:
 при ACTIVE runtime и наблюдаемых `guest-ping` это штатное состояние.
 
+## Internal HTTP binhost backend
+
+Файл unit: `/etc/systemd/system/gentoo-binhost.service`.
+По подтверждению владельца 2026-10-10 сервис enabled/active; штатный Python 3
+HTTP server раздаёт `/var/cache/binpkgs` и слушает `10.1.20.99:8080`.
+На builder `FEATURES` Portage содержит `buildpkg`; используются
+`BINPKG_FORMAT=gpkg` и `PKGDIR=/var/cache/binpkgs`.
+
+С workstation подтверждён HTTP 200 для обоих адресов `Packages`:
+
+```bash
+curl -I http://10.1.20.99:8080/Packages
+curl -I http://gentoo-builder-01.home.9fans.uk:8080/Packages
+```
+
+Фактически наблюдавшийся Server header: `SimpleHTTP/0.6 Python/3.14.7`.
+Эти проверки подтверждают доступность internal HTTP backend и индекса;
+HTTPS ingress, настройка Portage клиента и установка binpkg ими не проверены.
+TLS и canonical client-facing endpoint `binhost.apps.home.9fans.uk` должны
+оставаться на существующем `proxy-01` / Caddy. Builder обслуживает backend;
+HTTPS ingress через этот endpoint пока pending.
+
 ## Следующий шаг: SSH public-key / key-only access
 
 Настроить SSH public-key login, проверить реальный вход и затем key-only
 access. Текущий успешный SSH login не подтверждает key-only configuration.
-После этого — private HTTP binhost и end-to-end установка binpkg
-на workstation; server ON/OFF fallback acceptance остаётся последующей
-проверкой.
+Internal HTTP backend уже PASS. Остаются HTTPS ingress через
+`binhost.apps.home.9fans.uk`, Portage `binrepos.conf` на workstation
+и end-to-end установка из private binhost; server ON/OFF fallback acceptance
+остаётся последующей проверкой.
 
 ## Verification
 
@@ -279,6 +313,8 @@ Stage3/no-multilib и отдельные toolchain проверки выполн
 подтверждены владельцем 2026-10-09. Local binpkg production для zstd,
 OpenSSL и Mesa и empirical comparison portable V3 vs Alder Lake подтверждены
 владельцем 2026-10-10; методика и ограничения — по ссылке выше.
+Internal HTTP backend, binpkg policy и HTTP 200 с workstation подтверждены
+владельцем 2026-10-10 в разделе Internal HTTP binhost backend.
 Ниже — команды для сверки состояния;
 при обновлении документации они не запускались на живой VM.
 
@@ -442,8 +478,8 @@ active swap 8 GiB и fstab без ошибок/предупреждений. Net
 `routable (configured)` / `online`; DHCP default route, external IPv4
 и DNS через resolved — PASS. OpenSSH enabled/running; владелец подтвердил
 реальный SSH login как `vladimir`. Guest Agent ACTIVE, journal содержит
-реальные `guest-ping`. Key-only SSH, private HTTP binhost и end-to-end
-установка binpkg на workstation этими проверками не приняты. Local binpkg
+реальные `guest-ping`. Key-only SSH и end-to-end установка binpkg
+на workstation этими first-boot проверками не приняты. Internal HTTP backend
+подтверждён отдельно 2026-10-10, как указано выше. Local binpkg
 production подтверждена отдельно, как указано в Current state.
-Machine-id, MAC, root UUID и DHCP-адрес
-в документ не включены.
+Machine-id, MAC и root UUID в документ не включены.
