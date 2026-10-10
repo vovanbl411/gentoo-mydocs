@@ -16,8 +16,8 @@ verified_on: [asus-b5402]
 
 Текущее состояние CPU, toolchain и Portage описано в системных документах:
 
-- [Оптимизация CPU](../systems/asus-b5402/hardware/cpu-optimization.md);
-- [Загрузка и Portage](../systems/asus-b5402/system/boot-and-portage.md).
+- [Оптимизация CPU](../src/content/docs/systems/asus-b5402/hardware/cpu-optimization.md);
+- [Загрузка и Portage](../src/content/docs/systems/asus-b5402/system/boot-and-portage.md).
 
 ## Состояние на момент архивирования
 
@@ -221,5 +221,5 @@ BOLT-компилятором с LLD на P-ядрах, а весь мир (`*/*
 
 ## Related docs
 
-- [Оптимизация CPU на ASUS B5402](../systems/asus-b5402/hardware/cpu-optimization.md)
-- [Загрузка, toolchain и Portage на ASUS B5402](../systems/asus-b5402/system/boot-and-portage.md)
+- [Оптимизация CPU на ASUS B5402](../src/content/docs/systems/asus-b5402/hardware/cpu-optimization.md)
+- [Загрузка, toolchain и Portage на ASUS B5402](../src/content/docs/systems/asus-b5402/system/boot-and-portage.md)

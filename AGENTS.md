@@ -32,7 +32,7 @@
 пользовательской документации факты нужно подтвердить заново.
 
 - **Pure Wayland** — Niri, без X11.
-- **LLVM/LTO** — Clang 22 (основной), глобально `-O2` + Thin LTO. Установлены слоты 22 (основной) и 23 (им намеренно собирается ядро, env `kernel-llvm`); слоты 21/24 удалены. BOLT отключён до стабильного релиза LLVM 23.
+- **LLVM/LTO** — Clang 22 (основной), глобально `-O2` + Thin LTO. Установлены слоты 22 (основной) и 23 (им намеренно собирается ядро, env `kernel-llvm`); слоты 21/24 удалены. BOLT отключён; возврат возможен только как отдельный controlled experiment с новым профилированием.
 - **Hardened/systemd** — профиль `default/linux/amd64/23.0/no-multilib/hardened/systemd`.
 - **Безопасность** — Secure Boot + TPM 2.0 + LUKS2 + AppArmor + Auditd + USBGuard + doas.
 - **Btrfs + Snapper** — flat layout субволюмов.
@@ -88,11 +88,13 @@
 │           │                 # docker-libvirt-nftables, luks-tpm2-unlock-after-uki-rebuild,
 │           │                 # networkmanager-iwd-mac-randomization
 │           ├── systems/      # Эталонные системы
-│           │   └── asus-b5402/
-│           │       ├── index.md
-│           │       ├── applications.md
-│           │       └── desktop/, filesystem/, hardware/,
-│           │           networking/, security/, system/
+│           │   ├── asus-b5402/
+│           │   │   ├── index.md
+│           │   │   ├── applications.md
+│           │   │   └── desktop/, filesystem/, hardware/,
+│           │   │       networking/, security/, system/
+│           │   └── gentoo-builder-01/
+│           │       └── index.md
 │           └── experiments/  # Незавершённые исследования и проверки
 │               ├── llvm23-toolchain/
 │               └── elan-fingerprint-04f3-0c77/

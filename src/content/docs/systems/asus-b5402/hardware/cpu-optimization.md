@@ -151,8 +151,9 @@ OFF-теста (source path подтверждён, полный rebuild/merge �
 
 ## BOLT: why disabled
 
-BOLT сейчас не используется — временно отключён с 2026-07; ждём стабильного
-релиза LLVM 23 и нового профилирования. Инструкция сохранена в
+BOLT сейчас не используется — отключён с 2026-07. Возврат к BOLT возможен
+только как отдельный controlled experiment с новым профилированием и
+benchmark, если такая цель когда-нибудь появится. Инструкция сохранена в
 [`archive/bolt.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/bolt.md) как историческая справка.
 Использовать старый профиль вслепую нельзя — см.
 [`CHECKPOINT.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/CHECKPOINT.md).

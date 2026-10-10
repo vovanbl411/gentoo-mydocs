@@ -11,7 +11,7 @@ verified_on: [asus-b5402]
 
 | Item | Value |
 |-----|----------|
-| Kernel | `7.2.7-bdsm` — `sys-kernel/gentoo-kernel` with `savedconfig` |
+| Kernel | `7.2.9-bdsm` — `sys-kernel/gentoo-kernel` with `savedconfig` |
 | Kernel build | LLVM 23.1.1 (`kernel-llvm` env, pilot) |
 | Main toolchain | LLVM/Clang/LLD 22 |
 | Optimization | global `-O2` + ThinLTO |
@@ -342,10 +342,12 @@ Boot path:
 systemd-boot → UKI (Dracut) → LUKS2 (TPM2) → Btrfs (@)
 ```
 
-- Current kernel (2026-09-22) is `7.2.7-bdsm`: `sys-kernel/gentoo-kernel-7.2.7`
-  and `-7.2.6`, plus `installkernel-68-r1`, are installed. The system booted
-  successfully on kernel 7.2.7 after the update; no full regression test of
-  all subsystems was performed separately.
+- The current kernel is `7.2.9-bdsm`: boot and User-status LED acceptance —
+  PASS on 2026-10-04; no full regression test of all subsystems was performed
+  separately. Historical verification point (2026-09-22) — `7.2.7-bdsm`:
+  `sys-kernel/gentoo-kernel-7.2.7` and `-7.2.6`, plus `installkernel-68-r1`,
+  were installed; the system booted successfully on kernel 7.2.7 after the
+  update.
 - `kernel-install` uses `layout=uki`, `initrd_generator=dracut`, and
   `uki_generator=dracut` (`/etc/kernel/install.conf`, checked on 2026-09-22).
   Dracut is the production UKI generator: it creates the UKI, and systemd-boot
@@ -569,13 +571,13 @@ Sections are checked against the live system in stages:
 | Toolchain and package.env | 2026-09-20…21 |
 | Package policy (`package.use/`) | 2026-09-12 |
 | USE policy review | 2026-09-22 |
-| Current kernel, UKI generator, savedconfig | 2026-09-22 |
+| Current kernel, UKI generator, savedconfig | 2026-09-22; current kernel — 2026-10-04 |
 
 Main verification commands:
 
 ```bash
 portageq envvar CFLAGS CXXFLAGS   # -O2 -flto=thin
-bootctl list                      # current boot — gentoo-7.2.7-bdsm.efi
+bootctl list                      # current boot — UKI of kernel 7.2.9-bdsm
 java -version                     # openjdk-bin:25, Temurin 25.0.4 LTS
 ```
 

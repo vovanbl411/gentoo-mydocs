@@ -14,7 +14,7 @@ examples are based on a real reference system, an ASUS ExpertBook B5402.
 
 ## Where to start
 
-- [Manual Gentoo amd64 installation](./installation/gentoo-installation/) — from the LiveCD to initial Portage configuration; booting from disk is not yet covered.
+- [Manual Gentoo amd64 installation](./installation/gentoo-installation/) — from the LiveCD to a successful first boot from the target disk; the verified path is BIOS + GPT + GRUB, UEFI is unverified.
 - [Base system configuration after installation](./installation/base-system/) — Portage and the LLVM toolchain.
 
 ## Other materials

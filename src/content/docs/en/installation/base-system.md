@@ -69,7 +69,7 @@ CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcn
 MAKEOPTS="-j14 -l10"
 
 # Флаги компиляторов
-RUSTFLAGS="-C target-cpu=alderlake -C opt-level=3 -C linker=/usr/lib/llvm/22/bin/clang -C link-arg=-fuse-ld=lld"
+RUSTFLAGS="-C target-cpu=alderlake -C linker=/usr/lib/llvm/22/bin/clang -C link-arg=-fuse-ld=lld"
 LDFLAGS="-Wl,-O1 -Wl,--as-needed -fuse-ld=lld"
 GOAMD64="v3"
 CGO_CFLAGS="${CFLAGS}"

@@ -64,9 +64,9 @@ The `root` configuration:
 ```text
 ALLOW_GROUPS="wheel"
 SYNC_ACL="yes"
-TIMELINE_LIMIT_HOURLY=5
-TIMELINE_LIMIT_DAILY=7
-TIMELINE_LIMIT_WEEKLY=1
+TIMELINE_LIMIT_HOURLY=2
+TIMELINE_LIMIT_DAILY=3
+TIMELINE_LIMIT_WEEKLY=0
 TIMELINE_LIMIT_MONTHLY=0
 NUMBER_LIMIT=10
 NUMBER_LIMIT_IMPORTANT=5
@@ -95,8 +95,9 @@ for `emerge`.
   `ccache -c` the directory takes up 19G.
 - `/var/tmp/portage` (16 GiB tmpfs) was confirmed on 2026-09-12.
 - Snapper was checked against `/etc/snapper/configs/root` on 2026-09-22; the
-  timeline limits were reduced to 2 hours / 3 days / weekly 0 (confirmed by
-  `snapper get-config` on 2026-10-02). Btrfs quota is not enabled
+  timeline limits were reduced from 5/7/1 to 2 hours / 3 days / weekly 0
+  (confirmed by `snapper get-config` on 2026-10-02). Btrfs quota is not
+  enabled
   (`btrfs qgroup show /` → quotas not enabled), so `SPACE_LIMIT` and
   `FREE_LIMIT` are inactive — snapshot retention is count-based.
 - The absence of a Portage hook was checked in `/etc/portage/bashrc` on

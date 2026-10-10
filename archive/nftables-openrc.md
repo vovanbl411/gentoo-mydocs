@@ -10,7 +10,7 @@ verified_on: []
 
 > **Архив:** документ относится к старому OpenRC setup. Для текущего systemd
 > flow используй действующее руководство
-> [`troubleshooting/docker-libvirt-nftables.md`](../troubleshooting/docker-libvirt-nftables.md).
+> [`troubleshooting/docker-libvirt-nftables.md`](../src/content/docs/troubleshooting/docker-libvirt-nftables.md).
 > Команды и конфигурация OpenRC ниже сохранены только как historical reference.
 
 ## 1. Historical context и применимость
@@ -123,7 +123,7 @@ dig +short gentoo.org @8.8.8.8
 
 ## 8. Related/current docs
 
-- [Docker, Libvirt и nftables](../troubleshooting/docker-libvirt-nftables.md)
+- [Docker, Libvirt и nftables](../src/content/docs/troubleshooting/docker-libvirt-nftables.md)
   — current systemd troubleshooting guide.
-- [Файрвол: nftables](../networking/nftables-firewall.md) — общее действующее
+- [Файрвол: nftables](../src/content/docs/networking/nftables-firewall.md) — общее действующее
   руководство по nftables.

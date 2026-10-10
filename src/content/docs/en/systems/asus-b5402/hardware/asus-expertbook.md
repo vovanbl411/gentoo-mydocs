@@ -72,9 +72,9 @@ The saved Gentoo configuration
 
 Historical nuance: `CONFIG_ASUS_ARMOURY` is disabled. On this model the driver
 did not provide useful power-management attributes and printed
-`No matching power limits found for this system`. The change takes effect
-after the next rebuild and boot of a new kernel; `CONFIG_ASUS_WMI` remains
-enabled.
+`No matching power limits found for this system`. The change is in effect in
+the running `7.2.9-bdsm` kernel (checked via `/proc/config.gz` on 2026-10-10);
+`CONFIG_ASUS_WMI` remains enabled.
 
 ## Function keys and indicators
 

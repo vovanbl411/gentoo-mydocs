@@ -21,7 +21,7 @@ live-базы с Android через Syncthing и KeePassDX.
 
 ## С чего начать
 
-- [Ручная установка Gentoo amd64](src/content/docs/installation/gentoo-installation.md) — от LiveCD до начальной настройки Portage; загрузка с диска пока не описана.
+- [Ручная установка Gentoo amd64](src/content/docs/installation/gentoo-installation.md) — от LiveCD до успешного first boot с целевого диска; проверенная ветка — BIOS + GPT + GRUB, UEFI не проверена.
 - [Базовая настройка после установки](src/content/docs/installation/base-system.md)
 - [Загрузка через systemd-boot и UKI](src/content/docs/installation/systemd-uki-setup.md)
 - [Настроить рабочий стол на Niri](src/content/docs/desktop/niri.md)
@@ -31,7 +31,7 @@ live-базы с Android через Syncthing и KeePassDX.
 
 ### Установка и загрузка
 
-- [Ручная установка Gentoo amd64](src/content/docs/installation/gentoo-installation.md) — разметка, stage3, chroot и начальный Portage bootstrap.
+- [Ручная установка Gentoo amd64](src/content/docs/installation/gentoo-installation.md) — разметка, stage3, chroot, Portage bootstrap и first boot.
 - [Базовая настройка Gentoo](src/content/docs/installation/base-system.md) — LLVM toolchain, USE-флаги, ccache и lld.
 - [systemd-boot и UKI через Dracut](src/content/docs/installation/systemd-uki-setup.md)
 - [Secure Boot, TPM 2.0 и LUKS](src/content/docs/installation/secure-boot-tpm.md)

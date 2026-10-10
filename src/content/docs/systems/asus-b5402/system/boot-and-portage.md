@@ -11,7 +11,7 @@ verified_on: [asus-b5402]
 
 | Что | Значение |
 |-----|----------|
-| Ядро | `7.2.7-bdsm` — `sys-kernel/gentoo-kernel` с `savedconfig` |
+| Ядро | `7.2.9-bdsm` — `sys-kernel/gentoo-kernel` с `savedconfig` |
 | Сборка ядра | LLVM 23.1.1 (env `kernel-llvm`, пилот) |
 | Основной toolchain | LLVM/Clang/LLD 22 |
 | Оптимизация | глобально `-O2` + ThinLTO |
@@ -335,10 +335,11 @@ Portage сообщил `[gentoo-builder] HTTP Error 502: Bad Gateway`, но
 systemd-boot → UKI (Dracut) → LUKS2 (TPM2) → Btrfs (@)
 ```
 
-- Текущее ядро (2026-09-22) — `7.2.7-bdsm`: установлены
-  `sys-kernel/gentoo-kernel-7.2.7` и `-7.2.6`, `installkernel-68-r1`. Система
-  успешно загрузилась на ядре 7.2.7 после обновления; полный regression-тест
-  всех подсистем отдельно не проводился.
+- Текущее ядро — `7.2.9-bdsm`: boot и User-status LED acceptance — PASS
+  2026-10-04; полный regression-тест всех подсистем отдельно не проводился.
+  Историческая verification point (2026-09-22) — `7.2.7-bdsm`: установлены
+  `sys-kernel/gentoo-kernel-7.2.7` и `-7.2.6`, `installkernel-68-r1`; система
+  успешно загрузилась на ядре 7.2.7 после обновления.
 - `kernel-install` использует `layout=uki`, `initrd_generator=dracut` и
   `uki_generator=dracut` (`/etc/kernel/install.conf`, проверено 2026-09-22).
   Production-генератор UKI — Dracut: он создаёт UKI, а systemd-boot загружает
@@ -559,13 +560,13 @@ Review 2026-09-22 завершён. Он закрыл только перечи�
 | Toolchain и package.env | 2026-09-20…21 |
 | Package policy (`package.use/`) | 2026-09-12 |
 | USE-policy review | 2026-09-22 |
-| Текущее ядро, UKI-генератор, savedconfig | 2026-09-22 |
+| Текущее ядро, UKI-генератор, savedconfig | 2026-09-22; текущее ядро — 2026-10-04 |
 
 Основные команды проверки:
 
 ```bash
 portageq envvar CFLAGS CXXFLAGS   # -O2 -flto=thin
-bootctl list                      # текущая загрузка — gentoo-7.2.7-bdsm.efi
+bootctl list                      # текущая загрузка — UKI ядра 7.2.9-bdsm
 java -version                     # openjdk-bin:25, Temurin 25.0.4 LTS
 ```
 

@@ -14,7 +14,7 @@ systemd-boot + UKI, Btrfs + Snapper, Secure Boot и TPM 2.0. Примеры
 
 ## С чего начать
 
-- [Ручная установка Gentoo amd64](./installation/gentoo-installation/) — от LiveCD до начальной настройки Portage; загрузка с диска пока не описана.
+- [Ручная установка Gentoo amd64](./installation/gentoo-installation/) — от LiveCD до успешного first boot с целевого диска; проверенная ветка — BIOS + GPT + GRUB, UEFI не проверена.
 - [Базовая настройка после установки](./installation/base-system/) — Portage и LLVM toolchain.
 
 ## Остальные материалы

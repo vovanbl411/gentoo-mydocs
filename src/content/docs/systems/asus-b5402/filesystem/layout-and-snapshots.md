@@ -64,9 +64,9 @@ Snapper создаёт timeline/boot-снимки. Автоматических 
 ```text
 ALLOW_GROUPS="wheel"
 SYNC_ACL="yes"
-TIMELINE_LIMIT_HOURLY=5
-TIMELINE_LIMIT_DAILY=7
-TIMELINE_LIMIT_WEEKLY=1
+TIMELINE_LIMIT_HOURLY=2
+TIMELINE_LIMIT_DAILY=3
+TIMELINE_LIMIT_WEEKLY=0
 TIMELINE_LIMIT_MONTHLY=0
 NUMBER_LIMIT=10
 NUMBER_LIMIT_IMPORTANT=5
@@ -94,7 +94,7 @@ SPACE_LIMIT=0.8
   `ccache -c` каталог занимает 19G.
 - `/var/tmp/portage` (tmpfs 16 GiB) подтверждён 2026-09-12.
 - Snapper проверен по конфигу `/etc/snapper/configs/root` 2026-09-22; лимиты
-  timeline снижены до 2 часов / 3 дней / недельного 0 (подтверждено
+  timeline снижены с 5/7/1 до 2 часов / 3 дней / недельного 0 (подтверждено
   `snapper get-config` 2026-10-02). Btrfs quota не включена
   (`btrfs qgroup show /` → quotas not enabled), поэтому `SPACE_LIMIT` и
   `FREE_LIMIT` неактивны — удержание снапшотов счётное.

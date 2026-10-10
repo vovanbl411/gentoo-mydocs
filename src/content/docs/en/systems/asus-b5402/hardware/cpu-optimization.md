@@ -155,8 +155,9 @@ the following settings:
 
 ## BOLT: why disabled
 
-BOLT is currently not used — it has been temporarily disabled since 2026-07;
-the project is waiting for a stable LLVM 23 release and new profiling. The
+BOLT is currently not used — it has been disabled since 2026-07. Returning to
+BOLT is only possible as a separate controlled experiment with new profiling
+and benchmarks, should that goal ever appear. The
 instructions are preserved in
 [`archive/bolt.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/bolt.md) as historical reference. An old profile must not be used blindly; see
 [`CHECKPOINT.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/CHECKPOINT.md).
