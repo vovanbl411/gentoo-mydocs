@@ -13,8 +13,8 @@ other resources. This guide shows the basic AppArmor setup, profile modes and
 management, creating your own profile, and diagnosing violations.
 
 This is a general guide; it does not describe the confirmed state of the ASUS
-B5402. The kernel and boot parameters shown below are existing examples from
-the document, not a fixed configuration of the reference system.
+B5402. The kernel requirements and boot parameters below are general
+descriptions and examples, not a fixed configuration of the reference system.
 
 ## 1. Before enabling
 
@@ -22,13 +22,15 @@ Before changing the system you need:
 
 - AppArmor and audit support in the kernel;
 - the AppArmor userspace packages;
-- correct boot parameters;
+- AppArmor present in the kernel's active LSM list;
 - an understanding that a profile in Enforce mode can block an application's
   actions if the required permissions are not described.
 
 ### Kernel support
 
-The existing example kernel configuration enables the following options:
+AppArmor requires `CONFIG_SECURITY_APPARMOR=y` (the LSM itself) and
+`CONFIG_AUDIT=y` (violation logging). The existing kernel configuration
+example from the document:
 
 ```conf
 CONFIG_SECURITY_APPARMOR=y
@@ -36,14 +38,33 @@ CONFIG_SECURITY_APPARMOR_BOOTPARAM_VALUE=1
 CONFIG_AUDIT=y
 ```
 
-The existing example boot parameters (CMDLINE):
+Enabling AppArmor in the kernel alone is not enough: it must be present in
+the list of LSMs the kernel activates at boot. The preferred way is to set a
+correct `CONFIG_LSM` in the kernel configuration with AppArmor in the list.
 
-```text
-security=apparmor lsm=landlock,bpf,apparmor
+### Boot parameters: `lsm=` and `security=`
+
+The `lsm=` parameter is an override of the full LSM list: it defines both the
+set and the order of all activated LSMs and takes precedence over
+`CONFIG_LSM`. Passing a short fixed list via `lsm=` silently drops other
+enabled LSMs — for example `lockdown`, `yama` or `integrity`. There is no
+universal `lsm=...` string for every system, so do not use one as a baseline.
+If you genuinely need `lsm=`, first determine the current LSM list, preserve
+all the LSMs you need and their order, and only then add or move AppArmor in
+it.
+
+The `security=apparmor` parameter selects AppArmor as the major security
+module; it is only needed if the kernel configuration requires it. If `lsm=`
+is specified, `lsm=` takes precedence.
+
+To check the active LSM list:
+
+```bash
+cat /sys/kernel/security/lsm
 ```
 
-These values were not verified during the editorial migration and do not
-confirm the current ASUS B5402 configuration.
+This is a general verification command; its output for the ASUS B5402 is not
+recorded in this document.
 
 ## 2. Installation and enabling
 
@@ -62,11 +83,17 @@ doas systemctl start apparmor
 
 ## 3. Profile modes and management
 
-An AppArmor profile can run in one of three modes:
+This guide focuses on the two modes used in the basic workflow:
 
-- **Enforce** — active protection, blocks violations;
-- **Complain** — only logs violations, does not block;
-- **Disable** — the profile is disabled.
+- **Enforce** — the profile is applied: policy violations are blocked;
+- **Complain** — policy violations are allowed but logged; the mode for
+  profile development and diagnostics.
+
+AppArmor also supports additional profile modes that are outside this
+guide's scope.
+
+Disable is not a loaded-profile mode. `aa-disable <profile>` unloads the
+profile and prevents its automatic loading — this is profile management.
 
 ### Basic commands
 
@@ -76,6 +103,7 @@ An AppArmor profile can run in one of three modes:
 | `aa-status` | Brief profile status |
 | `aa-complain <profile>` | Switch a profile to complain mode |
 | `aa-enforce <profile>` | Switch a profile to enforce mode |
+| `aa-disable <profile>` | Unload a profile and disable its auto-loading |
 | `apparmor_parser -r /path/to/profile` | Reload a profile |
 
 Before moving a new or modified profile to Enforce, check the application's
@@ -84,31 +112,39 @@ the log instead of blocking the application.
 
 ## 4. Creating and updating a profile
 
-### 4.1. Switching an application to Complain
+### 4.1. Generating a profile
 
-```bash
-doas aa-complain /usr/bin/application
-```
-
-### 4.2. Using the application
-
-Launch the application and perform typical operations so that AppArmor records
-accesses to the resources it needs.
-
-### 4.3. Generating a profile
+The main workflow for a new application starts with `aa-genprof`:
 
 ```bash
 doas aa-genprof /usr/bin/application
 ```
 
-Follow the interactive wizard to configure the rules. After changing a
-profile, reload it with `apparmor_parser -r /path/to/profile` from the table
-above. The mode can be changed with `aa-complain` and `aa-enforce`.
+`aa-genprof` itself creates the profile (via `aa-autodep` if it does not
+exist yet), puts it into complain mode, prompts you to launch the application
+and perform typical actions, scans the log, updates the rules, and on Finish
+switches the created profiles to enforce.
+
+### 4.2. Training the profile
+
+While `aa-genprof` is running, open another terminal or session, launch the
+application and perform its real usage scenarios. Return to the wizard, add
+the accumulated events via Scan, and repeat until the scenarios are covered;
+then finish via Finish.
+
+### 4.3. Refining an existing profile
+
+If the profile already exists and you want to keep learning and fine-tuning
+it manually, switch it to complain (`aa-complain`), exercise the
+application's scenarios, and pick up the missing rules from the log with
+`aa-logprof`. Reload a hand-edited profile with
+`apparmor_parser -r /path/to/profile` from the table above; the mode can be
+changed with `aa-complain` and `aa-enforce`.
 
 ## 5. Profile example
 
-The existing profile example is preserved below. Its syntax and semantics
-were not verified during the structural migration.
+Below is a simplified example of typical rule types. It is not a working
+profile of a real application.
 
 ```apparmor
 #include <tunables/global>
@@ -125,17 +161,14 @@ were not verified during the structural migration.
 
   # Network
   network inet stream,
-
-  # Environment
-  environment /etc/example/env,
 }
 ```
 
 ## 6. Utilities
 
-- **aa-notify** — notifications about violations;
-- **logprof** — log analysis and profile updates;
-- **genprof** — generating a profile from usage.
+- **aa-genprof** — creating and training a new profile;
+- **aa-logprof** — updating an existing profile from audit/log events;
+- **aa-notify** — notifications about AppArmor events.
 
 ## 7. Checking and diagnostics
 
@@ -150,9 +183,14 @@ dmesg | grep -i apparmor
 # Or via journalctl
 journalctl -b | grep -i apparmor
 
-# Detailed analysis
+# Profile syntax check without loading it into the kernel
 apparmor_parser -d /etc/apparmor.d/profile.name
 ```
+
+`apparmor_parser -d` checks how the parser reads the profile and does not
+load it; it is not a runtime denial analysis — look for violations in the
+log with the commands above. For a verbose dump of the parser's
+interpretation there is a separate debug mode with a repeated `-d` (`-dd`).
 
 These commands are given as ways to check; the results of running them are not
 recorded in this document.
