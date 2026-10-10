@@ -3,7 +3,7 @@ title: "CPU optimization: Intel Alder Lake (i7-1260P)"
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-07"
+last_verified: "2026-10-10"
 verified_on: [asus-b5402]
 ---
 
@@ -33,23 +33,71 @@ The instruction set recorded for the i7-1260P from `cpuid2cpuflags`:
 CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
 ```
 
-### Empirical benchmark: zstd
+### Empirical validation: `-march=alderlake` vs `-march=x86-64-v3`
 
-The results supplied by the owner compare zstd builds using
-`-march=alderlake` and `-march=x86-64-v3`; the speeds below are medians.
-The supplied confirmation does not specify the execution machine, zstd and
-compiler versions, other build flags, input data, compression level, thread
-count or number of runs. These results therefore do not yet describe a
-reproducible measurement method.
+The completed comparison supplied by the owner on 2026-10-10 found no
+practically significant performance penalty from portable `x86-64-v3`
+relative to workstation-specific `-march=alderlake` in three workload classes:
+compression/decompression, crypto/SIMD and Mesa shader compilation.
+This provides empirical support for the accepted builder policy, not a
+universal guarantee for every package or a reason to change the workstation's
+local Alder Lake policy.
 
-| Workload | `-march=alderlake`, MB/s | `-march=x86-64-v3`, MB/s | Alder Lake advantage |
-|----------|-------------------------|-------------------------|----------------------|
-| Compression | 815.5 | 812.7 | +0.35% |
-| Decompression | 5746.7 | 5728.0 | +0.33% |
+#### zstd 1.5.7-r1
 
-No practically significant loss from `x86-64-v3` was found for this workload.
-This is not a universal guarantee for other packages; the result does not
-change the workstation's local Alder Lake policy.
+Both builds are `app-arch/zstd-1.5.7-r1`: the workstation target is
+`-march=alderlake`, the builder target is `-march=x86-64-v3`; the other
+material production policy is comparable. The execution host is an ASUS
+ExpertBook B5402CBA, Intel Core i7-1260P, pinned to CPU 1 via `taskset`.
+Input: `Rocky-8.10-x86_64-boot.iso`, 1086324736 bytes; `zstd -b3 -e3`,
+6 runs per variant. The table reports median speeds.
+
+| Workload | `-march=alderlake`, MB/s | `-march=x86-64-v3`, MB/s | Observed difference |
+|----------|-------------------------|-------------------------|---------------------|
+| Compression | 815.5 | 812.7 | Alder Lake ≈ +0.35% |
+| Decompression | 5746.7 | 5728.0 | Alder Lake ≈ +0.33% |
+
+No practically significant loss from portable V3 was found for this workload.
+
+#### OpenSSL 3.5.8
+
+Both builds are OpenSSL 3.5.8. The execution host is the same i7-1260P,
+CPU 1; 3 interleaved runs per variant, `openssl speed`, 16384-byte blocks,
+a 5-second window. The OpenSSL runtime CPU capability mask was identical.
+The table reports median throughput.
+
+| Workload | `-march=alderlake`, kB/s | `-march=x86-64-v3`, kB/s | Observed difference |
+|----------|-------------------------|-------------------------|---------------------|
+| SHA-256 | 1,056,758 | 1,057,178 | V3 ≈ +0.04% |
+| AES-256-GCM | 3,321,747 | 3,340,073 | V3 ≈ +0.55% |
+| ChaCha20 | 1,869,817 | 1,866,987 | Alder Lake ≈ +0.15% |
+
+Sub-percent differences do not establish a real advantage for either build.
+No practically significant V3 regression was found in any of the three crypto
+workloads.
+
+#### Mesa 26.2.4
+
+Mesa 26.2.4 builds were compared using Mesa shader-db on real Intel
+Alder Lake-P GT2 / Iris Xe hardware with the real iris userspace driver.
+CPU 2, `-j1`, shader cache disabled; warm-up preceded the measured runs.
+Separate Mesa trees were selected via `LD_LIBRARY_PATH` /
+`LIBGL_DRIVERS_PATH`. There were 3 interleaved measured runs per variant;
+each run compiled 8539 shaders.
+
+| Wall time | `-march=alderlake`, s | `-march=x86-64-v3`, s |
+|-----------|----------------------|----------------------|
+| Run 1 | 113.494 | 103.311 |
+| Run 2 | 104.167 | 107.721 |
+| Run 3 | 113.034 | 105.198 |
+| Mean | ≈ 110.232 | 105.410 |
+| Median | 113.034 | 105.198 |
+
+V3 showed ≈ 4.37% lower mean wall time and ≈ 6.93% lower median wall time.
+This does not prove that V3 is faster: the Alder Lake runs vary considerably
+more, and the sample is small. `x86-64-v3` showed no runtime regression in
+this shader-db workload; the observed V3 advantage cannot confidently be
+attributed to the CPU target.
 
 ## Kernel CPU optimization
 
@@ -63,8 +111,11 @@ The accepted builder target `x86-64-v3` applies only to portable userspace
 binpkgs and does not replace the local Alder Lake policy. The owner verified
 on 2026-10-08 that `-march=x86-64-v3` and the production LLVM/Clang/LLD policy
 are applied; the final `@world` resolver is clean. Userspace package policy
-synchronization completed on 2026-10-09; the first local
-`app-arch/zstd-1.5.7-r1` pilot is PASS (`gpkg`, `Packages` index created).
+synchronization completed on 2026-10-09; the owner confirmed local binpkg
+production on 2026-10-10: GPKGs were successfully built for
+`app-arch/zstd-1.5.7-r1`, `dev-libs/openssl-3.5.8` and
+`media-libs/mesa-26.2.4`; the `Packages` index was created during the first
+zstd pilot.
 The private HTTP binhost, end-to-end installation on the workstation and
 server ON/OFF fallback remain pending; see the
 [binary build host plan](../../system/boot-and-portage/#gentoo-binary-build-host--plan).

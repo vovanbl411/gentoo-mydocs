@@ -3,7 +3,7 @@ title: Gentoo Builder VM — gentoo-builder-01
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-09"
+last_verified: "2026-10-10"
 verified_on: [gentoo-builder-01]
 ---
 
@@ -29,8 +29,13 @@ desktop/UI не устанавливается. Обязательный autosta
 - initial full policy convergence/rebuild после stage3 — PASS;
 - base installation, kernel/GRUB и first boot — PASS;
 - persistent networking/DNS, реальный SSH login и QEMU Guest Agent — PASS;
-- первый локальный binary-package pilot — PASS: `app-arch/zstd-1.5.7-r1`
-  собран builder-ом в формате `gpkg`, индекс `Packages` создан.
+- local binpkg production — PASS: успешно собраны GPKG для
+  `app-arch/zstd-1.5.7-r1`, `dev-libs/openssl-3.5.8` и
+  `media-libs/mesa-26.2.4`; индекс `Packages` создан при первом zstd pilot;
+- empirical comparison portable V3 vs Alder Lake завершён 2026-10-10:
+  практически значимой регрессии V3 в протестированных workload не обнаружено.
+  Методика, результаты и ограничения — в
+  [CPU optimization workstation](../asus-b5402/hardware/cpu-optimization/#empirical-validation--marchalderlake-vs--marchx86-64-v3).
 
 Финальный `@world` resolver: `Total: 0 packages, Size of downloads: 0 KiB`.
 Временные bootstrap overrides удалены. C/C++ используют LLVM/Clang/LLD
@@ -67,7 +72,7 @@ access. Private HTTP binhost, end-to-end установка на workstation
 | Resolver | `/etc/resolv.conf` — symlink на systemd-resolved stub |
 | SSH | OpenSSH enabled/running; реальный login как `vladimir` после first boot — PASS; key-only access — pending |
 | QEMU Guest Agent | ACTIVE после boot; service `static`, в journal наблюдаются реальные `guest-ping` |
-| Локальный binary-package pilot | PASS: `app-arch/zstd-1.5.7-r1`, формат `gpkg`; индекс `Packages` создан |
+| Local binpkg production | PASS: GPKG для `app-arch/zstd-1.5.7-r1`, `dev-libs/openssl-3.5.8`, `media-libs/mesa-26.2.4`; индекс `Packages` создан при первом zstd pilot |
 | Private HTTP binhost / end-to-end установка на workstation | Pending / pending |
 
 > **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
@@ -271,7 +276,10 @@ access. Текущий успешный SSH login не подтверждает 
 Stage3/no-multilib и отдельные toolchain проверки выполнены владельцем
 2026-10-08; repository/package policy и full convergence подтверждены
 2026-10-09. Base installation, first boot и runtime acceptance также
-подтверждены владельцем 2026-10-09. Ниже — команды для сверки состояния;
+подтверждены владельцем 2026-10-09. Local binpkg production для zstd,
+OpenSSL и Mesa и empirical comparison portable V3 vs Alder Lake подтверждены
+владельцем 2026-10-10; методика и ограничения — по ссылке выше.
+Ниже — команды для сверки состояния;
 при обновлении документации они не запускались на живой VM.
 
 В installer/live environment:
@@ -435,7 +443,7 @@ active swap 8 GiB и fstab без ошибок/предупреждений. Net
 и DNS через resolved — PASS. OpenSSH enabled/running; владелец подтвердил
 реальный SSH login как `vladimir`. Guest Agent ACTIVE, journal содержит
 реальные `guest-ping`. Key-only SSH, private HTTP binhost и end-to-end
-установка binpkg на workstation этими проверками не приняты. Локальный
-pilot `app-arch/zstd-1.5.7-r1` (`gpkg` и индекс `Packages`) отдельно
-подтверждён владельцем как PASS. Machine-id, MAC, root UUID и DHCP-адрес
+установка binpkg на workstation этими проверками не приняты. Local binpkg
+production подтверждена отдельно, как указано в Current state.
+Machine-id, MAC, root UUID и DHCP-адрес
 в документ не включены.

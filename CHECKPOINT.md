@@ -92,9 +92,15 @@ Stable `6.18.54-gentoo-dist-bin`, GRUB `2.14-r5`, BIOS/SeaBIOS + GPT,
 Dracut и fstab — PASS. Persistent systemd-networkd/resolved DHCP/DNS,
 external IPv4, реальный SSH login как `vladimir` и ACTIVE QEMU Guest Agent
 с наблюдаемыми `guest-ping` — PASS.
-Первый локальный binary-package pilot — PASS по подтверждению владельца:
-`app-arch/zstd-1.5.7-r1` собран builder-ом в формате `gpkg`; индекс
-`Packages` создан. Следующий шаг — настроить и проверить SSH public-key
+Local binpkg production — PASS по подтверждению владельца 2026-10-10:
+успешно собраны GPKG для `app-arch/zstd-1.5.7-r1`,
+`dev-libs/openssl-3.5.8` и `media-libs/mesa-26.2.4`; индекс `Packages`
+создан при первом zstd pilot. Empirical comparison portable V3 vs Alder Lake
+завершён: практически значимой регрессии V3 в протестированных workload
+(compression/decompression, crypto/SIMD, Mesa shader compilation) не обнаружено.
+Результаты и ограничения — в
+[CPU optimization](src/content/docs/systems/asus-b5402/hardware/cpu-optimization.md#empirical-validation--marchalderlake-vs--marchx86-64-v3).
+Следующий шаг — настроить и проверить SSH public-key
 login / key-only access. Private HTTP binhost, end-to-end установка
 на workstation и server ON/OFF fallback acceptance остаются pending.
 Workstation сохраняет Alder Lake policy; её kernel остаётся local-only.
