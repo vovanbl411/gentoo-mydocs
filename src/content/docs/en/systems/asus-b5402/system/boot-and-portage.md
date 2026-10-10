@@ -362,10 +362,19 @@ systemd-boot → UKI (Dracut) → LUKS2 (TPM2) → Btrfs (@)
   checked on 2026-09-22.
 - Automatic TPM2 LUKS unlock was last confirmed by a successful real boot on
   2026-09-14; it was not tested again on 2026-09-22.
-- AppArmor: the cmdline uses `apparmor=1` and
-  `lsm=landlock,lockdown,yama,integrity,apparmor,bpf`; the obsolete
-  `security=apparmor` was removed. AppArmor is present in the active runtime
-  LSM set.
+- AppArmor / LSM: the accepted cmdline is `apparmor=1` and
+  `lsm=landlock,lockdown,yama,apparmor,bpf`; the obsolete
+  `security=apparmor` was removed. After building and booting `7.2.9-bdsm`,
+  `/sys/kernel/security/lsm` confirmed the active runtime set:
+  `lockdown,capability,landlock,yama,apparmor,bpf`.
+  The kernel config has `# CONFIG_INTEGRITY is not set` (`CONFIG_INTEGRITY=n`):
+  the old `integrity` cmdline token had no built infrastructure
+  and was absent at runtime. It was removed from the accepted UKI cmdline
+  for consistency with the kernel; this is not a security fix or a functional
+  change to the running system. `CONFIG_DM_INTEGRITY` and
+  `CONFIG_BLK_DEV_INTEGRITY` are separate device-mapper and block-layer
+  capabilities; they are deliberately retained, and removing `integrity`
+  from `lsm=` does not disable them.
 
 ## Package policy
 

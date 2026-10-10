@@ -154,7 +154,17 @@ uefi_secureboot_key="/var/lib/sbctl/keys/db/db.key"
 | `quiet` | Подавление лишнего вывода при загрузке. |
 | `audit=1` | Включение аудита ядра. |
 | `apparmor=1` | Явное включение AppArmor. |
-| `lsm=landlock,lockdown,yama,integrity,apparmor,bpf` | Список активных модулей безопасности. |
+| `lsm=landlock,lockdown,yama,apparmor,bpf` | Выбор и порядок поддерживаемых LSM при загрузке; пример для текущей конфигурации B5402. |
+
+`lsm=` не добавляет LSM, поддержка которого не собрана в kernel config.
+Фактический активный набор проверь после загрузки:
+
+```bash
+cat /sys/kernel/security/lsm
+```
+
+Runtime list может содержать `capability`, даже если его нет в явно заданном
+`lsm=`; строка cmdline не равна списку активных LSM.
 
 `security=apparmor` здесь не нужен: при явном `lsm=` ядро использует порядок
 из этого параметра. После изменения cmdline пересобери и проверь UKI, поскольку

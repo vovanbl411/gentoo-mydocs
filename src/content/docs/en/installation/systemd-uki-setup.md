@@ -159,7 +159,17 @@ File: `/etc/dracut.conf.d/90-uki.conf` (the kernel_cmdline variable)
 | `quiet` | Suppressing extra boot output. |
 | `audit=1` | Enabling kernel auditing. |
 | `apparmor=1` | Explicitly enabling AppArmor. |
-| `lsm=landlock,lockdown,yama,integrity,apparmor,bpf` | The list of active security modules. |
+| `lsm=landlock,lockdown,yama,apparmor,bpf` | Boot-time selection and order of supported LSMs; an example for the current B5402 configuration. |
+
+`lsm=` does not add an LSM whose support is not built into the kernel config.
+Check the actual active set after booting:
+
+```bash
+cat /sys/kernel/security/lsm
+```
+
+The runtime list may contain `capability` even when it is absent from the
+explicit `lsm=`; the cmdline string is not the list of active LSMs.
 
 `security=apparmor` is not needed here: with an explicit `lsm=` the kernel
 uses the order from that parameter. After changing the cmdline, rebuild and
