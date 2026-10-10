@@ -161,8 +161,9 @@ aureport -ts today
 в контексте системы.
 
 ```bash
-# AVC records (например, denials MAC-подсистем вроде AppArmor)
-ausearch -i -m AVC
+# AVC records (например, kernel-enforced denials MAC-подсистем вроде AppArmor);
+# userspace-опосредованные события AppArmor могут попадать в USER_AVC
+ausearch -i -m AVC,USER_AVC
 
 # Записи вызовов connect() — включая локальные сокеты
 ausearch -i -sc connect
@@ -174,10 +175,11 @@ ausearch -i -sc execve
 ## 7. Интеграция с AppArmor
 
 AppArmor генерирует собственные audit/security события, и auditd может их
-сохранять: AppArmor denials попадают в audit log как AVC records и ищутся
-командой из раздела 6.3. Дополнительный filesystem watch на файл системного
-журнала для этого не нужен — такой watch фиксировал бы запись в файл
-журнала, а не само security event.
+сохранять: kernel-enforced denials попадают в audit log как AVC records, а
+userspace-опосредованные события AppArmor могут попадать в USER_AVC; и те,
+и другие ищутся командой из раздела 6.3. Дополнительный filesystem watch
+на файл системного журнала для этого не нужен — такой watch фиксировал бы
+запись в файл журнала, а не само security event.
 
 Настройка и диагностика профилей — в [руководстве по AppArmor](../app-armor/).
 

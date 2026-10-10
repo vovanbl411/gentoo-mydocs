@@ -159,8 +159,9 @@ the log is not a security interpretation by itself — evaluate events in the
 context of your system.
 
 ```bash
-# AVC records (for example, MAC subsystem denials such as AppArmor)
-ausearch -i -m AVC
+# AVC records (for example, kernel-enforced denials from MAC subsystems
+# such as AppArmor); userspace-mediated AppArmor events may land in USER_AVC
+ausearch -i -m AVC,USER_AVC
 
 # connect() syscall records — including local sockets
 ausearch -i -sc connect
@@ -172,7 +173,8 @@ ausearch -i -sc execve
 ## 7. AppArmor integration
 
 AppArmor generates its own audit/security events, and auditd can record
-them: AppArmor denials end up in the audit log as AVC records and can be
+them: kernel-enforced denials end up in the audit log as AVC records, while
+userspace-mediated AppArmor events may also appear as USER_AVC — both are
 found with the command from section 6.3. An extra filesystem watch on the
 system log file is not needed for that — such a watch would record writes
 to a log file, not the security event itself.
