@@ -71,9 +71,8 @@ CPU_HWP_DYN_BOOST_ON_SAV=0
 
 Исторический нюанс: `CONFIG_ASUS_ARMOURY` отключён. На этой модели драйвер не
 предоставил полезных атрибутов управления питанием и выводил сообщение
-`No matching power limits found for this system`. Отключение действует
-в загруженном ядре `7.2.9-bdsm` (проверено по `/proc/config.gz` 2026-10-10);
-`CONFIG_ASUS_WMI` остаётся включённым.
+`No matching power limits found for this system`. `CONFIG_ASUS_WMI` остаётся
+включённым.
 
 ## Функциональные клавиши и индикация
 
