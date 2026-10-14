@@ -66,106 +66,50 @@ The configuration, `sysctl`, `swapon`, and sysfs were checked on 2026-09-27.
   `/var/tmp/sccache/sccache.sock`: with global `FEATURES=network-sandbox`, TCP
   localhost was unsuitable for the build namespace and could result in
   short-lived server instances whose statistics remained at zero.
-- **sccache 0.16.0 acceptance** (`emerge --buildpkgonly -1
-  dev-util/sccache`): the cold build took 160.40 s and had 151 cache misses;
-  the warm build took 94.65 s, with cache hits for all 151 cacheable
-  compilations (147 Rust, 4 Assembler). Wall-clock time fell by 65.75 s (about
-  41%, or roughly 1.69×). The cumulative hit rate after both builds was 50%
-  (151 misses and 151 hits). The cold build also had 34 non-cacheable calls,
-  including 29 with reason `crate-type`; sccache speeds up cacheable compiler
-  work, not every Portage phase. Decision: keep sccache in production with the
-  `20G` limit and reconsider its size only after production statistics
-  accumulate. Remote storage and distributed compilation are not used.
-  ccache remains a separate policy for C/C++. BOLT is disabled.
-- **ccache measurement after an intensive build period (2026-09-25):**
-  234,108 of 328,009 calls were cacheable (71.37%); there were 50,581 hits
-  (21.61% of cacheable calls), including 23,474 direct and 27,107
-  preprocessed hits. There were 93,897 uncacheable calls and 4 errors. The
-  cache directory used 47G according to `du -sh`; ccache reported 50.0/50.0 GB
-  of local storage (99.90%), with 276 cleanups.
-  **Decision:** keep global ccache enabled
-  and leave the 50G limit unchanged; the size can be reconsidered after a
-  period of ordinary updates.
-- **Decision on the ccache limit (2026-10-02, disk audit):** a `ccache -s`
-  measurement showed a 20.87% hit rate (53,132 of 254,558 cacheable calls)
-  with local storage completely full at 50.0/50.0 GB (99.97%) and 311
-  cleanups — 50G was not holding the working set and was not converting into
-  hits. The limit was reduced to 20G: `CCACHE_SIZE="20G"` in `make.conf`,
-  `max_size = 20G` in `/var/tmp/ccache/ccache.conf` (`ccache -M 20G` followed
-  by `ccache -c`; after cleanup the directory takes up 19G). Checkpoint: run
-  `ccache -s` after 2–4 weeks of ordinary work; if the hit rate drops
-  noticeably below ~15%, raise the limit to 30G.
+- Controlled Rust builds showed useful sccache hits, so it remains enabled
+  with `20G` local storage. Reconsider the size only from accumulated
+  production statistics. Remote storage and distributed compilation are not used.
+- ccache remains enabled for C/C++. The continuously full 50G cache gave
+  about 21% hits and did not justify its size; the limit was reduced to 20G
+  on 2026-10-02: `CCACHE_SIZE="20G"` in `/etc/portage/make.conf`,
+  `max_size = 20G` in `/var/tmp/ccache/ccache.conf`. Check `ccache -s` after
+  2–4 weeks of ordinary work; if the hit rate drops noticeably below ~15%,
+  raise the limit to 30G.
+
+<details>
+<summary>Historical cache measurements</summary>
+
+| Measurement | Result |
+|-------------|--------|
+| sccache 0.16.0, `emerge --buildpkgonly -1 dev-util/sccache` | Cold: 160.40 s, 151 misses; warm: 94.65 s, 151 hits (147 Rust, 4 Assembler). Saved 65.75 s (~41%, ~1.69×); cumulative hit rate 50% (151 misses / 151 hits). |
+| Cold non-cacheable calls | 34, including 29 with reason `crate-type`; this measures cacheable compiler work, not every Portage phase. |
+| ccache, 2026-09-25 | 234,108 / 328,009 calls cacheable (71.37%); 50,581 hits (21.61%): 23,474 direct / 27,107 preprocessed. 93,897 uncacheable, 4 errors. `du -sh`: 47G; ccache: 50.0/50.0 GB (99.90%), 276 cleanups. The 50G limit was initially retained pending ordinary updates. |
+| ccache, 2026-10-02 | 53,132 / 254,558 cacheable calls hit (20.87%); 50.0/50.0 GB (99.97%), 311 cleanups. After `ccache -M 20G` then `ccache -c`, the directory used 19G. |
+
+</details>
 
 ## Gentoo binary build host — production
 
-**Gentoo Builder → private binrepo → workstation — CLOSED / PASS
-(2026-10-10), accepted by the owner.** Ordinary `emerge` automatically uses
-suitable private V3 binpkgs; when they are missing, incompatible or the
-binhost is unavailable, local source builds with the Alder Lake policy are
-allowed. Routine updates are manual: builder first → PASS → workstation.
+The workstation uses the private binrepo from
+[`gentoo-builder-01`](../../../gentoo-builder-01/) to reduce local userspace
+builds. VM resources, package policy, compiler settings, boot and HTTP service
+are documented on the builder page.
 
-**Package/toolchain/package-policy and base installation / first boot —
-CLOSED / PASS (2026-10-09).** `gentoo-builder-01` (VMID `5201`) runs
-from its target disk: no-multilib hardened/systemd, portable `x86-64-v3`,
-LLVM/Clang/LLD 22.1.8, C/C++ `-O2` + ThinLTO. Userspace package policy
-is synchronized, overlays are synced, and full convergence is complete;
-the final `@world` resolver shows `Total: 0 packages`. Fortran retains `-O2`
-without ThinLTO; `MAKEOPTS="-j16 -l10"`, compatible `CPU_FLAGS_X86`,
-Rust 1.97.1 / `x86-64-v3` with Clang/LLD linking and Go 1.27.1 /
-`GOAMD64=v3` remain accepted. The builder uses stable
-`6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB and Dracut;
-networking/DNS, a real SSH login and QEMU Guest Agent runtime are PASS.
-Local GPKG production, the internal HTTP backend, canonical HTTPS ingress
-through `proxy-01` / Caddy, Portage discovery/fetch/E2E, automatic consumption
-and server/binhost OFF source fallback are CLOSED / PASS, verified by the
-owner on 2026-10-10. SSH key-only acceptance remains a separate open check.
-[Builder state and verification](../../../gentoo-builder-01/).
+- Builder userspace is `x86-64-v3`; workstation userspace retains C/C++
+  `-march=alderlake`, `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"`
+  and its current `CPU_FLAGS_X86` (2026-10-07). Compatibility policy
+  synchronization passed on 2026-10-09; workstation execution settings are
+  separate from the builder's.
+- The kernel remains local-only / native (`CONFIG_X86_NATIVE_CPU=y`),
+  targeting Alder Lake; see [CPU optimization](../../hardware/cpu-optimization/).
+- Suitable V3 packages are consumed automatically; local source fallback
+  keeps the workstation independent of builder availability. Official Gentoo
+  binrepo is outside the production path. Acceptance was recorded on 2026-10-10.
 
-The separate headless VM is intended to build userspace binary packages
-(`.gpkg`) and serve them through a private Portage binary repository,
-reducing heavy builds on the laptop. The workstation must remain independent
-of the server. The architectural decisions agreed on 2026-10-07 remain unchanged.
-
-### CPU target and policy boundaries
-
-The selected builder ISA baseline is `x86-64-v3`. `pve-01` has an
-Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
-According to the supplied glibc loader check on 2026-10-07, the host supports
-`x86-64-v2` and `x86-64-v3`, but not `x86-64-v4`; `x86-64-v3` is a suitable
-common baseline for the Broadwell builder and Alder Lake workstation.
-
-- **Builder:** Proxmox CPU type is `host`, exposing Broadwell capabilities
-  to the VM. The accepted userspace ISA contract is `-march=x86-64-v3`,
-  without `-march=native`, `-march=broadwell`, or `-march=alderlake`.
-  Rust uses `target-cpu=x86-64-v3` and Go uses `GOAMD64="v3"`.
-  The accepted `CPU_FLAGS_X86` intersection excludes workstation-only
-  `avx_vnni`, `sha`, and `vpclmulqdq`.
-- **Workstation:** C/C++ `-march=alderlake`,
-  `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"`, and the current
-  `CPU_FLAGS_X86` remain unchanged (confirmed by the owner on 2026-10-07).
-- **Package/build contract:** the builder must reproduce the workstation
-  policy needed for compatibility: profile
-  `default/linux/amd64/23.0/no-multilib/hardened/systemd`,
-  `CHOST="x86_64-pc-linux-gnu"`, amd64/ABI, USE and `package.use`, keywords,
-  masks/unmasks, licenses, relevant USE_EXPAND values, repositories/overlays,
-  and package/version/dependency policy, plus package-specific env rules
-  affecting produced userspace packages. Comparison and synchronization
-  completed on 2026-10-09 — PASS.
-- **Execution policy:** builder resources and compiler execution policy are
-  separate; `MAKEOPTS="-j16 -l10"` is accepted. `env/p-cores`,
-  `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`,
-  workstation `MAKEOPTS`, `env/ssd` / local `PORTAGE_TMPDIR`, `env/zed-lowmem`,
-  and ccache/sccache paths and sizes are not copied literally: values must
-  match the VM's resources. The builder variant of the GCC/BFD fallback
-  for binutils/pango is already adapted to `-march=x86-64-v3`;
-  the workstation retains `-march=alderlake`.
-- **Kernel:** excluded from the remote build path for now; it remains local-only.
-  With `CONFIG_X86_NATIVE_CPU=y`, the local build targets Alder Lake itself;
-  see [CPU optimization](../../hardware/cpu-optimization/).
-
-The Alder Lake vs V3 comparison on zstd, OpenSSL, and Mesa supports the builder
-policy for the tested workloads; it does not justify changing the workstation
-target. See the [methodology, results, and limitations](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
+The V3 comparison supports this policy only for the tested workloads; it
+does not justify changing the workstation target. The
+[benchmark and limitations](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/)
+remain the canonical results.
 
 ### Private binrepo on the workstation
 
@@ -222,7 +166,7 @@ exact repository snapshot pinning is not implemented. Urgent independent
 workstation updates can use local source builds; the routine workflow
 remains builder-first.
 
-### Server/binhost ON and automatic consumption — CLOSED / PASS
+### Binary consumption verification
 
 These checks were performed by the owner on 2026-10-10; the commands were not
 run on the live system during this documentation update.
@@ -231,12 +175,9 @@ run on the live system during this documentation update.
 curl -I https://binhost.apps.home.9fans.uk/Packages
 ```
 
-Response: HTTP/2 200, `via: 1.0 Caddy`. The canonical endpoint is
-`https://binhost.apps.home.9fans.uk`; TLS terminates on the existing
-`proxy-01` / Caddy. The builder's internal backend is `10.1.20.99:8080`,
-Python 3 `http.server`, serving `/var/cache/binpkgs`.
-Caddy route: `binhost.apps.home.9fans.uk` →
-`http://gentoo-builder-01.home.9fans.uk:8080`; the builder does not run TLS.
+Response: HTTP/2 200, `via: 1.0 Caddy`. Canonical endpoint:
+`https://binhost.apps.home.9fans.uk`. Backend and ingress configuration are
+recorded on the [builder page](../../../gentoo-builder-01/).
 
 | Workstation check | Result |
 |-------------------|--------|
@@ -254,7 +195,7 @@ In the last pretend check, `0 KiB` means that the GPKG was already cached
 after the earlier E2E fetch. A binary package was selected, rather than a
 source build.
 
-### Server/binhost OFF acceptance — CLOSED / PASS
+### Source fallback verification
 
 The owner tested fallback separately on 2026-10-10, excluding a cache false
 positive. Before the test, the cached private GPKG

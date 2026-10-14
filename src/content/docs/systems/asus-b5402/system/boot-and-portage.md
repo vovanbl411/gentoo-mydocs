@@ -65,103 +65,48 @@ verified_on: [asus-b5402]
   `/var/tmp/sccache/sccache.sock`: при глобальном `FEATURES=network-sandbox`
   TCP localhost не подходил для build namespace и мог приводить к отдельным
   краткоживущим server instances со статистикой, остававшейся нулевой.
-- **Приёмка sccache 0.16.0** (`emerge --buildpkgonly -1 dev-util/sccache`):
-  cold build — 160,40 с, 151 cache miss; warm build — 94,65 с, все 151
-  cacheable компиляции попали в кэш (147 Rust, 4 Assembler). Экономия
-  wall-clock составила 65,75 с (около 41%; примерно 1,69×). После обеих
-  сборок cumulative hit rate — 50% (151 miss и 151 hit). В cold build были
-  также 34 non-cacheable calls, включая 29 вызовов с причиной `crate-type`;
-  это ускорение cacheable compiler work, а не всех фаз Portage. Решение:
-  оставить sccache в production с лимитом `20G`; пересматривать размер только
-  по накопленной production статистике. Remote storage и distributed
-  compilation не используются. ccache для C/C++ остаётся отдельной policy.
-- **Замер ccache после интенсивного периода сборок (2026-09-25):** 234 108
-  из 328 009 вызовов были cacheable (71,37%); 50 581 попадание (21,61% от
-  cacheable calls), из них 23 474 direct и 27 107 preprocessed. Не cacheable —
-  93 897 вызовов; зарегистрировано 4 ошибки. Каталог занимал 47G по `du -sh`;
-  ccache сообщал 50,0/50,0 GB локального хранилища (99,90%), выполнено 276
-  очисток. **Решение:** оставить глобальный
-  ccache включённым
-  и сохранить лимит 50G без изменений; размер можно пересмотреть после
-  периода обычных обновлений.
-- **Решение по лимиту ccache (2026-10-02, аудит диска):** замер `ccache -s`
-  дал 20,87% попаданий (53 132 из 254 558 cacheable calls) при полностью
-  заполненном хранилище 50,0/50,0 GB (99,97%) и 311 очистках — 50G не удерживал
-  рабочий набор и не конвертировался в попадания. Лимит снижен до 20G:
-  `CCACHE_SIZE="20G"` в `make.conf`, `max_size = 20G` в
-  `/var/tmp/ccache/ccache.conf` (`ccache -M 20G`, затем `ccache -c`; после
-  cleanup каталог занимает 19G). Контрольная точка: `ccache -s` через 2–4
-  недели обычной работы; при падении hit rate заметно ниже ~15% — поднять
-  лимит до 30G.
+- Контролируемые Rust-сборки показали полезные попадания sccache, поэтому
+  он остаётся включённым с `20G` локального хранилища. Размер пересматривается
+  только по накопленной production-статистике. Remote storage и distributed
+  compilation не используются.
+- ccache остаётся включённым для C/C++. Постоянно заполненный кэш 50G давал
+  около 21% попаданий и не оправдывал свой размер; 2026-10-02 лимит снижен
+  до 20G: `CCACHE_SIZE="20G"` в `/etc/portage/make.conf`, `max_size = 20G`
+  в `/var/tmp/ccache/ccache.conf`. Проверить `ccache -s` через 2–4 недели
+  обычной работы; при падении hit rate заметно ниже ~15% — поднять лимит до 30G.
+
+<details>
+<summary>Исторические измерения кэшей</summary>
+
+| Измерение | Результат |
+|-----------|-----------|
+| sccache 0.16.0, `emerge --buildpkgonly -1 dev-util/sccache` | Cold: 160,40 с, 151 miss; warm: 94,65 с, 151 hit (147 Rust, 4 Assembler). Экономия 65,75 с (~41%, ~1,69×); cumulative hit rate 50% (151 miss / 151 hit). |
+| Cold non-cacheable calls | 34, включая 29 с причиной `crate-type`; измерение относится к cacheable compiler work, а не ко всем фазам Portage. |
+| ccache, 2026-09-25 | 234 108 / 328 009 вызовов cacheable (71,37%); 50 581 hit (21,61%): 23 474 direct / 27 107 preprocessed. 93 897 uncacheable, 4 ошибки. `du -sh`: 47G; ccache: 50,0/50,0 GB (99,90%), 276 очисток. Лимит 50G сначала сохранён до периода обычных обновлений. |
+| ccache, 2026-10-02 | 53 132 / 254 558 cacheable calls hit (20,87%); 50,0/50,0 GB (99,97%), 311 очисток. После `ccache -M 20G`, затем `ccache -c` каталог занимал 19G. |
+
+</details>
 
 ## Gentoo binary build host — production
 
-**Gentoo Builder → private binrepo → workstation — CLOSED / PASS
-(2026-10-10), принято владельцем.** Обычный `emerge` автоматически использует
-подходящие private V3 binpkgs; при их отсутствии, несовместимости или
-недоступности binhost разрешена локальная source build с Alder Lake policy.
-Routine update выполняется вручную: builder first → PASS → workstation.
+Workstation использует private binrepo от
+[`gentoo-builder-01`](../../../gentoo-builder-01/), чтобы сократить локальные
+userspace-сборки. Ресурсы VM, package policy, compiler settings, загрузка и
+HTTP service описаны на странице builder.
 
-**Package/toolchain/package-policy и base installation / first boot —
-CLOSED / PASS (2026-10-09).** `gentoo-builder-01` (VMID `5201`) работает
-с целевого диска: no-multilib hardened/systemd, portable `x86-64-v3`,
-LLVM/Clang/LLD 22.1.8, C/C++ `-O2` + ThinLTO. Userspace package policy
-синхронизирована, overlays synced, full convergence завершён;
-final `@world` resolver — `Total: 0 packages`. Fortran сохраняет `-O2`
-без ThinLTO; `MAKEOPTS="-j16 -l10"`, совместимый `CPU_FLAGS_X86`,
-Rust 1.97.1 / `x86-64-v3` с Clang/LLD linker и Go 1.27.1 /
-`GOAMD64=v3` остаются принятыми. Builder использует stable
-`6.18.54-gentoo-dist-bin`, BIOS/SeaBIOS + GPT + GRUB и Dracut;
-networking/DNS, реальный SSH login и QEMU Guest Agent runtime — PASS.
-Local GPKG production, internal HTTP backend, canonical HTTPS ingress через
-`proxy-01` / Caddy, Portage discovery/fetch/E2E, automatic consumption и
-server/binhost OFF source fallback — CLOSED / PASS по проверкам владельца
-2026-10-10. SSH key-only acceptance остаётся отдельной незакрытой проверкой.
-[Состояние и проверки builder](../../../gentoo-builder-01/).
+- Builder userspace — `x86-64-v3`; workstation userspace сохраняет C/C++
+  `-march=alderlake`, `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"`
+  и текущий `CPU_FLAGS_X86` (2026-10-07). Синхронизация policy для совместимости
+  прошла проверку 2026-10-09; execution settings workstation и builder различаются.
+- Ядро остаётся local-only / native (`CONFIG_X86_NATIVE_CPU=y`), под Alder Lake;
+  см. [CPU optimization](../../hardware/cpu-optimization/).
+- Подходящие V3 packages используются автоматически; local source fallback
+  сохраняет независимость workstation от доступности builder. Official Gentoo
+  binrepo не участвует в production path. Приёмка записана 2026-10-10.
 
-Назначение отдельной headless VM — сборка userspace binary packages
-(`.gpkg`) и выдача через private Portage binary repository, чтобы
-разгрузить ноутбук от тяжёлых сборок. Workstation должна оставаться независимой
-от сервера. Согласованные архитектурные решения от 2026-10-07 сохраняются.
-
-### CPU target и границы переноса policy
-
-Выбранный ISA baseline builder — `x86-64-v3`. На `pve-01` установлен
-Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
-По предоставленной проверке glibc loader от 2026-10-07 host поддерживает
-`x86-64-v2` и `x86-64-v3`, но не `x86-64-v4`; `x86-64-v3` подходит как
-общий baseline для Broadwell builder и Alder Lake workstation.
-
-- **Builder:** Proxmox CPU type — `host`, VM видит возможности Broadwell.
-  Принятый userspace ISA contract — `-march=x86-64-v3`, без `-march=native`,
-  `-march=broadwell` и `-march=alderlake`. Rust использует
-  `target-cpu=x86-64-v3`, Go — `GOAMD64="v3"`. Принятое пересечение
-  `CPU_FLAGS_X86` исключает workstation-only `avx_vnni`, `sha` и `vpclmulqdq`.
-- **Workstation:** сохраняются C/C++ `-march=alderlake`,
-  `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"` и текущий
-  `CPU_FLAGS_X86` (подтверждено владельцем 2026-10-07).
-- **Package/build contract:** builder должен воспроизводить необходимые для
-  совместимости profile
-  `default/linux/amd64/23.0/no-multilib/hardened/systemd`,
-  `CHOST="x86_64-pc-linux-gnu"`, amd64/ABI, USE и `package.use`, keywords,
-  masks/unmasks, licenses, relevant USE_EXPAND, repositories/overlays и
-  package/version/dependency policy workstation, а также package-specific env
-  rules, влияющие на произведённые userspace packages. Сравнение и
-  синхронизация завершены 2026-10-09 — PASS.
-- **Execution policy:** ресурсы и compiler execution policy builder отдельны.
-  Принят `MAKEOPTS="-j16 -l10"`. Не копируются буквально `env/p-cores`,
-  `PORTAGE_SCHEDULING_COMMAND="taskset -pc 0-7"`, workstation `MAKEOPTS`,
-  `env/ssd` / локальный `PORTAGE_TMPDIR`, `env/zed-lowmem`, пути и размеры
-  ccache/sccache: значения выбираются под ресурсы VM. Builder variant
-  GCC/BFD fallback для binutils/pango уже адаптирован к `-march=x86-64-v3`;
-  workstation сохраняет `-march=alderlake`.
-- **Kernel:** пока исключён из remote build path и остаётся local-only.
-  С `CONFIG_X86_NATIVE_CPU=y` локальная сборка использует именно Alder Lake;
-  детали — в [CPU optimization](../../hardware/cpu-optimization/).
-
-Сравнение Alder Lake и V3 на zstd, OpenSSL и Mesa поддерживает builder policy
-для протестированных workload; оно не обосновывает смену workstation target.
-[Методика, результаты и ограничения](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
+Сравнение V3 поддерживает эту policy только для проверенных workload и не
+обосновывает смену workstation target. Canonical результаты — в
+[benchmark и его ограничениях](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
 
 ### Private binrepo на workstation
 
@@ -216,7 +161,7 @@ exact repository snapshot pinning не реализован. При срочно
 обновлении workstation возможна local source build; routine workflow
 остаётся builder-first.
 
-### Server/binhost ON и automatic consumption — CLOSED / PASS
+### Проверка binary consumption
 
 Ниже — проверки владельца 2026-10-10; при обновлении документации команды
 не запускались на живой системе.
@@ -225,12 +170,9 @@ exact repository snapshot pinning не реализован. При срочно
 curl -I https://binhost.apps.home.9fans.uk/Packages
 ```
 
-Ответ: HTTP/2 200, `via: 1.0 Caddy`. Canonical endpoint —
-`https://binhost.apps.home.9fans.uk`; TLS termination — на существующем
-`proxy-01` / Caddy. Internal backend builder — `10.1.20.99:8080`,
-Python 3 `http.server`, каталог `/var/cache/binpkgs`.
-Маршрут Caddy: `binhost.apps.home.9fans.uk` →
-`http://gentoo-builder-01.home.9fans.uk:8080`; TLS на builder не поднимается.
+Ответ: HTTP/2 200, `via: 1.0 Caddy`. Canonical endpoint:
+`https://binhost.apps.home.9fans.uk`. Backend и ingress configuration —
+на [странице builder](../../../gentoo-builder-01/).
 
 | Проверка на workstation | Результат |
 |-------------------------|-----------|
@@ -247,7 +189,7 @@ Python 3 `http.server`, каталог `/var/cache/binpkgs`.
 В последнем pretend `0 KiB` означает, что GPKG уже cached после предыдущего
 E2E fetch. Выбран именно binary package, а не source build.
 
-### Server/binhost OFF acceptance — CLOSED / PASS
+### Проверка source fallback
 
 Владелец проверил fallback отдельно 2026-10-10, исключив cache false positive.
 Перед тестом cached private GPKG

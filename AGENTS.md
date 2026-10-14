@@ -98,6 +98,7 @@
 │           └── experiments/  # Исследования и проверки, включая завершённые эксперименты
 │               ├── compiler-optimization/ # -O2 vs -O3, alderlake vs x86-64-v3
 │               ├── llvm23-toolchain/
+│               ├── asus-user-status-indicator/ # firmware, Linux ABI и upstream submission
 │               └── elan-fingerprint-04f3-0c77/
 │
 ├── archive/                  # Исторические материалы, не для применения,

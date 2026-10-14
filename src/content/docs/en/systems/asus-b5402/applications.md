@@ -20,90 +20,59 @@ verified_on: [asus-b5402]
 - r2modman — AppImage; launches the Flatpak version of Steam through the
   `~/.local/bin/steam.sh` wrapper (`flatpak run com.valvesoftware.Steam "$@"`).
 - KeePassXC — native Gentoo (`app-admin/keepassxc`, runtime
-  `2.8.0-snapshot`); the live database is stored in the dedicated
-  `~/Documents/KeePassSync/` directory, which must contain
-  exactly one top-level regular, non-symlink `*.kdbx`; the live KDBX file has
-  mode `0600`. KeePassXC's built-in timestamped backup before saving remains
-  enabled; a real save from the new live path and creation of its built-in
-  backup were verified. The daily wrapper
-  `~/.local/bin/keepassxc-backup-run` under systemd --user checks
-  for the single live DB, then creates a verified snapshot under one
-  non-blocking flock in `~/Backups/KeePassXC/` (directory mode `0700`, snapshot
-  mode `0600`), delivers top-level `*.kdbx` with `rclone copy`, and runs
-  `~/.local/bin/keepassxc-backup-rotate --apply` (90 days or older by mtime)
-  only after delivery succeeds. Delivery does not delete remote files. If the
-  live KDBX count is not exactly one, the workflow stops before snapshot; this
-  is a startup conflict gate, not a Syncthing lock. The
-  `keepassxc-backup.service` / `keepassxc-backup.timer` run daily at 20:00
-  local time with `Persistent=true`; `Linger=no`. The timer was enabled and
-  `active (waiting)` at acceptance. Snapshot, service, and controlled
-  conflict-gate acceptance passed on 2026-09-29.
-- Syncthing `net-p2p/syncthing-2.0.16` runs as a systemd --user service with
-  `Linger=no`. It syncs only `~/Documents/KeePassSync/` with Android; the
-  Folder ID on both sides is `keepassxc-live`. Android uses Syncthing-Fork and
-  KeePassDX with the `Documents/KeePassSync` path. The secure LAN connection
-  and normal edits in both directions passed acceptance on 2026-09-30.
-  NAT-PMP errors did not prevent sync. Real conflict recovery with a KeePassXC
-  merge remains pending.
-- rclone (`net-misc/rclone`) — Google Drive remote `gdrive:` with a dedicated
-  OAuth Desktop client and the `drive.file` scope; the app's publishing
-  status is *In production*. The existing remote was re-authorized, and
-  post-reauth transport validation (list, upload, read, deletefile, and
-  confirmation that the temporary object is absent) passed on 2026-09-29.
-  The wrapper delivers top-level `*.kdbx` files daily to
-  `gdrive:Backups/KeePassXC/` without deleting remote files.
-- Thunderbird `157.0` — native Gentoo; runtime acceptance under Niri showed
-  Wayland, WebRender, and Mesa `iris` on Intel Iris Xe ADL GT2; the audio
-  backend is `pulse-rust` through the PipeWire/Pulse stack. Six IMAP accounts
-  are configured (Gmail ×4, Yandex ×1, Mail.ru ×1); sending and receiving
-  passed acceptance. Full offline synchronization is enabled. The profile is
-  under `~/.config/thunderbird/`; measurements were about 648 MiB for the
-  profile and 574 MiB for `ImapMail`. Notification acceptance on 2026-10-07:
-  two selected Gmail accounts — sound + visual notification PASS; other
-  accounts — silent sync with no sound and no visual notification PASS.
-  `NTFNTF: Notify on This Folder Not That Folder` 1.3.1 sets this policy.
-  Installed `x11-libs/libnotify` is required for the verified system notification
-  path and remains an explicit world package. See
-  [Thunderbird](../../../settings/thunderbird/).
+  `2.8.0-snapshot`). The live DB is in `~/Documents/KeePassSync/`, with exactly
+  one top-level regular, non-symlink `*.kdbx` (mode `0600`). Built-in
+  timestamped backups before saving and daily local backups to
+  `~/Backups/KeePassXC/` remain active. Google Drive delivery runs daily at
+  20:00 local time through `keepassxc-backup.service` /
+  `keepassxc-backup.timer` (`Persistent=true`, `Linger=no`); the timer is enabled.
+  Backups passed acceptance on 2026-09-29; a real KDBX copy uploaded and
+  downloaded on 2026-09-28 was byte-identical (`cmp`, SHA-256 — PASS).
+  Normal Android sync passed on 2026-09-30.
+  Real conflict recovery / KeePassXC merge remains pending.
+  See [backup](../../../settings/keepassxc-backup/) and
+  [phone sync](../../../settings/keepassxc-phone-sync/).
+- Syncthing `net-p2p/syncthing-2.0.16` runs as a systemd --user service
+  (`Linger=no`). It syncs only `~/Documents/KeePassSync/`, Folder ID
+  `keepassxc-live`, with Android Syncthing-Fork and KeePassDX at
+  `Documents/KeePassSync`. Secure LAN sync and edits in both directions work
+  (2026-09-30). Configuration and recovery are in the
+  [phone sync guide](../../../settings/keepassxc-phone-sync/).
+- rclone (`net-misc/rclone`) delivers KeePassXC backups daily to
+  `gdrive:Backups/KeePassXC/` without deleting remote files. The dedicated
+  OAuth Desktop client uses `drive.file`; the app is *In production*.
+  The remote and transport were verified on 2026-09-29; configuration and
+  OAuth lifecycle are in the [backup guide](../../../settings/keepassxc-backup/).
+- Thunderbird `157.0` — native Gentoo; Wayland, WebRender and Mesa `iris`
+  on Intel Iris Xe ADL GT2 under Niri, `pulse-rust` through PipeWire/Pulse.
+  Six IMAP accounts (Gmail ×4, Yandex ×1, Mail.ru ×1); sending and receiving
+  work, and full offline sync is enabled. The profile is under `~/.config/thunderbird/`.
+  Two selected Gmail accounts use sound + visual notifications; the others
+  sync silently. This policy uses `NTFNTF: Notify on This Folder Not That Folder`
+  1.3.1. `x11-libs/libnotify` remains an explicit world package for the verified
+  notification path. Runtime was checked on 2026-10-01, notifications on
+  2026-10-07. Details are in the [Thunderbird guide](../../../settings/thunderbird/).
 
-Entries that predated Thunderbird were moved from the general guides and
-checked against the system on 2026-09-22; the Thunderbird baseline was verified
-on 2026-10-01, and its notification path was re-checked separately on
-2026-10-07. The KeePassXC and rclone entries were verified separately on
-2026-09-29: the OAuth Desktop client works, the app is *In production*, and
-the `gdrive:` remote was re-authorized with
-`rclone config reconnect gdrive:` (PASS). Post-reauth transport validation
-passed. A real KDBX backup was uploaded to Google Drive and downloaded back
-byte-identical on 2026-09-28 (`cmp`, SHA-256 — PASS). Local rotation and daily
-automation passed acceptance on 2026-09-29: the wrapper created a snapshot
-(mode `0600`, current mtime, byte-identical to the live DB), then the journal
-confirmed snapshot → delivery → rotation; the local backup count increased
-2 → 3 and the remote object count 1 → 3. A controlled second-`*.kdbx` test
-confirmed the conflict gate stops the workflow before snapshot, delivery, and
-rotation. The timer was enabled and `active (waiting)`; remote delivery does
-not delete files. Initial sync and edits Gentoo → Android → Gentoo passed on
-2026-09-30; local backup files remained present after moving the live database.
-The repeated check recorded no file count. Real conflict recovery remains
-pending. The other applications were not re-checked on 2026-09-29.
+## Flatpak policy
 
-## Flatpak: verification on 2026-10-04
-
-The live inventory showed 12 Flatpak applications. The old pinned EOL runtime
-`org.freedesktop.Platform.ffmpeg-full//24.08` was unpinned and removed from
-the system installation after confirming that applications no longer used it.
-The repeated runtime check confirmed that `ffmpeg-full//24.08` was absent;
-`flatpak update` finished with `Nothing to update`.
-
-Only the Flatpak inventory and runtime maintenance were re-checked on
-2026-10-04, without a full repeat audit of applications. Previous verification
-dates for other components remain in the entries above. The procedure is in
-the [general Flatpak guide](../../../settings/flatpak/).
+The inventory has 12 applications (2026-10-04). The unused EOL runtime
+`org.freedesktop.Platform.ffmpeg-full//24.08` is absent; `flatpak update`
+reported `Nothing to update`. This check covered inventory and runtimes,
+without re-checking every application's behavior. Permissions and maintenance
+are described in the [Flatpak guide](../../../settings/flatpak/).
 
 ## Firefox
 
 - profile-sync-daemon is active, using overlayfs mode.
 - Current profile sizes (2026-09-22): the live view through the overlay is
   ~653 MiB, and the upper layer in `/run/user/1000/psd/` is ~168 MiB.
+
+## Verification boundaries
+
+Firefox, OBS, Perplexity and r2modman were checked on 2026-09-22; the dates
+for backup, sync, Thunderbird and Flatpak are recorded above. There was no
+new live verification during this refactoring. Verification commands and
+expected results are in the linked guides.
 
 ## Plans (not applied)
 

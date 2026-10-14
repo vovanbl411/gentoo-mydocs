@@ -46,7 +46,8 @@ the general instructions.
   testing with a compatible CTIA TRRS headset/adapter. State as of 2026-10-10.
 - [User-status indicator](hardware/user-status-indicator/) — kernel LED control
   and the userspace `auto/busy/off` controller with Fn+1 integration are
-  live-verified; details are in the dedicated document.
+  live-verified; firmware evidence and Linux ABI choices are in the
+  [research page](../../experiments/asus-user-status-indicator/).
 - [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — compilation
   flags, the scheduler, hardware security.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.

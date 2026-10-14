@@ -42,7 +42,8 @@ verified_on: [asus-b5402]
   с совместимой CTIA TRRS-гарнитурой/адаптером. Состояние — 2026-10-10.
 - [User-status indicator](hardware/user-status-indicator/) — kernel LED control
   и userspace-контроллер `auto/busy/off` с Fn+1 integration проверены на живой
-  системе; подробности — в отдельном документе.
+  системе; firmware evidence и выбор Linux ABI — в
+  [исследовании](../../experiments/asus-user-status-indicator/).
 - [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — флаги
   компиляции, планировщик, аппаратная безопасность.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.

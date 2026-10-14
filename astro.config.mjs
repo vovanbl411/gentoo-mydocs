@@ -129,6 +129,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Оптимизация компилятора', translations: { en: 'Compiler optimization' }, items: [{ autogenerate: { directory: 'experiments/compiler-optimization' } }] },
 						{ label: 'LLVM 23 toolchain', items: [{ autogenerate: { directory: 'experiments/llvm23-toolchain' } }] },
+						{ slug: 'experiments/asus-user-status-indicator', label: 'ASUS User-status indicator', translations: { en: 'ASUS User-status indicator' } },
 					],
 				},
 			],

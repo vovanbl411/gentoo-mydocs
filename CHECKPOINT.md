@@ -83,7 +83,7 @@ udev permissions, нормальный старт AUTO, отсутствие CPU
 **Kernel upstream:** v1 submitted / awaiting maintainer/reviewer feedback;
 accepted или merged не подтверждены. v2 готовить только по конкретному review
 feedback или при обнаружении новой проблемы. Подробности submission — в
-[документе LED](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md#upstream-v1).
+[исследовании LED](src/content/docs/experiments/asus-user-status-indicator/index.md#upstream-v1).
 
 **Gentoo Builder → private binrepo → workstation — CLOSED / PASS (2026-10-10):**
 VM `5201` / `gentoo-builder-01` работает с целевого диска. No-multilib,
