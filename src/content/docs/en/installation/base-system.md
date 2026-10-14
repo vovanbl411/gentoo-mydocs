@@ -138,7 +138,7 @@ as `portage:portage`. Details and cold/warm acceptance results are in
 > per-package and only after a separate benchmark. The decision
 > (2026-09-20) was made after comparing `-O2`/`-O3` on four classes of
 > workloads — methodology and data:
-> [experiments/llvm23-toolchain](../../experiments/llvm23-toolchain/).
+> [the `-O2` vs `-O3` comparison](../../experiments/compiler-optimization/o2-vs-o3/).
 
 > **Note**: for a specific system an explicit
 > `-march=<microarchitecture>` is recommended: such a policy is

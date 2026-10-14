@@ -137,7 +137,7 @@ SCCACHE_SERVER_UDS="/var/tmp/sccache/sccache.sock"
 > package-specific и только после отдельного benchmark. Решение (2026-09-20)
 > принято по итогам сравнения `-O2`/`-O3` на четырёх классах workload —
 > методика и данные:
-> [experiments/llvm23-toolchain](../../experiments/llvm23-toolchain/).
+> [сравнение `-O2` и `-O3`](../../experiments/compiler-optimization/o2-vs-o3/).
 
 > **Примечание**: для конкретной системы рекомендуется явный
 > `-march=<microarchitecture>`: такая policy воспроизводима и проверяема по

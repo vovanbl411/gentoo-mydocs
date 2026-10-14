@@ -9,9 +9,9 @@ verified_on: [asus-b5402]
 
 ## Summary
 
-The completed comparison retained global `-O2` and ThinLTO where package/ebuild
-policy permits. Package-specific `-O3` requires a separate benchmark showing a
-meaningful, reproducible practical benefit; no selective rules were created
+The completed comparison resulted in adopting global `-O2`, retaining ThinLTO
+where package/ebuild policy permits. Package-specific `-O3` requires a separate
+benchmark showing a meaningful, reproducible practical benefit; no selective rules were created
 from B1–B4. Across codec, compression/decompression, crypto and shader compilation,
 `-O3` increased code size while runtime gains were small, mixed or absent.
 
