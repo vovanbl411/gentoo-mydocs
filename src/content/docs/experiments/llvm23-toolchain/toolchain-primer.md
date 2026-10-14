@@ -172,5 +172,5 @@ Gate A3 доказал это на практике: `mesa_clc` собран Cla
 
 - [Статус LLVM 23 experiment](../)
 - [Журнал результатов](../results/)
-- [Experiment B: -O2 против -O3](../optimization-o2-o3/)
+- [Experiment B: -O2 против -O3](../../compiler-optimization/o2-vs-o3/)
 - [Current system source of truth](../../../systems/asus-b5402/system/boot-and-portage/)

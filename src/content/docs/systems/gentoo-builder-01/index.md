@@ -309,5 +309,5 @@ curl -I https://binhost.apps.home.9fans.uk/Packages
 - [Ручная установка Gentoo](../../installation/gentoo-installation/).
 - [Stage3 → Clang/ThinLTO troubleshooting](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/).
 - [systemd-networkd и machine-id](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
-- [ASUS B5402 CPU optimization / V3 comparison](../asus-b5402/hardware/cpu-optimization/#empirical-validation--marchalderlake-vs--marchx86-64-v3): сравнение 2026-10-10 не выявило практически значимой регрессии V3 в протестированных workload; методика и ограничения — по ссылке.
+- [Сравнение `-march=alderlake` и `-march=x86-64-v3`](../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/): в протестированных workload практически значимой регрессии V3 не обнаружено; подробности и ограничения — в отчёте.
 - [Workstation boot/Portage и production workflow](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--production).

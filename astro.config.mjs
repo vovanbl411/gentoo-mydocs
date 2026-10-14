@@ -127,6 +127,7 @@ export default defineConfig({
 					translations: { en: 'Research' },
 					collapsed: true,
 					items: [
+						{ label: 'Оптимизация компилятора', translations: { en: 'Compiler optimization' }, items: [{ autogenerate: { directory: 'experiments/compiler-optimization' } }] },
 						{ label: 'LLVM 23 toolchain', items: [{ autogenerate: { directory: 'experiments/llvm23-toolchain' } }] },
 					],
 				},

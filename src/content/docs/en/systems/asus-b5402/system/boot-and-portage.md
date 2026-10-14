@@ -163,6 +163,10 @@ common baseline for the Broadwell builder and Alder Lake workstation.
   With `CONFIG_X86_NATIVE_CPU=y`, the local build targets Alder Lake itself;
   see [CPU optimization](../../hardware/cpu-optimization/).
 
+The Alder Lake vs V3 comparison on zstd, OpenSSL, and Mesa supports the builder
+policy for the tested workloads; it does not justify changing the workstation
+target. See the [methodology, results, and limitations](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
+
 ### Private binrepo on the workstation
 
 **Production policy was accepted on 2026-10-10.** Ordinary `emerge`
@@ -278,16 +282,13 @@ that the workstation remain independent of builder availability was accepted.
 ## Optimization
 
 Global `-O2`; ThinLTO is global where package/ebuild policy allows it; `-O3` is
-used only per package after a separate benchmark. No selective `-O3` rules were
-created after experiments B1–B4. The decision was made on 2026-09-20; the
-evidence is in [experiments/llvm23-toolchain](../../../../experiments/llvm23-toolchain/).
+used for an individual package only after a separate benchmark. No selective
+rules were created after the `-O2` vs `-O3` comparison; its full results,
+methodology, and limitations are in the
+[experiment document](../../../../experiments/compiler-optimization/o2-vs-o3/).
 
 - Fortran uses `-O2` without ThinLTO: GNU Fortran does not understand
   `-flto=thin` (a Clang extension).
-- The policy was applied to `/etc/portage` on 2026-09-20: `-O3` → `-O2` in
-  `make.conf` and env files (`kernel-llvm` was already `-O2`).
-  `portageq envvar CFLAGS CXXFLAGS` confirms `-O2 -flto=thin`; the resolver
-  calculates successfully.
 - A full `@world` rebuild after the optimization/LTO policy change completed
   on 2026-09-21: the system booted normally and its main services worked; logs
   showed no regressions related to `-O2` + ThinLTO. This does not mean that

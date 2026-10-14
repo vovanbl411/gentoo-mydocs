@@ -33,69 +33,12 @@ verified_on: [asus-b5402]
 CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
 ```
 
-### Empirical validation: `-march=alderlake` vs `-march=x86-64-v3`
-
-По завершённому сравнению, предоставленному владельцем 2026-10-10,
-portable `x86-64-v3` не показал практически значимой performance penalty
-относительно workstation-specific `-march=alderlake` в трёх классах workload:
-compression/decompression, crypto/SIMD и Mesa shader compilation.
-Это empirical support принятой builder policy, а не универсальная гарантия
-для любого пакета и не основание менять локальную Alder Lake policy workstation.
-
-#### zstd 1.5.7-r1
-
-Обе сборки — `app-arch/zstd-1.5.7-r1`: workstation target
-`-march=alderlake`, builder target `-march=x86-64-v3`; остальная существенная
-production policy сопоставима. Execution host — ASUS ExpertBook B5402CBA,
-Intel Core i7-1260P, привязка через `taskset` к CPU 1. Вход —
-`Rocky-8.10-x86_64-boot.iso`, 1086324736 bytes; `zstd -b3 -e3`,
-6 runs на вариант. В таблице — медианные скорости.
-
-| Workload | `-march=alderlake`, MB/s | `-march=x86-64-v3`, MB/s | Наблюдаемая разница |
-|----------|-------------------------|-------------------------|--------------------|
-| Compression | 815.5 | 812.7 | Alder Lake ≈ +0.35% |
-| Decompression | 5746.7 | 5728.0 | Alder Lake ≈ +0.33% |
-
-Для этого workload практически значимой потери от portable V3 не обнаружено.
-
-#### OpenSSL 3.5.8
-
-Обе сборки — OpenSSL 3.5.8. Execution host — тот же i7-1260P, CPU 1;
-3 interleaved runs на вариант, `openssl speed`, 16384-byte blocks,
-5-second window. Runtime CPU capability mask OpenSSL был одинаковым.
-В таблице — медианный throughput.
-
-| Workload | `-march=alderlake`, kB/s | `-march=x86-64-v3`, kB/s | Наблюдаемая разница |
-|----------|-------------------------|-------------------------|--------------------|
-| SHA-256 | 1,056,758 | 1,057,178 | V3 ≈ +0.04% |
-| AES-256-GCM | 3,321,747 | 3,340,073 | V3 ≈ +0.55% |
-| ChaCha20 | 1,869,817 | 1,866,987 | Alder Lake ≈ +0.15% |
-
-Субпроцентные различия не подтверждают реальное преимущество одной сборки.
-Во всех трёх crypto workload практически значимой регрессии V3 не обнаружено.
-
-#### Mesa 26.2.4
-
-Сравнивались сборки Mesa 26.2.4 в Mesa shader-db на реальном Intel
-Alder Lake-P GT2 / Iris Xe с реальным iris userspace driver. CPU 2, `-j1`,
-shader cache disabled; перед measured runs выполнен warm-up. Отдельные
-Mesa trees выбирались через `LD_LIBRARY_PATH` / `LIBGL_DRIVERS_PATH`.
-Проведены 3 interleaved measured runs на вариант; в каждом прогоне
-скомпилировано 8539 shaders.
-
-| Wall time | `-march=alderlake`, s | `-march=x86-64-v3`, s |
-|-----------|----------------------|----------------------|
-| Run 1 | 113.494 | 103.311 |
-| Run 2 | 104.167 | 107.721 |
-| Run 3 | 113.034 | 105.198 |
-| Mean | ≈ 110.232 | 105.410 |
-| Median | 113.034 | 105.198 |
-
-У V3 наблюдалось ≈ 4.37% меньшее mean wall time и ≈ 6.93% меньшее
-median wall time. Это не доказывает, что V3 быстрее: Alder Lake runs
-заметно более вариативны, выборка маленькая. `x86-64-v3` не показал runtime
-regression в этом shader-db workload; наблюдаемое преимущество V3 нельзя
-уверенно приписать CPU target.
+Для portable userspace binpkg отдельного `gentoo-builder-01` выбран
+`-march=x86-64-v3`. Сравнения на zstd, OpenSSL и Mesa не выявили практически
+значимой runtime-регрессии V3 в протестированных workload. Результат
+поддерживает builder policy, но не доказывает универсальное равенство targets
+и не меняет `-march=alderlake` на рабочей станции. Полная методика и evidence
+приведены в [сравнении Alder Lake и x86-64-v3](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
 
 ## CPU optimization ядра
 

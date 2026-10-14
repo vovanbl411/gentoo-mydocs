@@ -16,7 +16,7 @@ optimization-policy research.
 | Part | Status | Result / next step |
 |------|--------|--------------------|
 | Experiment A | **COMPLETE** | A1–A4 — PASS; compatibility confirmed only for the tested classes |
-| Experiment B | **COMPLETE** | B1–B4 — COMPLETE; `global -O2 + selective benchmark-proven -O3` adopted |
+| Experiment B | **COMPLETE** | B1–B4; global `-O2` adopted, with `-O3` only after a package-specific benchmark |
 | Optimization policy | **APPLIED** | Applied 2026-09-20 |
 | Full `@world` rebuild with `-O2` | **COMPLETE** | Completed 2026-09-21; post-rebuild boot/runtime checked |
 | Limited `env/llvm-23` pilot | **NOT STARTED** | Next separate phase after the resolver audit |
@@ -38,11 +38,8 @@ documentation or general guides.
 
 - [Toolchain primer](toolchain-primer/) — the five toolchain layers and the
   machine's actual configuration;
-- [Hypothesis: -O2 vs -O3](optimization-o2-o3/) — Experiment B design,
-  package-selection criteria, and the decision criterion;
-- [Benchmark methodology](benchmark-methodology/) — canonical measurement
-  rules and interpretation framework for every B gate;
-- [-O2/-O3 benchmarks](o2-o3-benchmarks/) — B1–B4 data and results;
+- [The `-O2` vs `-O3` comparison](../compiler-optimization/o2-vs-o3/) — one
+  report with Experiment B's methodology, results, and decision;
 - [Results log](results/) — gate entries, Experiment A and B outcomes, and
   the optimization-policy decision;
 - [Original agent prompt](agent-prompt/) — a historical orchestration prompt,
@@ -56,10 +53,9 @@ documentation or general guides.
    vs 23 performance was not measured).
 2. Does LLVM 23 offer a practical benefit in build time, binary size, or
    performance on Alder Lake? — an open question; there are no benchmarks.
-3. Which global optimization baseline is justified: global `-O3`, or global
-   `-O2` with package-specific `-O3`? — **Experiment B: COMPLETE** (B1–B4;
-   decision: global `-O2` + selective benchmark-proven `-O3`; applied to
-   `/etc/portage` 2026-09-20, full rebuild completed 2026-09-21).
+3. Is global `-O3` justified? — **Experiment B is complete**: global `-O2` was
+   adopted; `-O3` is allowed only after a separate package-specific benchmark.
+   Details and evidence are in the [Experiment B report](../compiler-optimization/o2-vs-o3/).
 4. Is there practical value after that in moving from GNU runtime components to
    `compiler-rt + libunwind`, without combining it with replacing the C++
    standard library? — Experiment C: NOT STARTED.
@@ -166,26 +162,11 @@ A is a compatibility result, not a performance comparison: it does not prove
 compatibility of the whole `@world` and does not remove package-specific
 exceptions.
 
-**Experiment B — -O2 vs -O3: COMPLETE** (B1–B4, final review, and
-optimization-policy decision — 2026-09-20). B1 (libde265, single-thread HEVC
-decode): O3 runtime ~1.2% faster, instructions ~1.8% fewer, `.text` ~12.3%
-larger. B2 (zstd 1.5.7-r1): `libzstd` `.text` ~9.2% larger; compression ~1–2%
-faster, decompression ~1–2% slower — a mixed result. B3 (openssl 3.5.8,
-without LTO by ebuild policy): no O3 benefit — AES-256-CTR effectively a tie
-(~-0.17%), SHA-256 ~-0.5%, ChaCha20 ~-1%, `libcrypto` `.text` ~+2.6%. B4
-(mesa 26.2.2, shader-db on Iris Xe, `-fno-lto` by package policy): no
-measurable O3 runtime benefit; large Mesa ELF ~+5% `.text`, binpkg +5.31%.
-Details are in [o2-o3-benchmarks.md](o2-o3-benchmarks/).
-
-The pattern across four workload classes (codec, compression/decompression,
-crypto, desktop/graphics): `-O3` increased code footprint in every tested
-class, while runtime benefit was small, workload-specific, absent, or negative.
-
-**Optimization policy decision (2026-09-20)**: global `-O2` + selective
-benchmark-proven `-O3`; ThinLTO remains global where package/ebuild policy
-allows it. No selective `-O3` rules were created after B1–B4. The policy was
-applied to `/etc/portage` 2026-09-20 (`make.conf`, env); the full `@world`
-rebuild with `-O2` completed 2026-09-21 (post-rebuild boot/runtime checked).
+**Experiment B — `-O2` vs `-O3`: COMPLETE.** Global `-O2` was adopted, with
+ThinLTO where package/ebuild policy allows it; no selective `-O3` rules were
+created. The decision was applied to `/etc/portage` on 2026-09-20, and the
+full `@world` rebuild completed on 2026-09-21. Workloads, results, and
+limitations are collected in the [comparison report](../compiler-optimization/o2-vs-o3/).
 
 ## Roadmap
 

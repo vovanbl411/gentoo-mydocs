@@ -163,7 +163,7 @@ You must explain:
 Do not turn the document into an LLVM encyclopedia. Its purpose is to give the
 owner a clear mental model specifically for the subsequent experiment.
 
-### 2. `optimization-o2-o3.md`
+### 2. Experiment B — optimization policy comparison
 
 Record a separate hypothesis:
 
@@ -357,9 +357,8 @@ Make the decision from measurements, not theory.
 
 Subsequent Experiment B materials:
 
-- [Hypothesis and decision record](../optimization-o2-o3/);
-- [Benchmark methodology](../benchmark-methodology/);
-- [B1–B4 data](../o2-o3-benchmarks/).
+- [Experiment B report](../../compiler-optimization/o2-vs-o3/) — methodology,
+  results, and decision.
 
 ## Experiment C — runtimes
 
@@ -391,5 +390,5 @@ specific Gentoo machine, not with the phrase “maximally pure LLVM”:
 
 - [README.md](../) — current experiment status;
 - [results.md](../results/) — gate journal and actual results;
-- [optimization-o2-o3.md](../optimization-o2-o3/) — decision record;
-- [o2-o3-benchmarks.md](../o2-o3-benchmarks/) — benchmark data.
+- [Experiment B report](../../compiler-optimization/o2-vs-o3/) — decision record
+  and benchmark data.

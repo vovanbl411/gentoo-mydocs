@@ -16,7 +16,7 @@ optimization policy.
 | Часть | Статус | Результат / следующий шаг |
 |-------|--------|---------------------------|
 | Experiment A | **COMPLETE** | A1–A4 — PASS; совместимость подтверждена только для протестированных классов |
-| Experiment B | **COMPLETE** | B1–B4 — COMPLETE; принято `global -O2 + selective benchmark-proven -O3` |
+| Experiment B | **COMPLETE** | B1–B4; принято global `-O2`, selective `-O3` — только после package-specific benchmark |
 | Optimization policy | **APPLIED** | Применена 2026-09-20 |
 | Полный `@world` rebuild под `-O2` | **COMPLETE** | Завершён 2026-09-21; post-rebuild boot/runtime проверены |
 | Limited `env/llvm-23` pilot | **NOT STARTED** | Следующий отдельный этап после resolver-аудита |
@@ -38,11 +38,8 @@ LLVM 23. Этот вопрос остаётся открытым.
 
 - [Toolchain-праймер](toolchain-primer/) — пять слоёв цепочки и фактическая
   конфигурация машины;
-- [Гипотеза: -O2 против -O3](optimization-o2-o3/) — дизайн Experiment B,
-  критерии выбора пакетов, критерий решения;
-- [Методика бенчмарков](benchmark-methodology/) — канонические правила
-  измерений и интерпретационная рамка для всех B-гейтов;
-- [Бенчмарки -O2/-O3](o2-o3-benchmarks/) — данные и результаты B1–B4;
+- [Сравнение `-O2` и `-O3`](../compiler-optimization/o2-vs-o3/) — единый отчёт
+  с методикой, результатами и решением Experiment B;
 - [Журнал результатов](results/) — записи по гейтам, итоги Experiment A и
   B, optimization policy decision;
 - [Исходный prompt для агента](agent-prompt/) — historical orchestration
@@ -57,10 +54,9 @@ LLVM 23. Этот вопрос остаётся открытым.
 2. Даёт ли LLVM 23 практический выигрыш по времени сборки, размеру бинарников
    или производительности на Alder Lake. — открытый вопрос, benchmark'ов
    нет.
-3. Какой глобальный optimization baseline оправдан: `-O3` глобально или
-   `-O2` глобально с package-specific `-O3`. — **Experiment B: COMPLETE**
-   (B1–B4; решение: global `-O2` + selective benchmark-proven `-O3`;
-   применена к `/etc/portage` 2026-09-20, полный rebuild завершён 2026-09-21).
+3. Нужен ли global `-O3`. — **Experiment B завершён**: принят global `-O2`;
+   `-O3` допускается только после отдельного benchmark для пакета. Подробности
+   и evidence — в [отчёте Experiment B](../compiler-optimization/o2-vs-o3/).
 4. Есть ли практический смысл после этого переходить с GNU runtime-компонентов
    на `compiler-rt + libunwind`, не смешивая этот шаг с заменой C++ stdlib. —
    Experiment C: NOT STARTED.
@@ -169,27 +165,11 @@ A — результат совместимости, а не сравнение 
 доказывает совместимость всего `@world` и не отменяет package-specific
 исключения.
 
-**Experiment B — -O2 vs -O3: COMPLETE** (B1–B4, финальный review и
-optimization policy decision — 2026-09-20). B1 (libde265, single-thread HEVC
-decode): O3 runtime ~1.2% быстрее, instructions ~1.8% меньше, `.text` ~12.3%
-больше. B2 (zstd 1.5.7-r1): `libzstd` `.text` ~9.2% больше; compression ~1–2%
-быстрее, decompression ~1–2% медленнее — смешанный результат. B3 (openssl
-3.5.8, без LTO по политике ebuild): преимущества O3 нет — AES-256-CTR
-фактическая ничья (~-0.17%), SHA-256 ~-0.5%, ChaCha20 ~-1%, `libcrypto`
-`.text` ~+2.6%. B4 (mesa 26.2.2, shader-db на Iris Xe, `-fno-lto` по package
-policy): измеримого runtime-преимущества O3 нет; крупные Mesa ELF ~+5% `.text`,
-binpkg +5.31%. Подробности — в [o2-o3-benchmarks.md](o2-o3-benchmarks/).
-
-Тенденция по четырём классам workload (codec, compression/decompression,
-crypto, desktop/graphics): `-O3` во всех протестированных классах увеличивал
-code footprint, а runtime benefit был небольшим, workload-specific,
-отсутствующим либо отрицательным.
-
-**Optimization policy decision (2026-09-20)**: global `-O2` + selective
-benchmark-proven `-O3`; ThinLTO остаётся глобально там, где package/ebuild
-policy допускает. Selective `-O3` rules по итогам B1–B4 не создаются.
-Политика применена к `/etc/portage` 2026-09-20 (`make.conf`, env); полный
-`@world` rebuild под `-O2` завершён 2026-09-21 (post-rebuild boot/runtime проверены).
+**Experiment B — `-O2` vs `-O3`: COMPLETE.** Принято global `-O2` с ThinLTO,
+где это допускает package/ebuild policy; selective `-O3` rules не создавались.
+Решение применено к `/etc/portage` 2026-09-20, полный `@world` rebuild
+завершён 2026-09-21. Workloads, результаты и ограничения собраны в
+[отчёте сравнения](../compiler-optimization/o2-vs-o3/).
 
 ## Дорожная карта
 

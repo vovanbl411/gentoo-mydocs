@@ -161,7 +161,7 @@ unwinder   → libgcc_s / libunwind
 Не превращай документ в энциклопедию LLVM. Цель — дать владельцу понятную
 ментальную модель конкретно для дальнейшего эксперимента.
 
-### 2. `optimization-o2-o3.md`
+### 2. Experiment B — optimization policy comparison
 
 Зафиксируй отдельную гипотезу:
 
@@ -355,9 +355,8 @@ LLVM 23 + -O3 + ThinLTO
 
 Последующие материалы Experiment B:
 
-- [Гипотеза и decision record](../optimization-o2-o3/);
-- [Методика benchmark](../benchmark-methodology/);
-- [Данные B1–B4](../o2-o3-benchmarks/).
+- [Отчёт Experiment B](../../compiler-optimization/o2-vs-o3/) — методика,
+  результаты и принятое решение.
 
 ## Эксперимент C — runtimes
 
@@ -389,5 +388,5 @@ libgcc_s -> libunwind
 
 - [README.md](../) — current experiment status;
 - [results.md](../results/) — gate journal и фактические результаты;
-- [optimization-o2-o3.md](../optimization-o2-o3/) — decision record;
-- [o2-o3-benchmarks.md](../o2-o3-benchmarks/) — benchmark data.
+- [Отчёт Experiment B](../../compiler-optimization/o2-vs-o3/) — decision record
+  и benchmark data.

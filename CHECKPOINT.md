@@ -23,7 +23,9 @@
   основной Clang/LLD 22, глобально `-O2` + ThinLTO.
   LLVM 23.1.1 намеренно используется для ядра через `env/kernel-llvm`;
   `rust-bin-1.97.1`. `-O3` допустим только после package-specific benchmark;
-  selective-правила не созданы. BOLT отключён.
+  selective-правила не созданы. Подробности — в
+  [сравнении `-O2` и `-O3`](src/content/docs/experiments/compiler-optimization/o2-vs-o3.md).
+  BOLT отключён.
   [Загрузка и Portage](src/content/docs/systems/asus-b5402/system/boot-and-portage.md).
 - **Boot / security**: systemd-boot + UKI, генератор — Dracut;
   Secure Boot + TPM2, LUKS2 TPM unlock на PCR 7 (sha256).
@@ -116,7 +118,7 @@ snapshot pinning не реализован. Подходящие private V3 binp
 [workstation Portage](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#private-binrepo-на-workstation).
 Empirical comparison portable V3 vs Alder Lake завершён без практически
 значимой регрессии в протестированных workload; результаты и ограничения — в
-[CPU optimization](src/content/docs/systems/asus-b5402/hardware/cpu-optimization.md#empirical-validation--marchalderlake-vs--marchx86-64-v3).
+[CPU optimization](src/content/docs/experiments/compiler-optimization/alderlake-vs-x86-64-v3.md).
 [Состояние builder](src/content/docs/systems/gentoo-builder-01/index.md).
 
 ## Open items

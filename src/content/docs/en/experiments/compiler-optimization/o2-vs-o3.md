@@ -1,55 +1,229 @@
 ---
-title: -O2 vs -O3 benchmarks (Experiment B)
+title: "Global -O2 vs -O3"
 kind: reference
 scope: system
-status: current
+status: historical
 last_verified: null
 verified_on: [asus-b5402]
 ---
 
-This is the measurement record for Experiment B. It preserves the raw data,
-derived metrics, methodological notes, and limitations for B1–B4.
+## Summary
 
-> **Status**:
->
-> - B1–B4 — COMPLETE;
-> - final review — COMPLETE;
-> - optimization policy decision — COMPLETE;
-> - the policy was applied to `/etc/portage` on 2026-09-20;
-> - the full `@world` rebuild with `-O2` completed on 2026-09-21;
-> - post-rebuild boot/runtime were verified.
+The completed comparison retained global `-O2` and ThinLTO where package/ebuild
+policy permits. Package-specific `-O3` requires a separate benchmark showing a
+meaningful, reproducible practical benefit; no selective rules were created
+from B1–B4. Across codec, compression/decompression, crypto and shader compilation,
+`-O3` increased code size while runtime gains were small, mixed or absent.
 
-Source-of-truth boundaries:
+The decision was recorded and applied on 2026-09-20; the full `@world` rebuild
+completed on 2026-09-21. This is the historical Experiment B record, with Clang
+23 and LLD 23 fixed in both branches. Current configuration belongs in the
+[workstation system documentation](../../../systems/asus-b5402/system/boot-and-portage/).
 
-- the current production state of the system is in
-  [`../../systems/asus-b5402/system/boot-and-portage.md`](../../../systems/asus-b5402/system/boot-and-portage/);
-- the detailed decision record is in
-  [optimization-o2-o3.md](../optimization-o2-o3/);
-- the canonical methodology is in
-  [benchmark-methodology.md](../benchmark-methodology/);
-- the gate journal is in [results.md](../results/).
+| ID | Workload | LTO | O3 runtime | O3 code size |
+|------|----------|-----|------------|--------------|
+| B1 | libde265 HEVC decode | ThinLTO | ~1.2% faster | ~+12.3% `.text` |
+| B2-C | zstd compression | ThinLTO | ~1–2% faster | ~+9.2% lib `.text` |
+| B2-D | zstd decompression | ThinLTO | ~1–2% slower | the same ~+9.2% |
+| B3-AES | AES-256-CTR | no LTO | effectively a tie | libcrypto ~+2.6% |
+| B3-SHA | SHA-256 | no LTO | ~0.5% slower | libcrypto ~+2.6% |
+| B3-ChaCha | ChaCha20 | no LTO | ~1% slower | libcrypto ~+2.6% |
+| B4 | Mesa shader-db | no LTO | no measurable advantage | large ELFs ~+5% `.text`, binpkg +5.31% |
 
-B1–B4 are benchmark results, not validation gates. “PASS” is not used here:
-neither optimization level is a “test success”.
+## Question
 
-## 1. Measurement principle
+The original Experiment B question: should the system's global optimization
+baseline remain `-O3`, or is global `-O2` with package-specific `-O3` only
+where it delivers a measured benefit more reasonable?
 
-Each A/B changes exactly one optimization level. The compiler (Clang 23),
-linker (LLD 23), `-march=alderlake`, LTO mode under the package/ebuild policy
-(ThinLTO in B1/B2, no LTO in B3/B4), libstdc++/libgcc/libgcc_s, package
-version, and workload remain unchanged.
+| | Production baseline at experiment start | Candidate policy |
+|--|-----------------------------------------|------------------|
+| CFLAGS/CXXFLAGS | global `-O3` | global `-O2` |
+| LTO | global ThinLTO where supported | ThinLTO unchanged |
+| Targeted exceptions | `package.env` unchanged | `-O3` only for packages with a measured benefit |
 
-## 2. Build methodology
+Under the predefined design, production policy did not change before
+measurements were complete, a decision was made, and it was applied separately.
 
-- Both versions are built with `--buildpkgonly` into separate PKGDIRs; the
-  live system is unaffected.
-- The toolchain is called only through absolute paths from slot 23
-  (`/usr/lib/llvm/23/bin/...`).
-- During the design/checkpoint stage before the rollout decision, a permanent
-  `env/llvm-23` was not created: rollout was deferred until the optimization
-  baseline was decided.
+## Why this was tested
 
-## 3. Runtime measurement methodology (B1)
+The starting policy used global `-O3`. More aggressive inlining, unrolling and
+vectorization can cost code size and build work, including with ThinLTO; the
+experiment tested whether the runtime benefit justified that cost on this
+machine. Those were motivations to measure, not proof of a cache effect or a
+predetermined result.
+
+## Experimental setup
+
+The main principle: exactly the optimization level changes in each A/B. The
+compiler (Clang 23), linker (LLD 23), CPU target (`-march=alderlake`), LTO mode,
+runtime libraries, package version, and benchmark workload remain identical.
+
+Conditions:
+
+- Experiment A (LLVM 23 compatibility) completed 2026-09-20 — the prerequisite
+  “first stabilize the compiler/linker baseline” was met; B1 was measured with
+  Clang 23 + LLD 23.
+- The same package versions in both branches.
+- Builds use `--buildpkgonly` in separate PKGDIRs; the live system does not
+  change.
+- Measured builds are either without ccache, or with an equally cold or cleared
+  cache; otherwise wall-clock time is not comparable.
+- Repeat or interleave runs to separate the effect from warm-up (page cache,
+  tmpfs, ccache).
+
+### Metrics
+
+| Metric | How to collect it |
+|--------|-------------------|
+| build user/system/wall time | `/usr/bin/time -v` with `--buildpkgonly` |
+| peak RSS | `/usr/bin/time -v` (Maximum resident set size) |
+| `.text` and ELF size | `size`, `stat` |
+| binpkg size | `ls -l` in PKGDIR |
+| runtime task-clock / cycles / instructions / IPC | `perf stat` on a pinned core |
+| branches / branch misses / cache refs+misses | `perf stat` |
+| errors/warnings | counters from the build log; new `package.env` exceptions |
+
+Where applicable, use additional domain-specific workload metrics.
+
+## Methodology
+
+Only `-O2` ↔ `-O3` changes: package version, USE flags, dependencies, compiler,
+linker, CPU target, LTO and GNU runtime libraries stay fixed. Package-native LTO
+filtering is retained. Builds use `--buildpkgonly` and separate PKGDIRs. Before
+runtime tests, binpkg metadata/environment confirms `CC`, `CXX`, `AR`, `NM`,
+`RANLIB`, `CFLAGS`, `CXXFLAGS`, `LDFLAGS` and LTO state. Each extracted tree uses
+its own libraries through `LD_LIBRARY_PATH`, checked with `ldd` or equivalent.
+
+Correctness comes before performance: smoke tests and round-trip/decode or
+deterministic-result checks where applicable. Single-thread runs use the same
+P-core, CPU 2, without mixing P/E cores. Both branches receive warm-up outside
+the samples, then balanced runs `O2, O3, O3, O2, O3, O2, O2, O3`: four samples
+per variant per workload. Runs must be long enough to limit startup noise;
+warm-up does not eliminate thermal or system noise.
+
+For fixed-work tests, task-clock and raw counters are directly comparable.
+Fixed-time `openssl speed` requires throughput and counters per processed byte,
+not direct comparisons of raw totals. Runtime analysis includes cycles,
+instructions, IPC and, where useful, branch/cache counters. ELF `.text`, file
+size and binpkg size describe the code-size cost. Mean, median and CV describe
+variation; `cycles / task-clock` checks effective frequency without claiming
+full thermal validation. Single build timings from `/usr/bin/time -v` remain
+auxiliary observations; a build-time conclusion would require repeated
+controlled builds. Facts, derived metrics, interpretation and policy decisions
+remain separate, with no predetermined winner or claims beyond measured scope.
+
+## Results
+
+### libde265 — HEVC decode
+
+`media-libs/libde265-1.1.3` (B1), single-thread HEVC decode, ThinLTO:
+`-O3` reduced task-clock by 1.19% and instructions by about 1.8%, at about
+12.3% more library `.text`. The small reproducible gain was a weak/questionable
+trade-off, not a basis for a selective rule.
+
+### zstd — compression/decompression
+
+`app-arch/zstd-1.5.7-r1` (B2), ThinLTO: compression was about 1–2% faster with
+`-O3`, decompression about 1–2% slower, and library `.text` about 9.2% larger.
+Compression O3 CV reached about 4%; the exact gain must not be overstated.
+A performance-sensitive package does not automatically justify `-O3`.
+
+### OpenSSL — crypto
+
+`dev-libs/openssl-3.5.8` (B3), no LTO because the ebuild applies `filter-lto`:
+AES-256-CTR was effectively tied (mean difference ≈ -0.17%), SHA-256 about
+0.5% slower and ChaCha20 about 1% slower with `-O3` in this session.
+The higher ChaCha20 O3 variation limits precision. Library `.text` grew by
+2.62% (`libcrypto`) and 4.24% (`libssl`).
+
+### Mesa — shader compilation
+
+`media-libs/mesa-26.2.2` (B4), no LTO under package policy, real iris driver:
+mean task-clock differed by ≈ -0.30% with O2 CV ≈ 4.04%, and mean and median
+pointed in different directions. No measurable runtime advantage was found.
+Large ELF `.text` grew by about 5% and binpkg by 5.31%. The noisy O2 sample
+was retained; fewer instructions/cycles do not establish a runtime benefit.
+
+## Interpretation
+
+Result classifications (a framework, not hard numeric thresholds):
+
+- **Strong O3 candidate**: a clear repeatable runtime benefit, noticeably
+  larger than measurement noise; a code-size cost acceptable for the workload.
+- **Weak / questionable O3 candidate**: a ~0–2% benefit, substantial code
+  growth, benefit at the boundary of benchmark variation.
+- **O2-favored workload**: no meaningful benefit or a regression, while O3
+  increases code size.
+
+## Decision
+
+This criterion was formulated before B1–B4 outcomes were available and is
+separate from the adopted decision below.
+
+The candidate future policy: global `-O2`, with targeted `-O3` where a useful
+effect is measured. It can be adopted only if on a representative package set
+`-O2` does not materially lose at runtime while gaining in code size or build
+time, and candidates for targeted `-O3` are individually confirmed by
+measurement.
+
+If measurement shows a sustained `-O3` advantage, global policy remains as it
+is. Change only on data.
+
+The experiment's goal is not to prove `-O2` or `-O3` superior in advance, but
+to determine a reasonable policy for this specific machine.
+
+### Adopted decision (2026-09-20)
+
+The criterion was met by B1–B4: `-O2` does not materially lose at runtime on
+the tested set (measured O3 benefits were small: ≈1.2% in B1 and ≈1–2% on the
+compression path of B2; B2 was mixed, while O3 increased code footprint in
+every gate) and consistently wins on code size; measurement identified no
+candidates for targeted `-O3`.
+
+```text
+global baseline:  -O2
+ThinLTO:          remains global where package/ebuild policy permits
+-O3:             package-specific only after a separate benchmark shows a
+                  meaningful and reproducible practical benefit
+```
+
+No selective `-O3` rules result from B1–B4: libde265 is weak/questionable
+(~1.2% for ~12.3% `.text`), zstd is mixed, and OpenSSL and Mesa show no
+benefit.
+
+> The decision was applied 2026-09-20: `make.conf` and env files were changed
+> to `-O2`, and the resolver succeeds. The full `@world` rebuild with `-O2`
+> completed 2026-09-21; at this checkpoint the LLVM 23 rollout remained the
+> next controlled step (NOT STARTED).
+
+Applied on 2026-09-20 in `/etc/portage`: `make.conf`, `env/gcc-fallback`
+and `env/no-lto-llvm` changed; `env/kernel-llvm` was already `-O2`.
+The resolver succeeded. At the experiment checkpoint `env/llvm-23` did not
+exist; this does not describe the current system.
+
+At policy application, `portageq envvar CFLAGS CXXFLAGS` confirmed
+`-O2 -flto=thin`; this is historical verification of that change.
+
+## Limitations
+
+- Generic cache events on an Intel hybrid PMU are comparatively noisy, and
+  Experiment B benchmarks were not designed to isolate particular cache
+  hierarchies: do not make strong causal conclusions about cache behavior. The
+  central decision relies primarily on throughput, cycles/byte,
+  instructions/byte, and code size.
+- Record each gate's scope explicitly (algorithms, buffers, core, versions,
+  hardware, compiler), and do not automatically generalize beyond it.
+- Overclaiming is prohibited: statements such as “O2 is universally faster,”
+  “O3 is useless,” “O3 breaks cache performance,” “LLVM 23 prefers O2,” or
+  “OpenSSL O3 is broken” are unsupported and are not used.
+- `.text` growth creates a potential instruction-cache trade-off, but without
+  direct isolation of i-cache effects, the causal claim “O3 is slower because
+  of i-cache” is not made.
+
+## Detailed evidence
+
+### HEVC workload and CPU affinity
 
 Fixed HEVC benchmark:
 
@@ -89,13 +263,16 @@ On a hybrid Intel PMU, lines such as `cpu_atom/... <not counted>` are expected:
 the process is pinned to a P-core. The valid counters are `cpu_core/*` with 100%
 measured time.
 
-## 4. B1 — libde265-1.1.3
+### libde265 — HEVC decode (B1)
+
+<details>
+<summary>Build provenance, samples, sizes and interpretation</summary>
 
 Why it was chosen: a compute-heavy C++ codec, suitable for a real runtime
 benchmark; supports a fixed HEVC bitstream; allows a single-thread benchmark;
 small enough for repeatable builds.
 
-### 4.1 Build cost (raw timings)
+#### Build cost (raw timings)
 
 | Metric | O2 | O3 | O3 vs O2 |
 |---------|-----|-----|----------|
@@ -110,7 +287,7 @@ small enough for repeatable builds.
 > O3 = 0). The conclusion “O2 compiles 3.28% faster” cannot be made. Serious
 > build-time conclusions require repeated controlled builds.
 
-### 4.2 Code size
+#### Code size
 
 This is the direct and reproducible result from two completed ELFs.
 
@@ -140,7 +317,7 @@ The main size observation: on this workload, `-O3` increased the `.text` of
 the main library by about 12.3%. That is not itself a “problem”; code growth
 is assessed together with runtime performance.
 
-### 4.3 Raw runtime samples
+#### Raw runtime samples
 
 O2 (runs 1, 4, 6, 7):
 
@@ -166,7 +343,7 @@ O3 (runs 2, 3, 5, 8):
 | cache-references | 934415295 | 939829363 | 949502531 | 944262287 |
 | cache-misses | 684544511 | 686057321 | 693593821 | 690624986 |
 
-### 4.4 Derived values (means of 4 runs)
+#### Derived values (means of 4 runs)
 
 | Metric | O2 | O3 | O3 vs O2 |
 |---------|-----|-----|----------|
@@ -185,7 +362,7 @@ Mean effective frequency (cycles / task-clock): O2 ≈ 2.149 GHz,
 O3 ≈ 2.150 GHz, virtually the same. The measured difference therefore does
 not appear to result from a systematically different average frequency.
 
-### 4.5 Interpretation
+#### Interpretation
 
 Key factual result:
 
@@ -210,20 +387,16 @@ Observations:
 > ⚠️ **Important nuance**: do not treat the `.text` growth as proof that it
 > worsened the instruction cache; the available perf counters did not prove it.
 
-### 4.6 Meaning for the optimization policy
+At the B1 checkpoint, `make.conf`, `package.env` and production policy were
+unchanged; no libde265-specific `-O3` rule was created. One codec workload alone
+was insufficient for a global policy decision.
 
-B1 strengthens the `global -O2 + selective -O3` hypothesis: on a compute-heavy
-codec, O3 buys a small runtime gain at the cost of a noticeably larger machine
-code footprint. One codec workload is insufficient to change the system-wide
-optimization policy.
+</details>
 
-At the checkpoint after B1, there were no changes to `make.conf`, `package.env`,
-or the production policy; a package-specific `-O3` rule for libde265 was not
-created, because at that stage this was only an experimental result. The owner
-still selected the packages for the following gates (criteria in
-[optimization-o2-o3.md](../optimization-o2-o3/)).
+### zstd — compression/decompression (B2)
 
-## 5. B2 — app-arch/zstd-1.5.7-r1
+<details>
+<summary>Build provenance, samples, sizes and interpretation</summary>
 
 Workload class: compression/decompression, C, a real-world compression library,
 and CLI.
@@ -237,7 +410,7 @@ runtime stack, package version, and USE/dependencies. The only intentional
 difference is `-O2` ↔ `-O3`. Builds use `--buildpkgonly` into separate PKGDIRs:
 `/tmp/zstd-o2-pkgs` and `/tmp/zstd-o3-pkgs`.
 
-### 5.1 Build cost (auxiliary observation)
+#### Build cost (auxiliary observation)
 
 | Metric | O2 | O3 | O3 vs O2 |
 |---------|-----|-----|----------|
@@ -251,7 +424,7 @@ difference is `-O2` ↔ `-O3`. Builds use `--buildpkgonly` into separate PKGDIRs
 > (O2 ≈ 278%, O3 ≈ 300%). Neither “O3 builds faster” nor “O2 builds faster”
 > can be written as a robust conclusion; this is only an auxiliary observation.
 
-### 5.2 Code size
+#### Code size
 
 `zstd` CLI:
 
@@ -272,7 +445,7 @@ difference is `-O2` ↔ `-O3`. Builds use `--buildpkgonly` into separate PKGDIRs
 The main B2 size result: `-O3` increased the `.text` of the primary
 `libzstd.so` by about 9.2%.
 
-### 5.3 Corpus and isolation
+#### Corpus and isolation
 
 Real corpus from the sources of the current Linux kernel tree:
 
@@ -287,7 +460,7 @@ it was confirmed that the O2 executable uses O2 `libzstd` and O3 uses O3
 `libzstd`. Accidental use of the installed system `libzstd` was excluded. The
 record did not preserve a sha256 of the results, so no value is substituted.
 
-### 5.4 Runtime methodology
+#### Runtime methodology
 
 As in B1: CPU 2 (P-core), `taskset -c 2`, `perf stat`, warm-up of both
 versions, and measured-run order `1 O2, 2 O3, 3 O3, 4 O2, 5 O3, 6 O2, 7 O2,
@@ -303,7 +476,7 @@ decompression: zstd -d,      150 repetitions
 
 Compression and decompression were measured separately.
 
-### 5.5 Raw compression samples
+#### Raw compression samples
 
 O2 (runs 1, 4, 6, 7):
 
@@ -329,7 +502,7 @@ O3 (runs 2, 3, 5, 8):
 | cache-references | 1241326989 | 1206209761 | 1193935364 | 1242888787 |
 | cache-misses | 163883144 | 173585391 | 207527397 | 168301335 |
 
-### 5.6 Derived compression values (means of 4 runs)
+#### Derived compression values (means of 4 runs)
 
 | Metric | O2 | O3 | O3 vs O2 |
 |---------|-----|-----|----------|
@@ -352,7 +525,7 @@ Observations: O3 executes fewer instructions and uses fewer cycles; IPC is
 slightly lower; branch count is lower; branch miss rate is slightly worse;
 cache miss rate is effectively unchanged.
 
-### 5.7 Raw decompression samples
+#### Raw decompression samples
 
 O2 (runs 1, 4, 6, 7):
 
@@ -378,7 +551,7 @@ O3 (runs 2, 3, 5, 8):
 | cache-references | 316081454 | 310299468 | 318353459 | 317565939 |
 | cache-misses | 48256530 | 60574041 | 90462898 | 50120655 |
 
-### 5.8 Derived decompression values (means of 4 runs)
+#### Derived decompression values (means of 4 runs)
 
 | Metric | O2 | O3 | O3 vs O2 |
 |---------|-----|-----|----------|
@@ -399,7 +572,7 @@ meaningful amount, but required more cycles; IPC is lower, branch miss rate is
 worse, and measured runtime is slower. The decompression cache counters are
 noticeably noisy, so no deep conclusion is drawn from them.
 
-### 5.9 Frequency sanity check
+#### Frequency sanity check
 
 Mean effective frequency (cycles / task-clock):
 
@@ -411,7 +584,7 @@ Decompression: O2 ≈ 1.911 GHz, O3 ≈ 1.912 GHz
 > Runtime differences are not explained by a systematic O2/O3 difference in
 > mean frequency.
 
-### 5.10 Central B2 result
+#### Central B2 result
 
 ```text
 libzstd .text:  O3 ≈ +9.2%
@@ -425,7 +598,7 @@ decompression:  O3 ≈ 1–2% slower
 
 This result matters more than any individual perf counter.
 
-### 5.11 Interpretation
+#### Interpretation
 
 B2 demonstrated an important point:
 
@@ -445,13 +618,18 @@ conclusion is:
 > effects; the causal conclusion “O3 is slower because of a larger i-cache
 > footprint” is not proven.
 
-## 6. B3 — dev-libs/openssl-3.5.8
+</details>
+
+### OpenSSL — crypto (B3)
+
+<details>
+<summary>Build provenance, samples, sizes and interpretation</summary>
 
 Class: cryptography; C / assembly-heavy; production crypto implementation.
 B3 adds a third workload class to the study: codec (B1),
 compression/decompression (B2), crypto (B3).
 
-### 6.1 Gentoo OpenSSL build-policy characteristic
+#### Gentoo OpenSSL build-policy characteristic
 
 The Gentoo OpenSSL ebuild itself runs `filter-lto` and removes ThinLTO from the
 build flags: upstream OpenSSL does not consider LTO a normally supported and
@@ -467,13 +645,13 @@ This is not a deficiency in the experiment: B3 tests O2/O3 in another real
 production configuration (Rule 3 of the methodology: package-native policy is
 preserved).
 
-### 6.2 Controlled-variable design
+#### Controlled-variable design
 
 Identical in both branches: `dev-libs/openssl-3.5.8`; Clang 23; LLD 23;
 `-march=alderlake`; runtime/dependencies; package configuration; LTO disabled
 by the ebuild. The only intentional difference is `-O2` ↔ `-O3`.
 
-### 6.3 Provenance
+#### Provenance
 
 Both builds use `--buildpkgonly`:
 
@@ -500,7 +678,7 @@ LDFLAGS = -Wl,-O1 -Wl,--as-needed -fuse-ld=lld
 > ⚠️ **Important nuance**: `-flto=thin` is absent from both branches under the
 > ebuild policy. B3 is a clean O2/O3 comparison without LTO.
 
-### 6.4 Build cost (auxiliary observation)
+#### Build cost (auxiliary observation)
 
 | Metric | O2 | O3 |
 |---------|----|----|
@@ -520,7 +698,7 @@ O3: filesystem inputs 3120, outputs 800
 > utilization and filesystem state/outputs differed substantially, and one
 > build run was performed for each variant. Build-time data remains auxiliary.
 
-### 6.5 Code size
+#### Code size
 
 `openssl` CLI:
 
@@ -557,7 +735,7 @@ B3 libcrypto: O3 main-library .text ≈ +2.6%
 The magnitude of code growth depends on the package/workload; the conclusion
 “O3 always increases `.text` by the same amount” would be incorrect.
 
-### 6.6 Isolation
+#### Isolation
 
 Both versions ran with their own libraries through `LD_LIBRARY_PATH`:
 
@@ -570,7 +748,7 @@ O3: libssl.so.3, libcrypto.so.3
 
 Accidental use of the installed system OpenSSL was excluded.
 
-### 6.7 Runtime methodology
+#### Runtime methodology
 
 The standard `openssl speed` benchmark. Algorithms and reasons for selection:
 
@@ -609,7 +787,7 @@ counters are not used).
 > normalized per processed byte (`cycles/byte`, `instructions/byte`,
 > `branches/byte`), and processed bytes come from throughput/operation count.
 
-### 6.8 Raw throughput samples
+#### Raw throughput samples
 
 AES-256-CTR, B/s:
 
@@ -632,7 +810,7 @@ ChaCha20, B/s:
 | O2 (runs 1,4,6,7) | 1806598144.00 | 1788937830.40 | 1810109235.20 | 1819310489.60 |
 | O3 (runs 2,3,5,8) | 1810718720.00 | 1815112908.80 | 1762911846.40 | 1751713382.40 |
 
-### 6.9 Derived throughput
+#### Derived throughput
 
 AES-256-CTR:
 
@@ -673,7 +851,7 @@ ChaCha20:
 > 1.17% slower” cannot be written; “about 1% slower in this benchmark session”
 > is correct.
 
-### 6.10 perf normalization (per processed byte)
+#### perf normalization (per processed byte)
 
 Approximate normalized values:
 
@@ -700,7 +878,7 @@ Interpretation by algorithm:
 > compiler optimizations. This benchmark is consistent with that possibility,
 > but does not isolate it directly.
 
-### 6.11 Frequency sanity check and cache counters
+#### Frequency sanity check and cache counters
 
 Mean effective frequency across all workloads was approximately the same
 (~2.17 GHz), and O2/O3 differences were very small:
@@ -715,7 +893,7 @@ cache counters. No strong causal conclusions about cache behaviour are drawn
 from B3; the central decision relies primarily on throughput, cycles/byte,
 instructions/byte, and code size.
 
-### 6.12 Main B3 result
+#### Main B3 result
 
 ```text
 AES-256-CTR: no O3 advantage (mean ≈ -0.17%, effectively a tie)
@@ -730,7 +908,7 @@ openssl CLI .text ≈ +1.37%
 > In the tested OpenSSL crypto workloads, `-O3` provided no measurable
 > performance advantage over `-O2`, while continuing to increase code size.
 
-### 6.13 Scope limitation
+#### Scope limitation
 
 B3 tested only AES-256-CTR, SHA-256, and ChaCha20; 16 KiB buffers; one P-core;
 single-process `openssl speed`; OpenSSL 3.5.8; Intel Core i7-1260P; and Clang
@@ -738,13 +916,18 @@ single-process `openssl speed`; OpenSSL 3.5.8; Intel Core i7-1260P; and Clang
 RSA, ECDSA, TLS handshakes, smaller buffers, multi-threaded workloads, ARM,
 other OpenSSL versions, or other crypto libraries.
 
-## 7. B4 — media-libs/mesa-26.2.2
+</details>
+
+### Mesa — shader compilation (B4)
+
+<details>
+<summary>Build provenance, samples, sizes and interpretation</summary>
 
 Class: a large desktop/graphics codebase (C/C++), a production package. B4 is
 the final benchmark of Experiment B: it completes coverage with a large
 graphics stack after codec (B1), compression/decompression (B2), and crypto (B3).
 
-### 7.1 Controlled-variable gate
+#### Controlled-variable gate
 
 Both Mesa versions were built with `--buildpkgonly` into separate PKGDIRs:
 
@@ -761,7 +944,7 @@ The normalized O2/O3 metadata diff is empty: the only intentional difference
 is `-O2` ↔ `-O3`. The production system was not moved to either level during the
 benchmark; Mesa from the binpkg was not installed.
 
-### 7.2 Build observations (auxiliary)
+#### Build observations (auxiliary)
 
 | Metric | O2 | O3 |
 |---------|----|----|
@@ -774,7 +957,7 @@ benchmark; Mesa from the binpkg was not installed.
 > compiles faster; build timing remains an auxiliary observation (Rule 14 of
 > the methodology).
 
-### 7.3 Code size
+#### Code size
 
 Binpkg:
 
@@ -794,7 +977,7 @@ ELF `.text`:
 On a large production graphics codebase, `-O3` again noticeably increases the
 code footprint; `iris_dri.so` is virtually unchanged.
 
-### 7.4 Runtime methodology
+#### Runtime methodology
 
 The workload is Mesa shader-db on a fixed shader corpus:
 
@@ -812,7 +995,7 @@ Order:         O2, O3, O3, O2, O3, O2, O2, O3 — 4 measured samples per variant
 Only `cpu_core/*` counters were used for analysis; `cpu_atom/*` was not used
 for the final conclusion because the workload is pinned to a P-core.
 
-### 7.5 Derived runtime
+#### Derived runtime
 
 | Metric | O2 | O3 | O3 vs O2 |
 |---------|----|----|----------|
@@ -830,7 +1013,7 @@ Raw O2 task-clock samples: 106.453, 116.552, 106.076, 106.685 s. One sample
 (116.552) is noticeably noisier than the rest. It is not removed after the
 fact; the high O2 variation (CV ≈ 4%) is considered in the interpretation.
 
-### 7.6 Interpretation
+#### Interpretation
 
 > B4 found no measurable runtime advantage of `-O3` over `-O2`.
 
@@ -844,7 +1027,7 @@ fact; the high O2 variation (CV ≈ 4%) is considered in the interpretation.
 The wordings “O3 is 0.3% faster,” “O2 is 2.25% faster,” and causal explanations
 of the result through CPU-frequency differences are not used.
 
-### 7.7 Scope limitation
+#### Scope limitation
 
 B4 tested only Mesa shader-db on one fixed shader corpus; the real iris
 userspace driver on Intel Alder Lake-P GT2 / Iris Xe [8086:46a6]; one P-core
@@ -853,35 +1036,58 @@ policy; and Clang 23. The result is not automatically generalized to other
 drivers (hasvk, zink, swrast), gaming, video, and compute workloads,
 multi-thread, E-core, or other Mesa versions.
 
-## 8. B1–B4 summary
+</details>
 
-| Gate | Workload | LTO | O3 runtime | O3 code size |
-|------|----------|-----|------------|--------------|
-| B1 | libde265 HEVC decode | ThinLTO | ~1.2% faster | ~+12.3% `.text` |
-| B2-C | zstd compression | ThinLTO | ~1–2% faster | ~+9.2% lib `.text` |
-| B2-D | zstd decompression | ThinLTO | ~1–2% slower | the same ~+9.2% |
-| B3-AES | AES-256-CTR | no LTO | effectively a tie | libcrypto ~+2.6% |
-| B3-SHA | SHA-256 | no LTO | ~0.5% slower | libcrypto ~+2.6% |
-| B3-ChaCha | ChaCha20 | no LTO | ~1% slower | libcrypto ~+2.6% |
-| B4 | Mesa shader-db | no LTO | no measurable advantage | large ELFs ~+5% `.text`, binpkg +5.31% |
+### Historical review before Mesa (2026-09-20)
 
-Trend after four substantially different workload classes:
+- **Code size — the most consistent result**: `-O3` increased `.text` in every
+  measured ELF — libraries +2.6…+12.3%, CLI +1.4…+11.2%. Direct measurements
+  of finished binaries; independent of benchmark noise.
+- **Runtime — every O2/O3 effect is within ≈ ±2%**: in 4 of 6 comparisons O2
+  is faster or tied (B2-D, AES, SHA, ChaCha20); the best O3 results are ≈ 1.2%
+  (B1) and ≈ 1–2% (B2 compression, with CV O3 up to 4%). No workload has a
+  decisive O3 advantage; the magnitudes are comparable with sample variation
+  (CV 0.4–4%).
+- **Build time** — single-run auxiliary observations; excluded from the
+  decision (single build-run).
+- **Frequency sanity** — passed in every gate; effects are not explained by
+  different average frequency.
+- **Coverage** — C and C++; ThinLTO and no-LTO; fixed-work and fixed-time;
+  codec, compression/decompression, crypto; small utilities and large
+  production libraries.
 
-> `-O3` increased code footprint in all tested classes, while runtime benefit
-> was small, workload-specific, absent, or negative.
+The review covered B1–B3 only. Its recorded scope limits included build-time
+cost (no repeated controlled builds), multi-thread, other algorithms/buffers
+and E-cores. It described the 4+4 sample size as reliable for effects ≈ 2% and
+larger, with smaller effects at the noise boundary; this historical assessment
+is not a universal statistical guarantee. Mesa was measured afterwards on
+2026-09-20 and is reported separately above.
 
-This is the outcome of Experiment B. The recorded decision is in
-[optimization-o2-o3.md](../optimization-o2-o3/) § 7 and [results.md](../results/).
+### Original rationale
 
-The study covers C and C++; workloads with ThinLTO and without LTO; codec,
-compression, decompression, crypto, and a large desktop/graphics codebase;
-fixed-work and time-based throughput benchmarks; small/medium libraries and a
-large production package. Experiment B is not a single synthetic microbenchmark.
+- `-O3` is not a different set of optimizations, but more aggressive thresholds
+  for the same transformations: higher inlining thresholds, more aggressive
+  loop unrolling, and bolder vectorization parameters. The cost is code size.
+- Vectorization is no longer exclusive to `-O3`: since LLVM 17 the loop
+  vectorizer is enabled at `-O2`, and SLP vectorization is active at `-O2` in
+  current LLVM as well. For most codebases, the difference “vectorized or not”
+  between the levels has disappeared.
+- Aggressive inlining and unrolling expand `.text`. Each hot function occupies
+  more i-cache lines; leaving its bounds increases misses, lowers useful
+  instruction density, and worsens prefetch behavior.
+- ThinLTO multiplies the effect: cross-module inlining pulls in code from other
+  TUs, then `-O3` thresholds unroll it further. The joint code growth can
+  substantially exceed the sum of the individual effects.
+- An additional cost is compilation time: more inlining means more IR to
+  optimize and link.
 
-Production-policy change: the optimization policy decision (2026-09-20) was
-applied to `/etc/portage`, making `-O2` the global baseline (`make.conf` and
-env files were changed and the resolver recalculated); the full `@world`
-rebuild with `-O2` completed on 2026-09-21 (post-rebuild boot/runtime were
-verified). No selective rules were created. At the checkpoint recorded in this
-report, `env/llvm-23` did not exist; this is the experiment’s historical state,
-not a statement about the current system.
+These arguments support only one conclusion: `-O3` benefit usually occurs in
+compute-bound kernels, while for typical system and desktop code it is often
+neutral or negative. But this is theory, not a result — test it by measurement
+on this machine.
+
+## Related records
+
+- [Compiler optimization experiments](../)
+- [LLVM 23 compatibility experiment](../../llvm23-toolchain/)
+- [LLVM history and policy rollout](../../llvm23-toolchain/results/)

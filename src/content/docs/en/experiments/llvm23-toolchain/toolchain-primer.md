@@ -173,5 +173,5 @@ not automatically generalize to all ebuilds; see results.md).
 
 - [LLVM 23 experiment status](../)
 - [Results log](../results/)
-- [Experiment B: -O2 vs -O3](../optimization-o2-o3/)
+- [Experiment B: -O2 vs -O3](../../compiler-optimization/o2-vs-o3/)
 - [Current system source of truth](../../../systems/asus-b5402/system/boot-and-portage/)

@@ -159,6 +159,10 @@ Intel Xeon E5-2696 v4 (Broadwell-EP, 22 cores / 44 threads, x86_64).
   С `CONFIG_X86_NATIVE_CPU=y` локальная сборка использует именно Alder Lake;
   детали — в [CPU optimization](../../hardware/cpu-optimization/).
 
+Сравнение Alder Lake и V3 на zstd, OpenSSL и Mesa поддерживает builder policy
+для протестированных workload; оно не обосновывает смену workstation target.
+[Методика, результаты и ограничения](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
+
 ### Private binrepo на workstation
 
 **Production policy принята 2026-10-10.** Обычный `emerge` автоматически
@@ -271,16 +275,13 @@ Portage сообщил `[gentoo-builder] HTTP Error 502: Bad Gateway`, но
 ## Оптимизация
 
 Глобально `-O2`; ThinLTO глобально там, где package/ebuild policy допускает;
-`-O3` — только package-specific после отдельного benchmark. По итогам
-эксперимента B1–B4 selective-правил для `-O3` не создано. Решение 2026-09-20,
-доказательная база —
-[experiments/llvm23-toolchain](../../../../experiments/llvm23-toolchain/).
+`-O3` — только для отдельного пакета после собственного benchmark. По итогам
+сравнения `-O2` и `-O3` selective-правила не создавались; полные результаты,
+методика и ограничения приведены в
+[документе эксперимента](../../../../experiments/compiler-optimization/o2-vs-o3/).
 
 - Fortran — `-O2` без ThinLTO: GNU Fortran не понимает `-flto=thin`
   (расширение Clang).
-- Политика применена к `/etc/portage` 2026-09-20: `-O3` → `-O2` в `make.conf`
-  и env-файлах (`kernel-llvm` уже был `-O2`). `portageq envvar CFLAGS CXXFLAGS`
-  подтверждает `-O2 -flto=thin`, resolver рассчитывается.
 - Полный rebuild `@world` после смены optimization/LTO policy завершён
   2026-09-21: система загрузилась штатно, основные сервисы работают, регрессий,
   связанных с `-O2` + ThinLTO, в журналах не выявлено. Это не значит, что
