@@ -227,6 +227,12 @@ source archive, source распакован в `PORTAGE_TMPDIR`. Тест ост
 
 ## Routine operation
 
+Gentoo repository `/var/db/repos/gentoo` синхронизируется через rsync с
+`FEATURES=usersync`; ownership всего дерева должен быть согласован с владельцем
+repository — `portage:portage`. Несогласованный ownership может ломать очистку
+quarantine и финальное применение обновления через rsync. Диагностика и
+исправление — в [usersync troubleshooting](../../troubleshooting/portage-usersync-repository-ownership/).
+
 Обновление выполняется вручную: sync Gentoo repositories / overlays,
 resolve и update `@world` на builder; `buildpkg` создаёт новые GPKG.
 Только после успешного update builder выполняются sync и обычный update
@@ -253,6 +259,8 @@ SSH public-key login и key-only access остаются pending verification.
   installation/first boot/runtime;
 - 2026-10-10 — local GPKG production, binhost и workstation integration,
   automatic consumption и вход в source fallback path.
+- 2026-10-15 — `usersync` и успешный rsync sync Gentoo repository после
+  восстановления ownership; остальные подсистемы повторно не проверялись.
 
 Ниже — команды для сверки работающего guest. При этой правке документа
 они не запускались на живой VM; даты относятся к ранее выполненным проверкам.
