@@ -93,6 +93,7 @@ live-базы с Android через Syncthing и KeePassDX.
 - [KeePassXC Quick Unlock и polkit](src/content/docs/troubleshooting/keepassxc-quick-unlock-polkit.md)
 - [LUKS/TPM2 unlock после пересборки UKI](src/content/docs/troubleshooting/luks-tpm2-unlock-after-uki-rebuild.md)
 - [NetworkManager, iwd и MAC randomization](src/content/docs/troubleshooting/networkmanager-iwd-mac-randomization.md)
+- [Portage usersync: Permission denied и несогласованный ownership repository](src/content/docs/troubleshooting/portage-usersync-repository-ownership.md)
 
 ### Эталонная система
 
