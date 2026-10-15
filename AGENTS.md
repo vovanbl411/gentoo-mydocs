@@ -97,12 +97,13 @@
 │           │       └── index.md
 │           └── experiments/  # Исследования и проверки, включая завершённые эксперименты
 │               ├── compiler-optimization/ # -O2 vs -O3, alderlake vs x86-64-v3
-│               ├── llvm23-toolchain/
+│               ├── llvm23-toolchain/ # Публичные итоги и compiler toolchain primer
 │               ├── asus-user-status-indicator/ # firmware, Linux ABI и upstream submission
 │               └── elan-fingerprint-04f3-0c77/
 │
 ├── archive/                  # Исторические материалы, не для применения,
 │                             # вне Starlight
+│   └── llvm23-toolchain/      # Исторический журнал эксперимента и agent prompt
 │
 ├── .codex/                   # Служебный контекст для агентов
 │   ├── project-context.md

@@ -416,7 +416,7 @@ sys-firmware/intel-microcode  dist-kernel initramfs split-ucode hostonly -vanill
   -default-lld -libcxx -llvm-libunwind`. По умолчанию сохраняется GNU runtime
   ABI; наличие compiler-rt/sanitizer runtimes не переводит систему на LLVM
   runtimes — это отдельный [Experiment
-  C](../../../../experiments/llvm23-toolchain/) (NOT STARTED).
+  C](../../../../experiments/llvm23-toolchain/#experiment-c-граница-runtime-эксперимента) (NOT STARTED).
 - **OpenVPN**: `net-vpn/openvpn dco kernel-ovpn` (решение 2026-09-22, по
   итогам инцидента с `ovpn-dco`): DCO включён через mainline in-kernel модуль
   `ovpn` (`CONFIG_OVPN=m`, собирается с ядром). Out-of-tree
@@ -518,4 +518,4 @@ java -version                     # openjdk-bin:25, Temurin 25.0.4 LTS
 - [Базовая система](../../../../installation/base-system/)
 - [UKI через Dracut](../../../../installation/systemd-uki-setup/)
 - [Portage](../../../../managed/portage/)
-- [Эксперимент LLVM 23 toolchain](../../../../experiments/llvm23-toolchain/)
+- [LLVM 23: эксперимент и выводы](../../../../experiments/llvm23-toolchain/)

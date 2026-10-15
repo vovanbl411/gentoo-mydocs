@@ -1089,5 +1089,5 @@ on this machine.
 ## Related records
 
 - [Compiler optimization experiments](../)
-- [LLVM 23 compatibility experiment](../../llvm23-toolchain/)
+- [LLVM 23: experiment and conclusions](../../llvm23-toolchain/)
 - [LLVM history and policy rollout](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/llvm23-toolchain/results.md)

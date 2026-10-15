@@ -1092,5 +1092,5 @@ compute-bound ядрах, а для типичного системного и d
 ## Связанные записи
 
 - [Эксперименты compiler optimization](../)
-- [LLVM 23 compatibility experiment](../../llvm23-toolchain/)
+- [LLVM 23: эксперимент и выводы](../../llvm23-toolchain/)
 - [История LLVM и применение политики](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/llvm23-toolchain/results.md)

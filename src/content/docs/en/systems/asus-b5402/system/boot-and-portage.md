@@ -427,7 +427,7 @@ Architectural decisions from the same review:
   -default-lld -libcxx -llvm-libunwind`. The GNU runtime ABI remains the
   default; the presence of compiler-rt/sanitizer runtimes does not switch the
   system to LLVM runtimes — that is a separate [Experiment
-  C](../../../../experiments/llvm23-toolchain/) (NOT STARTED).
+  C](../../../../experiments/llvm23-toolchain/#experiment-c-runtime-experiment-boundary) (NOT STARTED).
 - **OpenVPN**: `net-vpn/openvpn dco kernel-ovpn` (decision on 2026-09-22
   after the `ovpn-dco` incident): DCO is enabled through the in-kernel mainline
   `ovpn` module (`CONFIG_OVPN=m`, built with the kernel). The out-of-tree
@@ -528,4 +528,4 @@ java -version                     # openjdk-bin:25, Temurin 25.0.4 LTS
 - [Base system](../../../../installation/base-system/)
 - [UKI with Dracut](../../../../installation/systemd-uki-setup/)
 - [Portage](../../../../managed/portage/)
-- [LLVM 23 toolchain experiment](../../../../experiments/llvm23-toolchain/)
+- [LLVM 23: experiment and conclusions](../../../../experiments/llvm23-toolchain/)

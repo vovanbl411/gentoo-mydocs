@@ -95,6 +95,13 @@ live-базы с Android через Syncthing и KeePassDX.
 - [NetworkManager, iwd и MAC randomization](src/content/docs/troubleshooting/networkmanager-iwd-mac-randomization.md)
 - [Portage usersync: Permission denied и несогласованный ownership repository](src/content/docs/troubleshooting/portage-usersync-repository-ownership.md)
 
+### Исследования
+
+- [Оптимизация компилятора](src/content/docs/experiments/compiler-optimization/index.md)
+- [LLVM 23: эксперимент и выводы](src/content/docs/experiments/llvm23-toolchain/index.md)
+- [Как устроен compiler toolchain в Gentoo](src/content/docs/experiments/llvm23-toolchain/toolchain-primer.md)
+- [ASUS User-status indicator](src/content/docs/experiments/asus-user-status-indicator/index.md)
+
 ### Эталонная система
 
 - [ASUS ExpertBook B5402](src/content/docs/systems/asus-b5402/index.md) — записанное состояние эталонной машины.
