@@ -1,5 +1,4 @@
 ---
-title: "Prompt для агента: LLVM 23 toolchain experiment"
 kind: reference
 scope: system
 status: historical
@@ -7,12 +6,19 @@ last_verified: null
 verified_on: [asus-b5402]
 ---
 
+# Prompt для агента: LLVM 23 toolchain experiment
+
+> **Архив:** исторический материал LLVM 23 experiment (2026-09-20…21).
+> Старые инструкции, baseline и next steps не являются текущей процедурой.
+> Итоги эксперимента: [LLVM 23: эксперимент и выводы](../../src/content/docs/experiments/llvm23-toolchain/index.md).
+> Актуальное состояние системы: [Загрузка и Portage](../../src/content/docs/systems/asus-b5402/system/boot-and-portage.md).
+
 > **Исторический документ:** это исходный prompt, использованный для
 > организации LLVM 23 experiment. Он сохраняется как provenance принятых
 > решений и reasoning process. Experiment A и B уже завершены; инструкции
 > «создай документы», «начни Gate A1» и другие шаги ниже не являются current
-> next steps. Актуальный статус эксперимента см. в [README.md](../),
-> фактические результаты — в [results.md](../results/).
+> next steps. Актуальный статус эксперимента см. в [итоговом документе](../../src/content/docs/experiments/llvm23-toolchain/index.md),
+> фактические результаты — в [results.md](results.md).
 
 Работай в репозитории `vovanbl411/gentoo-mydocs`, ветка
 `docs/llvm23-toolchain-experiment`.
@@ -247,7 +253,7 @@ LLVM 23 + -O3 + ThinLTO
 ## Эксперимент A — LLVM 22 vs LLVM 23
 
 Далее сохранён исходный план Experiment A. Фактические результаты находятся в
-[results.md](../results/); Experiment A имеет статус COMPLETE.
+[results.md](results.md); Experiment A имеет статус COMPLETE.
 
 ### Gate A0 — baseline
 
@@ -355,7 +361,7 @@ LLVM 23 + -O3 + ThinLTO
 
 Последующие материалы Experiment B:
 
-- [Отчёт Experiment B](../../compiler-optimization/o2-vs-o3/) — методика,
+- [Отчёт Experiment B](../../src/content/docs/experiments/compiler-optimization/o2-vs-o3.md) — методика,
   результаты и принятое решение.
 
 ## Эксперимент C — runtimes
@@ -386,7 +392,7 @@ libgcc_s -> libunwind
 
 ## Related records
 
-- [README.md](../) — current experiment status;
-- [results.md](../results/) — gate journal и фактические результаты;
-- [Отчёт Experiment B](../../compiler-optimization/o2-vs-o3/) — decision record
+- [Итоги эксперимента](../../src/content/docs/experiments/llvm23-toolchain/index.md) — current experiment status;
+- [results.md](results.md) — gate journal и фактические результаты;
+- [Отчёт Experiment B](../../src/content/docs/experiments/compiler-optimization/o2-vs-o3.md) — decision record
   и benchmark data.

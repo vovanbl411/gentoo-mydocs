@@ -1,237 +1,106 @@
 ---
-title: "Experiment: LLVM 23 toolchain"
+title: "LLVM 23: experiment and conclusions"
 kind: reference
 scope: system
-status: draft
+status: current
 last_verified: null
 verified_on: [asus-b5402]
+sidebar:
+  order: 1
 ---
 
-This directory contains the research plan for moving the primary toolchain of
-the ASUS ExpertBook B5402 from LLVM 22 to LLVM 23, and the related
-optimization-policy research.
+**Experiment A — LLVM 23 compatibility: COMPLETE. A1–A4: PASS.**
+The question was whether Clang/LLD 22 could be replaced with 23 while retaining
+the GNU runtime stack: `libstdc++ + libgcc/libgcc_s`. This worked for the selected
+packages; Mesa was checked through a binpkg build, without installation or a
+runtime test.
 
-## Current experiment status
+The experiment did not prove:
 
-| Part | Status | Result / next step |
-|------|--------|--------------------|
-| Experiment A | **COMPLETE** | A1–A4 — PASS; compatibility confirmed only for the tested classes |
-| Experiment B | **COMPLETE** | B1–B4; global `-O2` adopted, with `-O3` only after a package-specific benchmark |
-| Optimization policy | **APPLIED** | Applied 2026-09-20 |
-| Full `@world` rebuild with `-O2` | **COMPLETE** | Completed 2026-09-21; post-rebuild boot/runtime checked |
-| Limited `env/llvm-23` pilot | **NOT STARTED** | Next separate phase after the resolver audit |
-| Experiment C (`compiler-rt + libunwind`) | **NOT STARTED** | Separate experiment; it does not include `libc++` |
+- a performance advantage of LLVM 23 over LLVM 22;
+- compatibility of the entire `@world` or the absence of package-specific exceptions;
+- a need for a global LLVM 23 userspace rollout.
 
-Experiment A tested compatibility, but did not compare LLVM 22 and LLVM 23
-performance. That question remains open.
+According to the [current system documentation](../../systems/asus-b5402/system/boot-and-portage/#toolchain)
+and [CHECKPOINT](https://github.com/vovanbl411/gentoo-mydocs/blob/main/CHECKPOINT.md)
+(records as of 2026-10-10), the primary production userspace toolchain is
+**LLVM/Clang/LLD 22**, with global **`-O2` + ThinLTO** and the GNU runtime ABI.
+LLVM 23.1.1 is deliberately used for the kernel through `env/kernel-llvm`;
+migration of the remaining packages to LLVM 23 has not started. Passing A1–A4
+does not mean adopting LLVM 23 as the global userspace toolchain.
 
-## Source-of-truth boundary
+The optimization-policy study (Experiment B) led to adopting global `-O2` in
+production; selective `-O3` requires benchmark evidence. This is a separate
+decision, not a result of comparing LLVM versions.
 
-`experiments/` holds the research record, hypotheses, gates, and measurements.
-It is not the confirmed current state of the machine. The current system source
-of truth is in `systems/asus-b5402/`, especially the
-[boot and Portage record](../../systems/asus-b5402/system/boot-and-portage/).
-After individual phases are completed, confirmed results must move into system
-documentation or general guides.
+## What changed and why the tests were separated
 
-## Documents
-
-- [Toolchain primer](toolchain-primer/) — the five toolchain layers and the
-  machine's actual configuration;
-- [The `-O2` vs `-O3` comparison](../compiler-optimization/o2-vs-o3/) — one
-  report with Experiment B's methodology, results, and decision;
-- [Results log](results/) — gate entries, Experiment A and B outcomes, and
-  the optimization-policy decision;
-- [Original agent prompt](agent-prompt/) — a historical orchestration prompt,
-  not current instructions for running Experiment A or B.
-
-## Objectives
-
-1. Can the compiler/linker stack move from Clang/LLD 22 to Clang/LLD 23 without
-   simultaneously changing the runtime architecture? — **Experiment A:
-   COMPLETE** (compatibility was demonstrated for the tested classes; LLVM 22
-   vs 23 performance was not measured).
-2. Does LLVM 23 offer a practical benefit in build time, binary size, or
-   performance on Alder Lake? — an open question; there are no benchmarks.
-3. Is global `-O3` justified? — **Experiment B is complete**: global `-O2` was
-   adopted; `-O3` is allowed only after a separate package-specific benchmark.
-   Details and evidence are in the [Experiment B report](../compiler-optimization/o2-vs-o3/).
-4. Is there practical value after that in moving from GNU runtime components to
-   `compiler-rt + libunwind`, without combining it with replacing the C++
-   standard library? — Experiment C: NOT STARTED.
-
-Moving from `libstdc++` to `libc++` is outside the experiment's first phases,
-because it is a separate ABI decision with higher risk.
-
-## Confirmed baseline before the experiment
-
-At experiment preparation time, live system output showed:
+Experiment A on 2026-09-20 changed the compiler/linker: Clang 22.1.8 → 23.1.1
+and LLD 22 → 23.1.1. The GNU C++ standard library, compiler runtime, and
+unwinder were retained. The historical baseline used `-O3`; ThinLTO or disabled
+LTO was retained according to each package's original policy. This is not the
+current global policy.
 
 ```text
-Compiler:          Clang 22.1.8
-Portage linker:    LLD through -fuse-ld=lld in LDFLAGS
-Bare Clang linker: GNU ld.bfd
-C++ stdlib:        GCC 15 libstdc++
-Compiler runtime:  libgcc
-Unwinder:          libgcc / libgcc_s
+compiler/linker
+≠ optimization policy
+≠ C++ stdlib
+≠ compiler runtime
+≠ unwinder
 ```
 
-Clang 23.1.1 and LLD 23.1.1 were already installed in parallel.
+Changing `-O2`/`-O3`, moving to `compiler-rt + libunwind`, and choosing `libc++`
+were separated so that results could be attributed to a specific variable.
+The layers and Gentoo settings are explained in
+[How the compiler toolchain works in Gentoo](toolchain-primer/).
 
-The `/etc/clang/23/` configuration before the experiment:
+## Experiment A: LLVM 23 compatibility
 
-```text
--fuse-ld=bfd
---rtlib=libgcc
---stdlib=libstdc++
---unwindlib=libgcc
-```
+All four checks ran on 2026-09-20 on the ASUS B5402.
 
-This means that the first phase can change only the compiler/linker:
+| Gate / package | Why selected | What it tested | Result |
+|----------------|--------------|----------------|--------|
+| A1 — `media-libs/libde265-1.1.3` | A small ordinary C++ codec | Clang/LLD 23 + ThinLTO, retaining the GNU runtime | **PASS**; `dec265 --help` — exit 0 |
+| A2 — `dev-libs/libunistring-1.4.2` | A C library with an existing `no-lto-llvm` policy | New compiler/linker while retaining `-fno-lto` | **PASS**; build and VDB/ELF checked |
+| A3 — `dev-util/mesa_clc-26.2.2` | A package with an LLVM library dependency | Clang 23 + ThinLTO with `LLVM_SLOT=22` | **PASS**; `mesa_clc --help` — exit 0 |
+| A4 — `media-libs/mesa-26.2.2` | A large graphics stack | Clang/LLD 23, original no-LTO policy, LLVM libraries 22 | **PASS**; `--buildpkgonly` only, installed Mesa was not replaced |
 
-```text
-Clang 22 -> Clang 23
-LLD   22 -> LLD   23
-```
+In A3, the compiler version differed from the LLVM library slot:
+`mesa_clc` was built with Clang 23 but used `libLLVM.so.22.1` and
+`libclang-cpp.so.22.1`. Here, `LLVM_COMPAT`/`LLVM_SLOT` control the dependency
+slot, not automatically the allowed Clang version. This conclusion applies to
+the tested ebuild and cannot be extended to all Gentoo packages without checking.
 
-while leaving unchanged:
+ELF and binpkg sizes were recorded as evidence, but do not provide an LLVM
+22 vs 23 comparison. A4 build time was not reliably recorded; the runtime
+behavior of that Mesa binpkg was not tested.
 
-```text
-libstdc++
-libgcc
-libgcc_s
-```
+## Experiment B: a separate optimization question
 
-## Portage exceptions at experiment start
+The `-O2` vs `-O3` comparison became a
+[standalone controlled experiment](../compiler-optimization/o2-vs-o3/).
+Clang/LLD 23 were its fixed baseline, not the compared variable.
 
-> Historical starting snapshot: the 111 entries below describe the state at
-> verification time. Current state: after the 2026-09-20/21 cleanup,
-> gcc-fallback remains only for `sys-devel/binutils` and `x11-libs/pango`
-> (BFD policy inside `env/gcc-fallback`); all 102 local `no-lto-llvm`
-> overrides were removed, as were `env/no-lto-llvm` and `env/no-ccache`; source
-> `dev-java/openjdk:17` was replaced by `dev-java/openjdk-bin:25`. The active
-> state is in [systems/asus-b5402/system/boot-and-portage.md](../../systems/asus-b5402/system/boot-and-portage/).
+The result: global `-O2` with ThinLTO where package/ebuild policy allows it;
+selective `-O3` only after a package-specific benchmark. B produced no selective
+rules. The policy was applied on 2026-09-20; a full `@world` rebuild completed
+on 2026-09-21 with boot and core-service checks. Methodology, measurements, and
+limitations remain in the separate report.
 
-The `package.env` audit showed 111 entries associated with `gcc-fallback`,
-`problem-llvm`, `llvm-22`, or `no-lto-llvm`.
+## Experiment C: runtime experiment boundary
 
-This number must not be read as 111 packages incompatible with LLVM.
+The historical status of `compiler-rt + libunwind` is **NOT STARTED**; system
+documentation retains the GNU runtime ABI. This is a separate experiment and
+is not part of A's result. Installed LLVM runtimes do not imply their use by
+default.
 
-An explicit `gcc-fallback` applied to nine packages at verification time:
+`libstdc++ → libc++` is another independent ABI decision with higher risk;
+it was outside A and is not included in C.
 
-```text
-app-shells/bash
-sys-devel/binutils
-app-containers/lxc
-app-editors/nano
-dev-cpp/highway
-dev-java/openjdk
-net-analyzer/nmap
-x11-libs/pango
-media-libs/libjxl
-```
+## Full record
 
-Most remaining rules merely disable ThinLTO or provide another narrow
-exception.
-
-## LLVM_COMPAT
-
-The VDB showed a small set of installed packages with the `LLVM_COMPAT`
-variable. This must not be treated as a list of packages that can or cannot be
-compiled by a particular Clang version: `LLVM_COMPAT` often describes
-compatibility with LLVM as a library or tool dependency.
-
-The experiment therefore distinguishes two independent axes:
-
-- the Clang/LLD version that compiles a package's C/C++ code;
-- the LLVM slot a package links with or depends on as a library/toolchain
-  component.
-
-## Experiment status
-
-**Experiment A — LLVM 22 → 23 (compatibility): COMPLETE.**
-
-| Gate | Package | Class | LTO | LLVM dependency | Result |
-|------|---------|-------|-----|-----------------|--------|
-| A1 | libde265-1.1.3 | C++ codec | ThinLTO | n/a | PASS |
-| A2 | libunistring-1.4.2 | C library | disabled | n/a | PASS |
-| A3 | mesa_clc-26.2.2 | C/C++ LLVM-dependent | ThinLTO | LLVM 22 | PASS |
-| A4 | mesa-26.2.2 (`--buildpkgonly`) | large graphics stack | disabled | LLVM 22 | PASS |
-
-A is a compatibility result, not a performance comparison: it does not prove
-compatibility of the whole `@world` and does not remove package-specific
-exceptions.
-
-**Experiment B — `-O2` vs `-O3`: COMPLETE.** Global `-O2` was adopted, with
-ThinLTO where package/ebuild policy allows it; no selective `-O3` rules were
-created. The decision was applied to `/etc/portage` on 2026-09-20, and the
-full `@world` rebuild completed on 2026-09-21. Workloads, results, and
-limitations are collected in the [comparison report](../compiler-optimization/o2-vs-o3/).
-
-## Roadmap
-
-### Completed
-
-```text
-Experiment A — LLVM 23 compatibility — COMPLETE
-          ↓
-Experiment B — -O2 vs -O3 — COMPLETE
-  B1 libde265 — COMPLETE
-  B2 zstd — COMPLETE
-  B3 openssl — COMPLETE
-  final B1–B3 review — COMPLETE (2026-09-20)
-  B4 mesa — COMPLETE (2026-09-20)
-  optimization policy decision — COMPLETE (2026-09-20)
-          ↓
-applying -O2 in /etc/portage — COMPLETE (2026-09-20)
-          ↓
-full O2 rebuild + validation — COMPLETE (2026-09-21)
-```
-
-### Open / next
-
-```text
-limited env/llvm-23 pilot —
-NOT STARTED
-          ↓
-controlled LLVM 23 rollout — after a separate decision and resolver audit
-          ↓
-Experiment C (compiler-rt + libunwind) — NOT STARTED
-```
-
-Experiment B no longer blocks `env/llvm-23`: the optimization policy has been
-selected. The order remains: apply the optimization policy first, then start a
-controlled LLVM 23 rollout; do not do both at once.
-
-Each following item requires a separate owner decision:
-
-- a limited `env/llvm-23` pilot; a global transition only after the resolver
-  audit;
-- a world rebuild using the controlled scheme: pretend/resolver check,
-  exception assessment, rebuild; retain existing GCC fallbacks until each has
-  been assessed separately;
-- Experiment C (`compiler-rt + libunwind`) after A and B, with its own
-  baseline and rollback; do not include `libc++`;
-- do not use Firefox as an early pilot.
-
-## What to measure
-
-For configuration comparisons, record:
-
-- wall-clock build time;
-- peak memory, where practical;
-- final ELF and binpkg size;
-- link time for large ThinLTO packages, where separable;
-- build errors/warnings;
-- any need for new `package.env` exceptions;
-- runtime benchmarks only where a reproducible workload exists.
-
-Do not declare LLVM 23 faster based only on compilation time for one package.
-
-## Experiment safety rules
-
-- Do not remove LLVM 22 before migration completes.
-- Do not change the compiler, C++ standard library, and runtime at once.
-- Do not remove existing GCC fallbacks in bulk.
-- Do not enable `default-libcxx` during the first phases.
-- Do not bypass an `LLVM_COMPAT` ebuild without separate justification.
+The [experiment log and raw evidence](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/llvm23-toolchain/results.md)
+are preserved in the repository archive: baseline, commands, VDB environment,
+compiler/linker provenance, `NEEDED`, sizes, smoke tests, limitations, and
+rollback. Historical instructions and next steps in the archive are not a
+current procedure.

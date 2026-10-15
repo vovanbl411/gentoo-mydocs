@@ -1,11 +1,17 @@
 ---
-title: "Журнал эксперимента: LLVM 23 toolchain"
 kind: reference
 scope: system
-status: current
+status: historical
 last_verified: null
 verified_on: [asus-b5402]
 ---
+
+# Журнал эксперимента: LLVM 23 toolchain
+
+> **Архив:** исторический материал LLVM 23 experiment (2026-09-20…21).
+> Старые инструкции, baseline и next steps не являются текущей процедурой.
+> Итоги эксперимента: [LLVM 23: эксперимент и выводы](../../src/content/docs/experiments/llvm23-toolchain/index.md).
+> Актуальное состояние системы: [Загрузка и Portage](../../src/content/docs/systems/asus-b5402/system/boot-and-portage.md).
 
 Это канонический хронологический журнал LLVM 23 experiment. Для каждого гейта
 здесь фиксируются дата, исходная конфигурация, точная изменяемая переменная,
@@ -20,13 +26,13 @@ rebuild завершён; limited LLVM 23 rollout на последнем checkp
 
 Experiment record хранится здесь. Текущее production-состояние машины
 описывается отдельно в
-[`../../systems/asus-b5402/system/boot-and-portage.md`](../../../systems/asus-b5402/system/boot-and-portage/);
+[`../../systems/asus-b5402/system/boot-and-portage.md`](../../src/content/docs/systems/asus-b5402/system/boot-and-portage.md);
 исторические значения ниже не являются inventory текущей системы.
 
 Нумерация: A — LLVM 22→23 (compatibility), B — -O2 vs -O3 (optimization),
-C — runtimes. План — в [README.md](../), ментальная модель слоёв — в
-[toolchain-primer.md](../toolchain-primer/), методология и данные B — в
-[-O2 vs -O3](../../compiler-optimization/o2-vs-o3/).
+C — runtimes. Исходный план — в [agent-prompt.md](agent-prompt.md), ментальная модель слоёв — в
+[toolchain-primer.md](../../src/content/docs/experiments/llvm23-toolchain/toolchain-primer.md), методология и данные B — в
+[-O2 vs -O3](../../src/content/docs/experiments/compiler-optimization/o2-vs-o3.md).
 
 ## Статусы
 
@@ -63,7 +69,7 @@ B1 — benchmark result, а не validation gate: для O2/O3 статус «PA
 ### Исходная конфигурация
 
 Зафиксирована владельцем при подготовке эксперимента (см.
-[agent-prompt.md](../agent-prompt/)):
+[agent-prompt.md](agent-prompt.md)):
 
 ```text
 CC=clang CXX=clang++ AR=llvm-ar NM=llvm-nm RANLIB=llvm-ranlib
@@ -386,7 +392,7 @@ LLVM 22 libraries
 libstdc++ / libgcc_s
 ```
 
-Это ровно «две оси» из [toolchain-primer.md](../toolchain-primer/):
+Это ровно «две оси» из [toolchain-primer.md](../../src/content/docs/experiments/llvm23-toolchain/toolchain-primer.md):
 версия компилятора и слот LLVM-библиотек независимы.
 
 > ⚠️ **Важный нюанс**: это доказано для данного конкретного ebuild и не должно
@@ -569,7 +575,7 @@ YES — для протестированных классов пакетов.
 
 ## Experiment B — optimization policy
 
-Завершённое сравнение `-O2` vs `-O3` вынесено в [самостоятельный эксперимент](../../compiler-optimization/o2-vs-o3/).
+Завершённое сравнение `-O2` vs `-O3` вынесено в [самостоятельный эксперимент](../../src/content/docs/experiments/compiler-optimization/o2-vs-o3.md).
 Clang/LLD 23 были фиксированным baseline, а не переменной сравнения. Решение
 2026-09-20: global `-O2`, ThinLTO где поддерживается и package-specific `-O3`
 только по benchmark; selective rules по B1–B4 не создавались. Применение и
@@ -580,7 +586,7 @@ rebuild 2026-09-21 сохранены ниже как предусловия LLV
 - **Дата**: 2026-09-21.
 - **Baseline**: 102 локальных назначения `no-lto-llvm` в `package.env` —
   остаток исторического compatibility-слоя (снапшот на старте эксперимента —
-  в [README.md](../)).
+  в [исходном prompt](agent-prompt.md)).
 - **Метод**: правила снимались контролируемыми batch'ами; каждый batch
   проверялся `emerge --buildpkgonly -1`.
 - **Результат**: все 102 overrides удалены; `env/no-lto-llvm`,
@@ -617,8 +623,8 @@ rebuild 2026-09-21 сохранены ниже как предусловия LLV
 конфигурационные ошибки, не связанные с optimization policy (iwd
 `ProtectKernelTunables`, дублирующийся polkit agent, transient-гонка
 NM/iwd). Зафиксированы в системной документации:
-[networking](../../../systems/asus-b5402/networking/networkmanager-and-libvirt/),
-[desktop](../../../systems/asus-b5402/desktop/environment/).
+[networking](../../src/content/docs/systems/asus-b5402/networking/networkmanager-and-libvirt.md),
+[desktop](../../src/content/docs/systems/asus-b5402/desktop/environment.md).
 
 ### Decision gate: env/llvm-23 — после optimization policy decision
 
@@ -652,7 +658,7 @@ NOT STARTED
 
 ## Связанные записи
 
-- [README.md](../) — overview и status эксперимента;
-- [toolchain-primer.md](../toolchain-primer/) — conceptual model;
-- [-O2 vs -O3](../../compiler-optimization/o2-vs-o3/) — решение, методика и benchmark evidence;
-- [`../../systems/asus-b5402/system/boot-and-portage.md`](../../../systems/asus-b5402/system/boot-and-portage/) — current system source of truth.
+- [Итоги эксперимента](../../src/content/docs/experiments/llvm23-toolchain/index.md) — overview и status эксперимента;
+- [toolchain-primer.md](../../src/content/docs/experiments/llvm23-toolchain/toolchain-primer.md) — conceptual model;
+- [-O2 vs -O3](../../src/content/docs/experiments/compiler-optimization/o2-vs-o3.md) — решение, методика и benchmark evidence;
+- [`../../systems/asus-b5402/system/boot-and-portage.md`](../../src/content/docs/systems/asus-b5402/system/boot-and-portage.md) — current system source of truth.

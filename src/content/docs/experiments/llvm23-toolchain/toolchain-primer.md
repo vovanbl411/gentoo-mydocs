@@ -1,36 +1,19 @@
 ---
-title: "Toolchain-праймер: пять независимых слоёв"
+title: "Как устроен compiler toolchain в Gentoo"
 kind: reference
-scope: system
-status: draft
+scope: general
+status: current
 last_verified: null
-verified_on: [asus-b5402]
+verified_on: []
+sidebar:
+  order: 2
 ---
 
-Документ даёт mental model пяти независимых слоёв toolchain для эксперимента
-[LLVM 23](../): какие настройки менялись, а какие оставались
-нетронутыми. Это conceptual reference, а не справочник по LLVM и не описание
-текущей конфигурации системы.
+Выбор Clang вместо GCC сам по себе не меняет C++ standard library и runtime.
+Toolchain состоит из нескольких слоёв: их можно выбирать отдельно, если
+конкретная комбинация поддерживается платформой и пакетами.
 
-Фактические значения ниже относятся к historical Gate A0 baseline, снятому
-2026-09-20 и записанному в [results.md](../results/). Current source of truth
-системы находится в
-[документе о загрузке и Portage](../../../systems/asus-b5402/system/boot-and-portage/).
-Permanent `env/llvm-23` и controlled rollout не являются содержанием этого
-primer.
-
-## Статус эксперимента в этих записях
-
-- Experiment A (LLVM 23 compatibility) — **COMPLETE**, A1–A4 PASS.
-- Experiment B (-O2 vs -O3) — **COMPLETE**, B1–B4.
-- Optimization policy decision: global `-O2` + selective benchmark-proven
-  `-O3`.
-- Политика применена к `/etc/portage` 2026-09-20; полный rebuild завершён
-  2026-09-21.
-- Permanent `env/llvm-23` / controlled rollout — **NOT STARTED** в контексте
-  этих записей.
-
-## 1. Пять слоёв
+## Пять слоёв
 
 ```text
 compiler   → GCC / Clang
@@ -42,135 +25,110 @@ unwinder   → libgcc_s / libunwind
 
 | Слой | Что делает |
 |------|------------|
-| Compiler | переводит C/C++ в объектные файлы; сам не линкует и не предоставляет рантайм |
-| Linker | склеивает `.o`/`.a` в ELF и разрешает символы; LTO-сборка — это работа линкера |
-| C++ stdlib | реализация `std::`: контейнеры, строки, iostream |
-| rtlib | вспомогательный рантайм компилятора: CRT-объекты (`crtbegin*`/`crtend*`), integer builtins (`__udivti3`), atomics, санитайзеры |
-| unwinder | раскрутка стека: исключения C++, `backtrace`, профилировщики |
+| Compiler | Переводит C/C++ в объектные файлы; compiler driver также может вызвать linker |
+| Linker | Объединяет `.o`/`.a` в ELF, разрешает символы; при LTO координирует обработку промежуточного представления |
+| C++ stdlib | Реализует `std::`: контейнеры, строки, iostream |
+| rtlib | Предоставляет вспомогательные функции компилятора, например integer builtins (`__udivti3`); compiler-rt также содержит sanitizer runtimes |
+| unwinder | Раскручивает стек, в том числе для исключений C++ |
 
-Слои почти ортогональны: «всё GNU» и «всё LLVM» — только два угла пространства
-валидных комбинаций. В baseline стек этой машины был смешанным, и это норма.
+Это разные задачи. Оптимизация (`-O2`, `-O3`, ThinLTO) — ещё одна настройка,
+которая не определяет выбор stdlib или unwinder.
 
-## 2. Historical experiment baseline — Gate A0, 2026-09-20
+## Clang с libstdc++ и libgcc
 
-| Слой | Значение | Чем задано |
-|------|----------|------------|
-| Compiler основной | Clang 22.1.8 | `make.conf` (`CC=clang`) + порядок PATH |
-| Compiler параллельный | Clang 23.1.1 | `/usr/lib/llvm/23/bin/`; им собирается ядро (env `kernel-llvm`) |
-| Linker в Portage | LLD (слот 22) | `-fuse-ld=lld` в `LDFLAGS` make.conf |
-| Linker у bare clang | GNU ld.bfd | `Файл: /etc/clang/22/gentoo-linker.cfg` |
-| C++ stdlib | libstdc++ (GCC 15) | `gentoo-stdlib.cfg` → `--stdlib=libstdc++` |
-| rtlib | libgcc | `gentoo-rtlib.cfg` → `--rtlib=libgcc` |
-| unwinder | libgcc_s | `gentoo-unwindlib.cfg` → `--unwindlib=libgcc` |
+На GNU/Linux Clang может компилировать C++ с `libstdc++` и использовать GNU
+runtime `libgcc/libgcc_s`. Для совместимой платформы Clang и GCC поддерживают
+общий C++ ABI; смена compiler не требует автоматически менять библиотеки.
 
-В baseline cfg слота 23 был идентичен слоту 22: `bfd` / `libgcc` /
-`libstdc++` / `libgcc`. Clang 23 был настроен на тот же GNU-рантайм, поэтому
-смена compiler/linker в пилоте не тянула за собой смену stdlib, rtlib и
-unwinder.
+Выбор разделён:
 
-## 3. Почему Clang нормально живёт на libstdc++ + libgcc
+- `--stdlib=libstdc++` или `--stdlib=libc++` — C++ standard library;
+- `--rtlib=libgcc` или `--rtlib=compiler-rt` — compiler runtime;
+- `--unwindlib=libgcc` или `--unwindlib=libunwind` — unwinder.
 
-- Clang и GCC выпускают ABI-совместимые объектники: общий Itanium C++ ABI и
-  общий контракт низкоуровневого рантайма.
-- libgcc и compiler-rt — две реализации одного интерфейса (builtins, CRT,
-  `_Unwind_*`). Clang линкуется к любой из них; выбор — флагом `--rtlib`.
-- libstdc++ — обычная системная библиотека, а не «часть GCC»; Clang целится в
-  неё по умолчанию.
-- Gentoo-мир годами собирается GCC- и Clang-объектниками вперемешку на одном
-  GNU-рантайме. Поэтому этап «поменять compiler/linker, не трогая рантаймы» —
-  низкорисковая часть эксперимента.
+Builtins и unwinding — разные роли, даже если GNU stack предоставляет их
+вместе. Выбор `compiler-rt` сам по себе не означает выбор `libunwind`.
 
-## 4. «Собрать world Clang'ом» ≠ «перейти на libc++»
+### «Собрать world Clang'ом» не означает «перейти на libc++»
 
-- stdlib выбирается флагом `--stdlib` и набором линкуемых библиотек, а не
-  компилятором. Clang на Gentoo по умолчанию нацелен на libstdc++.
-- libc++ — другая реализация `std::` с другим внутренним ABI: layout
-  `std::string`, узлы `std::list` и так далее. Символы libc++ живут в inline
-  namespace `std::__1`, поэтому линкер поймает не всё: часть несовпадений
-  проявится в рантайме как ODR/ABI-поломки.
-- Переход на libc++ означает пересборку всего C++ и разрыв с
-  прекомпилированными бинарниками. Это отдельное решение с повышенным риском,
-  оно вынесено за рамки первых фаз.
+Сборка Clang'ом может сохранять `libstdc++`. `libc++` — другая реализация
+`std::` с другим ABI: например, внутреннее представление `std::string`
+не обязано совпадать. Различия символов (в том числе namespace `std::__1`
+у libc++) помогают увидеть часть несовместимостей, но не гарантируют,
+что linker обнаружит любую проблему на границе библиотек.
 
-## 5. Portage-selected LLD ≠ default linker самого Clang
+Поэтому переход на `libc++` — отдельное ABI-решение: нужно проверить C++
+зависимости, границы обмена объектами и совместимость готовых бинарников;
+затронутые компоненты могут требовать пересборки.
 
-Clang — это driver: он сам выбирает линкер по `-fuse-ld=...`. Откуда берётся
-значение:
+## Linker в Portage и linker bare Clang
 
-- Сборка пакета в Portage: `LDFLAGS` из `make.conf` содержит `-fuse-ld=lld` →
-  линкуется LLD независимо от cfg-дефолтов.
-- Bare-вызов (`clang++ test.cpp` руками, без флагов): берётся дефолт из
-  `Файл: /etc/clang/<slot>/gentoo-linker.cfg`; в baseline это был
-  `-fuse-ld=bfd`.
+Clang driver выбирает linker с учётом `-fuse-ld=...` и своих defaults.
+Сборка через Portage и ручной вызов `clang++ test.cpp` могут получить разные
+настройки:
 
-Отсюда асимметрия baseline: Portage linker = LLD, bare clang = bfd.
-Асимметрия уже кусала (PATH-дрейф bare clang, июль 2026 — см. `CHECKPOINT.md`).
-Практический вывод для пилота: linker provenance проверяют по самому ELF
-(`readelf`), а не по тому, какой clang «должен был» собирать пакет.
+- В Portage `LDFLAGS` из `/etc/portage/make.conf` может содержать
+  `-fuse-ld=lld`. Если build system использует эти flags, linker будет LLD.
+- Bare Clang без явных flags использует свои defaults. В Gentoo их может
+  задавать `/etc/clang/<slot>/gentoo-linker.cfg`, например `-fuse-ld=bfd`.
 
-В baseline от 2026-09-20 `/usr/lib/llvm/22/bin` стоял в PATH раньше
-`/usr/lib/llvm/23/bin` (задано через `/etc/env.d/`), поэтому bare-имена
-`clang`, `ld.lld` резолвились в слот 22, а Clang 23 вызывался только абсолютным
-путём `/usr/lib/llvm/23/bin/...`. Поэтому pilot использовал абсолютные пути.
+Portage-selected LLD не доказывает, что bare Clang тоже выбирает LLD.
+Порядок `PATH` дополнительно определяет, какая версия driver запускается.
+Поэтому при проверке сборки важны фактическое окружение и compiler/linker
+provenance, а не только имя `clang` в конфиге.
 
-## 6. Что делают USE-флаги Gentoo
+## Установленные runtimes и defaults
 
-В baseline дефолты bare clang генерировали отдельные cfg-пакеты (подписаны в
-комментариях самих cfg): `llvm-core/clang-linker-config`,
-`llvm-runtimes/clang-rtlib-config`, `llvm-runtimes/clang-stdlib-config`,
-`llvm-runtimes/clang-unwindlib-config`. Их USE-флаги проверены в VDB
-2026-09-20:
+Наличие `compiler-rt` или `libc++` в системе не означает, что каждый пакет
+их использует. Установка компонента и выбор его при линковке — разные действия.
 
-| USE | Пакет | Что переключает |
-|-----|-------|-----------------|
-| `default-lld` | llvm-core/clang-linker-config | дефолтный линкер bare clang → LLD |
-| `default-compiler-rt` | llvm-runtimes/clang-rtlib-config | дефолтный rtlib bare clang → compiler-rt |
-| `default-libcxx` | llvm-runtimes/clang-stdlib-config | дефолтная stdlib bare clang → libc++ |
-| `llvm-libunwind` | llvm-runtimes/clang-unwindlib-config | дефолтный unwinder → llvm-libunwind |
+Исторический пример Gentoo packaging, проверенный в VDB 2026-09-20:
 
-Флаги `compiler-rt` и `libcxx` управляют сборкой самих рантаймов
-(compiler-rt, libc++/libc++abi) как части LLVM-стека.
+| USE | Пакет | Назначение |
+|-----|-------|------------|
+| `default-lld` | `llvm-core/clang-linker-config` | Default linker Clang → LLD |
+| `default-compiler-rt` | `llvm-runtimes/clang-rtlib-config` | Default rtlib Clang → compiler-rt |
+| `default-libcxx` | `llvm-runtimes/clang-stdlib-config` | Default C++ stdlib Clang → libc++ |
+| `llvm-libunwind` | `llvm-runtimes/clang-unwindlib-config` | Default unwinder → llvm-libunwind |
 
-Два ограничения:
+В том LLVM stack флаги `compiler-rt` и `libcxx` управляли сборкой самих
+runtimes. `default-*` задавали defaults driver; явные flags конкретной
+сборки могли их переопределить. Portage-сборка тоже может наследовать defaults,
+если соответствующие flags не заданы явно. Таблица — датированный пример,
+а не inventory установленных сегодня пакетов.
 
-1. «Собрано» ≠ «используется». Наличие compiler-rt или libc++ в системе ничего
-   не переключает: реальный выбор делают флаги линковки каждого пакета
-   (`--rtlib`, `--stdlib`, `--unwindlib`).
-2. `default-*` меняют только дефолты bare-вызовов; сборки Portage задают флаги
-   явно и дефолты переопределяют.
+## Compiler version и LLVM library dependency
 
-По design первой фазы эти флаги не менялись (правило 7 из agent-prompt): cfg
-слота 23 обеспечивали GNU-рантайм по умолчанию.
+Пакет может использовать LLVM как библиотеку или tool dependency. Слот такой
+зависимости выбирает ebuild, в частности через `LLVM_COMPAT`/`LLVM_SLOT`.
+Это другая ось относительно версии Clang, которая компилирует исходники.
+Нужно смотреть, что именно регулирует переменная в конкретном ebuild/eclass.
 
-## 7. Как слои ложатся на эксперимент
+Пример из [эксперимента LLVM 23](../), Gate A3 от 2026-09-20:
+`dev-util/mesa_clc-26.2.2` собран Clang 23, но
+`LLVM_COMPAT=(18 19 20 21 22)` выбрал `LLVM_SLOT=22`. Исполняемый файл
+использовал `libLLVM.so.22.1` и `libclang-cpp.so.22.1` вместе с GNU runtime.
+Новый compiler и старые LLVM-библиотеки оказались совместимы для этого ebuild;
+это не доказательство для всех пакетов Gentoo.
 
-Таблица ниже фиксирует исходный design и mapping экспериментов. Experiment A
-и B завершены; Experiment C остаётся отдельной незавершённой фазой, а переход
-на `libc++` не входит в план первых фаз.
+## Историческая иллюстрация: ASUS B5402
 
-| Гипотеза | Меняет | Сохраняет |
-|----------|--------|-----------|
-| A: LLVM 22 → 23 | compiler, linker (пилотные пакеты) | stdlib, rtlib, unwinder, `-O3`, ThinLTO, исключения package.env |
-| B: -O2 vs -O3 | только уровень оптимизации в CFLAGS/CXXFLAGS | всё остальное, включая версию LLVM |
-| C: runtimes | `libgcc → compiler-rt`, `libgcc_s → libunwind` | compiler, linker, stdlib |
-| вне плана | `libstdc++ → libc++` | — |
+Gate A0 от 2026-09-20 зафиксировал смешанный stack:
 
-### Две оси: компилятор и LLVM-библиотеки
+| Слой | Baseline эксперимента |
+|------|----------------------|
+| Основной compiler | Clang 22.1.8, слот 22 раньше 23 в `PATH` |
+| Параллельный compiler | Clang 23.1.1, пилот через абсолютные `/usr/lib/llvm/23/bin/...` paths |
+| Linker Portage | LLD 22 через `-fuse-ld=lld` |
+| Linker bare Clang | GNU ld.bfd |
+| C++ stdlib | GCC 15 libstdc++ |
+| rtlib / unwinder | libgcc / libgcc_s |
 
-Для пакетов, которые зависят от LLVM как от библиотеки (mesa, mesa_clc,
-xwayland-satellite и другие), есть ещё одна независимая ось: слот LLVM, с
-которым пакет линкуется. Его выбирает ebuild через `LLVM_COMPAT`/`LLVM_SLOT`,
-и он не связан с тем, каким Clang компилируются исходники пакета.
+Конфиги `/etc/clang/22/` и `/etc/clang/23/` задавали одинаковые defaults:
+`bfd`, `libstdc++`, `libgcc`, `libgcc`. Поэтому в пилоте удалось заменить
+compiler/linker, сохранив GNU runtime stack.
 
-Gate A3 доказал это на практике: `mesa_clc` собран Clang 23, при этом
-`LLVM_COMPAT=(18 19 20 21 22)` выбрал `LLVM_SLOT=22`, и исполняемый файл
-линкуется с `libLLVM.so.22.1`/`libclang-cpp.so.22.1`. Конфигурация «новым
-компилятором собираем, на старые LLVM-библиотеки линкуемся» — валидна (но не
-обобщается автоматически на все ebuild, см. results.md).
-
-## Related records
-
-- [Статус LLVM 23 experiment](../)
-- [Журнал результатов](../results/)
-- [Experiment B: -O2 против -O3](../../compiler-optimization/o2-vs-o3/)
-- [Current system source of truth](../../../systems/asus-b5402/system/boot-and-portage/)
+Это иллюстрация разделения слоёв, а не текущее состояние машины.
+Актуальные решения — в [системной документации](../../../systems/asus-b5402/system/boot-and-portage/),
+результаты и ссылка на полный архивный record — в
+[«LLVM 23: эксперимент и выводы»](../).

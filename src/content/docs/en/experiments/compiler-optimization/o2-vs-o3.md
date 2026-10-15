@@ -1090,4 +1090,4 @@ on this machine.
 
 - [Compiler optimization experiments](../)
 - [LLVM 23 compatibility experiment](../../llvm23-toolchain/)
-- [LLVM history and policy rollout](../../llvm23-toolchain/results/)
+- [LLVM history and policy rollout](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/llvm23-toolchain/results.md)
