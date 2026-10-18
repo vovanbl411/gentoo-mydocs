@@ -77,6 +77,7 @@ live-базы с Android через Syncthing и KeePassDX.
 - [Firefox](src/content/docs/settings/firefox.md)
 - [Thunderbird](src/content/docs/settings/thunderbird.md)
 - [Flatpak и Flatseal](src/content/docs/settings/flatpak.md)
+- [ChatGPT Desktop через Flatpak](src/content/docs/settings/chatgpt-desktop.md)
 - [GTK](src/content/docs/settings/gtk.md)
 - [Подписание Git-коммитов через GPG](src/content/docs/settings/git-gpg-signing.md) — Verified-подписи, несколько identities и диагностика keyboxd.
 - [Резервные копии KeePassXC в Google Drive](src/content/docs/settings/keepassxc-backup.md)

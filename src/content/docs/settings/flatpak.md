@@ -84,6 +84,17 @@ runtime и тем самым уменьшает объём native multilib depen
 контроллерам и требуемым каталогам. MangoHud можно подключить как optional
 integration для мониторинга FPS; Flatseal не управляет компиляцией шейдеров.
 
+## Локальная сборка с `extra-data`
+
+`--user` и `--system` обращаются к разным Flatpak installations. В обычной
+политике этой workstation итоговые приложения устанавливаются в system scope.
+Некоторым локальным сборкам с `extra-data` перед созданием bundle может
+понадобиться промежуточная установка в user scope: она материализует payload в
+user Flatpak repo. ChatGPT Desktop — проверенный пример такого порядка; см.
+[отдельное руководство](../chatgpt-desktop/). Этот workflow проверен на ASUS
+B5402 2026-10-18; остальные разделы этого guide в эту дату повторно не
+проверялись.
+
 ## Verification
 
 ```bash
@@ -167,7 +178,6 @@ flatpak update
 Краткий результат проверенного примера:
 
 ```text
-12 applications
 ffmpeg-full 24.08 absent
 flatpak update → Nothing to update
 ```

@@ -11,8 +11,11 @@ verified_on: [asus-b5402]
 
 - Firefox — native Gentoo: сборка под Wayland (LLVM 22, PGO, аппаратное
   ускорение), профиль обслуживает profile-sync-daemon.
-- Steam и GUI-приложения — Flatpak (12 приложений, remote — flathub);
+- Steam и GUI-приложения — Flatpak (remote — flathub);
   разрешения выдаются через Flatseal с предпочтением Wayland.
+- ChatGPT Desktop — system Flatpak (`com.openai.ChatGPT`, версия
+  `26.1013.40934-1`, branch `master`; проверено 2026-10-18). Permissions и
+  порядок установки — в [руководстве ChatGPT Desktop](../../../settings/chatgpt-desktop/).
 - OBS Studio — Flatpak (`com.obsproject.Studio` 32.2.2, проверено 2026-09-22).
 - Perplexity — AppImage + пользовательский `.desktop`
   (`~/.local/share/applications/perplexity.desktop`); схема
@@ -54,7 +57,10 @@ verified_on: [asus-b5402]
 
 ## Flatpak policy
 
-В inventory 12 приложений (2026-10-04). Неиспользуемый EOL runtime
+Проверка system Flatpak inventory 2026-10-18 подтвердила ChatGPT Desktop;
+`org.electronjs.Electron2.BaseApp` — base app/dependency, а не пользовательское
+приложение. Отдельная проверка runtime maintenance от 2026-10-04 показала, что
+неиспользуемый EOL runtime
 `org.freedesktop.Platform.ffmpeg-full//24.08` отсутствует; `flatpak update`
 показал `Nothing to update`. Проверка охватывала inventory и runtimes,
 без повторной проверки поведения каждого приложения. Разрешения и
@@ -69,8 +75,9 @@ verified_on: [asus-b5402]
 ## Границы проверки
 
 Firefox, OBS, Perplexity и r2modman проверены 2026-09-22; даты backup, sync,
-Thunderbird и Flatpak указаны выше. При этой правке новой live-проверки
-не было. Команды проверки и ожидаемые результаты — в профильных guides.
+Thunderbird и Flatpak указаны выше. 2026-10-18 проверялись ChatGPT Desktop и
+его system permissions; остальные приложения повторно не проверялись. Команды
+проверки и ожидаемые результаты — в профильных guides.
 
 ## Plans (не применены)
 
@@ -84,6 +91,7 @@ Thunderbird и Flatpak указаны выше. При этой правке н�
 
 - [Firefox](../../../settings/firefox/)
 - [Flatpak и Flatseal](../../../settings/flatpak/)
+- [ChatGPT Desktop через Flatpak](../../../settings/chatgpt-desktop/)
 - [Резервные копии KeePassXC в Google Drive](../../../settings/keepassxc-backup/)
 - [Синхронизация KeePassXC с Android через Syncthing](../../../settings/keepassxc-phone-sync/)
 - [OBS Studio](../../../settings/obs-studio/)

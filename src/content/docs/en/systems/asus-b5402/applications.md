@@ -11,8 +11,11 @@ verified_on: [asus-b5402]
 
 - Firefox — native Gentoo: built for Wayland (LLVM 22, PGO, hardware
   acceleration); the profile is managed by profile-sync-daemon.
-- Steam and GUI applications — Flatpak (12 applications, remote — flathub);
+- Steam and GUI applications — Flatpak (remote — flathub);
   permissions are granted through Flatseal with Wayland preferred.
+- ChatGPT Desktop — system Flatpak (`com.openai.ChatGPT`, version
+  `26.1013.40934-1`, branch `master`; verified 2026-10-18). Permissions and
+  installation steps are in the [ChatGPT Desktop guide](../../../settings/chatgpt-desktop/).
 - OBS Studio — Flatpak (`com.obsproject.Studio` 32.2.2, verified 2026-09-22).
 - Perplexity — AppImage + user `.desktop`
   (`~/.local/share/applications/perplexity.desktop`); the
@@ -55,7 +58,10 @@ verified_on: [asus-b5402]
 
 ## Flatpak policy
 
-The inventory has 12 applications (2026-10-04). The unused EOL runtime
+The system Flatpak inventory check on 2026-10-18 confirmed ChatGPT Desktop;
+`org.electronjs.Electron2.BaseApp` is a base app/dependency, not an end-user
+application. The separate runtime maintenance check on 2026-10-04 found that
+the unused EOL runtime
 `org.freedesktop.Platform.ffmpeg-full//24.08` is absent; `flatpak update`
 reported `Nothing to update`. This check covered inventory and runtimes,
 without re-checking every application's behavior. Permissions and maintenance
@@ -70,9 +76,10 @@ are described in the [Flatpak guide](../../../settings/flatpak/).
 ## Verification boundaries
 
 Firefox, OBS, Perplexity and r2modman were checked on 2026-09-22; the dates
-for backup, sync, Thunderbird and Flatpak are recorded above. There was no
-new live verification during this refactoring. Verification commands and
-expected results are in the linked guides.
+for backup, sync, Thunderbird and Flatpak are recorded above. ChatGPT Desktop
+and its system permissions were checked on 2026-10-18; the other applications
+were not re-checked. Verification commands and expected results are in the
+linked guides.
 
 ## Plans (not applied)
 
@@ -86,6 +93,7 @@ expected results are in the linked guides.
 
 - [Firefox](../../../settings/firefox/)
 - [Flatpak and Flatseal](../../../settings/flatpak/)
+- [ChatGPT Desktop via Flatpak](../../../settings/chatgpt-desktop/)
 - [KeePassXC backups to Google Drive](../../../settings/keepassxc-backup/)
 - [KeePassXC phone sync with Android via Syncthing](../../../settings/keepassxc-phone-sync/)
 - [OBS Studio](../../../settings/obs-studio/)

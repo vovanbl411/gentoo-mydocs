@@ -83,6 +83,17 @@ For Steam, check only the sandbox categories it actually needs: GPU, game
 controller, and required directory access. MangoHud can be added as an optional
 FPS-monitoring integration; Flatseal does not manage shader compilation.
 
+## Local builds with `extra-data`
+
+`--user` and `--system` refer to different Flatpak installations. This
+workstation's usual policy is to install final applications in system scope.
+Some local builds with `extra-data` may need an intermediate user-scope
+installation before creating a bundle; this materializes the payload in the
+user Flatpak repo. ChatGPT Desktop is a verified example of this sequence; see
+the [separate guide](../chatgpt-desktop/). This workflow was checked on the ASUS
+B5402 on 2026-10-18; the other sections of this guide were not re-checked on
+that date.
+
 ## Verification
 
 ```bash
@@ -165,7 +176,6 @@ flatpak update
 The verified example's brief result:
 
 ```text
-12 applications
 ffmpeg-full 24.08 absent
 flatpak update → Nothing to update
 ```
