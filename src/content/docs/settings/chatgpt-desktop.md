@@ -188,10 +188,138 @@ ELECTRON_OZONE_PLATFORM_HINT=wayland
 
 ## Обновление
 
-Для обновления повтори сборку из актуального manifest во временном user scope,
-создай новый bundle из `$HOME/.local/share/flatpak/repo` после материализации
-`extra-data` и установи его в system scope. После проверки обновлённой system
-версии снова удали временную user-копию и неиспользуемые refs.
+В upstream packaging repository новая версия manifest появляется через
+Renovate. Затем updater сверяет RPM с подписанными metadata и обновляет URL,
+SHA-256 и размер файла. Локально не подбирай эти значения вручную: если upstream
+manifest ещё не обновился, дождись его обновления.
+
+Обновление в текущей схеме проходит через временный user scope и локальный
+bundle, после чего обновляется system installation:
+
+```text
+new upstream version
+→ packaging repo updated
+→ git pull
+→ temporary user build
+→ materialize extra-data
+→ new bundle
+→ system --or-update
+→ verify
+→ cleanup user scope
+```
+
+### Получить актуальный manifest
+
+Перейди в checkout upstream packaging repository и fast-forward его до актуальной
+версии:
+
+```bash
+cd ~/m/chatgpt-desktop-flatpak
+git pull --ff-only
+```
+
+Проверь версию RPM, указанную в manifest:
+
+```bash
+grep -n 'chatgpt-.*\.rpm' \
+  com.openai.ChatGPT/com.openai.ChatGPT.yaml
+```
+
+### Собрать временную user-копию
+
+После предыдущего cleanup user installation может быть пустой. Добавь Flathub
+для user scope, если remote ещё не настроен:
+
+```bash
+flatpak remote-add --user --if-not-exists flathub \
+  https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+Из каталога checkout с manifest собери и установи новую версию во временный
+user scope:
+
+```bash
+flatpak-builder \
+  --force-clean \
+  --user \
+  --install-deps-from=flathub \
+  --repo=repo \
+  --install \
+  builddir \
+  com.openai.ChatGPT/com.openai.ChatGPT.yaml
+```
+
+Убедись, что установлена ожидаемая версия:
+
+```bash
+flatpak info --user com.openai.ChatGPT
+```
+
+Временная установка нужна, чтобы Flatpak материализовал `extra-data` в user
+repo. Создавай bundle именно из этого установленного repo, а не из
+`flatpak-builder --repo=repo`.
+
+### Создать bundle и обновить system installation
+
+Удали предыдущий локальный bundle, если он остался, затем создай новый:
+
+```bash
+rm -f ChatGPT.flatpak
+
+flatpak build-bundle \
+  "$HOME/.local/share/flatpak/repo" \
+  ChatGPT.flatpak \
+  com.openai.ChatGPT \
+  master \
+  --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
+```
+
+Так как приложение уже установлено в system scope, передай bundle Flatpak с
+`--or-update`:
+
+```bash
+flatpak install \
+  --system \
+  --or-update \
+  ./ChatGPT.flatpak
+```
+
+Это приложение обновляется из локально создаваемого bundle; собственного
+application remote для него в этой схеме нет. Поэтому `flatpak update` не
+является основным способом обновления ChatGPT Desktop.
+
+### Проверить результат и выполнить cleanup
+
+Проверь версию, branch, permissions и запуск system-копии:
+
+```bash
+flatpak info --system com.openai.ChatGPT
+flatpak info --system --show-permissions com.openai.ChatGPT
+flatpak run --system com.openai.ChatGPT
+```
+
+Убедись, что версия ожидаемая, branch — `master`, приложение запускается, а
+effective permissions соответствуют текущему manifest. Per-user override
+`sockets=!fallback-x11` привязан к app ID и обычно сохраняется при обновлении;
+повторно создавать его не нужно. Всё равно проверяй permissions после каждого
+обновления: upstream manifest может изменить набор разрешений.
+
+Только после успешной проверки system installation удали временную user-копию
+и неиспользуемые refs, затем проверь user apps и remotes:
+
+```bash
+flatpak uninstall --user com.openai.ChatGPT
+flatpak uninstall --user --unused
+flatpak list --user
+flatpak remotes --user
+```
+
+Если `flathub --user` был добавлен только для этой сборки и больше ничем не
+используется, его можно удалить:
+
+```bash
+flatpak remote-delete --user flathub
+```
 
 ## Troubleshooting
 
