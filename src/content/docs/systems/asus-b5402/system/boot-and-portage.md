@@ -2,136 +2,79 @@
 title: Загрузка и Portage на ASUS ExpertBook B5402
 kind: system
 scope: system
-status: draft
-last_verified: "2026-10-10"
+status: current
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
-## Сейчас
+## Текущая конфигурация
 
-| Что | Значение |
-|-----|----------|
-| Ядро | `7.2.9-bdsm` — `sys-kernel/gentoo-kernel` с `savedconfig` |
-| Сборка ядра | LLVM 23.1.1 (env `kernel-llvm`, пилот) |
-| Основной toolchain | LLVM/Clang/LLD 22 |
-| Оптимизация | глобально `-O2` + ThinLTO |
-| Runtime ABI | GNU остаётся основным |
-| Загрузчик | systemd-boot |
-| UKI-генератор | Dracut — `ukify` в generation path не входит |
-| Корень | LUKS2 → TPM2-разблокировка → Btrfs-субволюм `@` |
-| Portage env | 4 файла `env/`, 3 файла `package.env/` |
-| Binary packages | `FEATURES=getbinpkg`; единственный remote binrepo — private `gentoo-builder`; local source fallback — PASS |
-
-## Управление памятью
-
-`zram-generator` создаёт `/dev/zram0` по настройкам
-`/etc/systemd/zram-generator.conf`: `zram-size = ram / 2` (сейчас 11.5 GiB
-при 24 GiB RAM), сжатие `zstd`, swap priority `100`. `zswap` не используется.
-
-В `/etc/sysctl.d/99-memory.conf` задано `vm.swappiness = 100`: для swap в RAM
-принята равная относительная стоимость reclaim анонимной памяти через swap и
-файлового кэша. Это не процент занятой RAM и не порог начала swap; значение
-`100` не объявляется универсальным оптимумом. `vm.vfs_cache_pressure = 100`
-оставлено без изменений. MGLRU включён (`0x0007`); THP остаётся в режимах
-`enabled = always` и `defrag = madvise`.
-
-Состояние проверено 2026-09-27 по конфигурации, `sysctl`, `swapon` и sysfs.
+- Gentoo использует профиль `default/linux/amd64/23.0/no-multilib/hardened/systemd`.
+- Userspace собирается Clang/LLD из LLVM slot 22. Базовые C/C++ флаги — `-march=alderlake -O2 -flto=thin`; GNU runtime ABI остаётся основным.
+- `sys-kernel/gentoo-kernel` собирается на `gentoo-builder-01` в GPKG с подготовленным для этой версии `savedconfig` и двумя локальными патчами. На ноутбуке этот пакет ставится только из binhost; затем `installkernel` и Dracut создают UKI для systemd-boot.
+- `/etc/portage/make.conf` включает автоматическое получение подходящих GPKG (`FEATURES=getbinpkg`). Если подходящего пакета нет, обычный `emerge` собирает ebuild локально. Для ядра действует отдельная процедура, которая требует binpkg и завершится ошибкой, если его нет.
+- Для swap используется zram объёмом в половину RAM; zswap отключён в kernel config. C/C++ использует ccache, Rust — sccache.
 
 ## Toolchain
 
-- Production toolchain — LLVM/Clang/LLD 22. Ядро намеренно собирается LLVM
-  23.1.1 (env `kernel-llvm`, пилот): эксперимент по совместимости LLVM 23
-  (A1–A4) завершён, перевод остальной системы на LLVM 23 не начат.
-- Userspace CPU target — явный `-march=alderlake`: явный таргет воспроизводим и
-  проверяем по конфигу, а `-march=native` подстраивается под конкретный
-  экземпляр CPU, на котором идёт компиляция, и потому отклонён как
-  userspace production policy. Явный набор `-mno-*` остаётся как отключение
-  возможностей, которых у процессора нет.
-- Записанный профиль: `MAKEOPTS="-j14 -l10"` — с запасом под гибридные ядра и
-  память — и `VIDEO_CARDS="intel zink"` (невалидный токен `iris` удалён
-  2026-09-11).
-- `GOFLAGS` удалён 2026-09-11 как не влияющий на сборки: `go-env.eclass`
-  задаёт собственный `GOFLAGS` и сам добавляет `-buildmode=pie`.
-- Для C/C++ используется глобальный ccache; BOLT отключён.
-- Кэширование разделено по языку: C/C++ использует глобальный `ccache`, Rust
-  — глобальный для Portage `RUSTC_WRAPPER=/usr/bin/sccache`. Каталог
-  `/var/tmp/sccache` имеет лимит `20G`; значения `RUSTC_WRAPPER`, `SCCACHE_DIR`,
-  `SCCACHE_CACHE_SIZE` и `SCCACHE_SERVER_UDS` подтверждены через
-  `portageq envvar`.
-- Постоянный сервер запускает `sccache-portage.service` от `portage:portage`.
-  Сервис включён и активен; он работает в foreground под контролем systemd
-  (`SCCACHE_IDLE_TIMEOUT=0`, `SCCACHE_START_SERVER=1`, `SCCACHE_NO_DAEMON=1`).
-  Portage подключается к нему через Unix domain socket
-  `/var/tmp/sccache/sccache.sock`: при глобальном `FEATURES=network-sandbox`
-  TCP localhost не подходил для build namespace и мог приводить к отдельным
-  краткоживущим server instances со статистикой, остававшейся нулевой.
-- Контролируемые Rust-сборки показали полезные попадания sccache, поэтому
-  он остаётся включённым с `20G` локального хранилища. Размер пересматривается
-  только по накопленной production-статистике. Remote storage и distributed
-  compilation не используются.
-- ccache остаётся включённым для C/C++. Постоянно заполненный кэш 50G давал
-  около 21% попаданий и не оправдывал свой размер; 2026-10-02 лимит снижен
-  до 20G: `CCACHE_SIZE="20G"` в `/etc/portage/make.conf`, `max_size = 20G`
-  в `/var/tmp/ccache/ccache.conf`. Проверить `ccache -s` через 2–4 недели
-  обычной работы; при падении hit rate заметно ниже ~15% — поднять лимит до 30G.
+`make.conf` задаёт toolchain по умолчанию для userspace. Параметры ядра переопределяются отдельным package environment и описаны в разделе об обновлении ядра.
 
-<details>
-<summary>Исторические измерения кэшей</summary>
+Файл: `/etc/portage/make.conf` на ноутбуке.
 
-| Измерение | Результат |
-|-----------|-----------|
-| sccache 0.16.0, `emerge --buildpkgonly -1 dev-util/sccache` | Cold: 160,40 с, 151 miss; warm: 94,65 с, 151 hit (147 Rust, 4 Assembler). Экономия 65,75 с (~41%, ~1,69×); cumulative hit rate 50% (151 miss / 151 hit). |
-| Cold non-cacheable calls | 34, включая 29 с причиной `crate-type`; измерение относится к cacheable compiler work, а не ко всем фазам Portage. |
-| ccache, 2026-09-25 | 234 108 / 328 009 вызовов cacheable (71,37%); 50 581 hit (21,61%): 23 474 direct / 27 107 preprocessed. 93 897 uncacheable, 4 ошибки. `du -sh`: 47G; ccache: 50,0/50,0 GB (99,90%), 276 очисток. Лимит 50G сначала сохранён до периода обычных обновлений. |
-| ccache, 2026-10-02 | 53 132 / 254 558 cacheable calls hit (20,87%); 50,0/50,0 GB (99,97%), 311 очисток. После `ccache -M 20G`, затем `ccache -c` каталог занимал 19G. |
+```makefile
+LLVM_SLOT="22"
+CC="clang"
+CXX="clang++"
+AR="llvm-ar"
+NM="llvm-nm"
+RANLIB="llvm-ranlib"
 
-</details>
+COMMON_FLAGS="-march=alderlake -O2 -flto=thin -pipe -mno-kl -mno-pconfig -mno-sgx -mno-widekl -mshstk"
+FORTRAN_FLAGS="-march=alderlake -O2 -pipe -mno-kl -mno-pconfig -mno-sgx -mno-widekl -mshstk"
+CFLAGS="${COMMON_FLAGS}"
+CXXFLAGS="${COMMON_FLAGS}"
+FCFLAGS="${FORTRAN_FLAGS}"
+FFLAGS="${FORTRAN_FLAGS}"
+LDFLAGS="-Wl,-O1 -Wl,--as-needed -fuse-ld=lld"
+RUSTFLAGS="-C target-cpu=alderlake"
+GOAMD64="v3"
+MAKEOPTS="-j14 -l10"
+CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
+VIDEO_CARDS="intel zink"
+```
+
+- `-march=alderlake` задаёт целевой CPU userspace-сборок; явный target не зависит от того, на каком узле запущен компилятор.
+- `-O2` — выбранный уровень оптимизации. `-flto=thin` включает ThinLTO там, где его не отключает ebuild. Fortran получает отдельный набор без LTO, поскольку используемый GNU Fortran не поддерживает Clang ThinLTO.
+- `-fuse-ld=lld` выбирает LLVM linker. `--as-needed` не оставляет ссылки на неиспользуемые shared libraries.
+- `-mno-kl`, `-mno-pconfig`, `-mno-sgx` и `-mno-widekl` отключают наборы инструкций, которых нет у целевого Alder Lake; `-mshstk` включает генерацию поддержки Shadow Stack.
+- `RUSTFLAGS` задаёт Rust target CPU, а `GOAMD64="v3"` — минимальный Go ISA level для переносимых бинарных пакетов builder. Это разные настройки; `GOAMD64` не меняет C/C++ target.
+- `MAKEOPTS` ограничивает параллелизм обычных сборок ноутбука. Package-specific `p-cores` и `ssd` переопределяют число jobs и временный каталог для тяжёлых пакетов.
+
+Проверь эффективные значения, а не только исходные строки: Portage может добавлять или переопределять параметры в `package.env`.
+
+```bash
+portageq envvar CC CXX CFLAGS CXXFLAGS FCFLAGS FFLAGS LDFLAGS RUSTFLAGS GOAMD64 MAKEOPTS
+eselect llvm show
+```
+
+Для обычных пакетов ожидаются `clang`, `-march=alderlake -O2 -flto=thin`, `-fuse-ld=lld`, `-C target-cpu=alderlake`, `v3`, `-j14 -l10` и `llvm-22`. Если отличаются параметры конкретного пакета, проверь его запись в `/etc/portage/package.env/` и назначенный файл `/etc/portage/env/`; не исправляй глобальные флаги ради package-specific override.
+
+`sys-devel/binutils` и `x11-libs/pango` — два оставшихся GCC fallback. Для них `package.env/30-gcc-fallback` выбирает GCC и BFD. Binutils собирается через GCC из-за проблем Clang с PGO; Pango остаётся отдельным GCC/BFD исключением совместимости с Clang. GCC использует `-flto=auto`, поэтому для этого environment выбран BFD, а не глобальный LLD. Остальные удалённые GCC/no-LTO исключения не возвращай без воспроизводимой ошибки.
 
 ## Gentoo binary build host — production
 
-Workstation использует private binrepo от
-[`gentoo-builder-01`](../../../gentoo-builder-01/), чтобы сократить локальные
-userspace-сборки. Ресурсы VM, package policy, compiler settings, загрузка и
-HTTP service описаны на странице builder.
-
-- Builder userspace — `x86-64-v3`; workstation userspace сохраняет C/C++
-  `-march=alderlake`, `RUSTFLAGS="-C target-cpu=alderlake"`, `GOAMD64="v3"`
-  и текущий `CPU_FLAGS_X86` (2026-10-07). Синхронизация policy для совместимости
-  прошла проверку 2026-10-09; execution settings workstation и builder различаются.
-- Ядро остаётся local-only / native (`CONFIG_X86_NATIVE_CPU=y`), под Alder Lake;
-  см. [CPU optimization](../../hardware/cpu-optimization/).
-- Подходящие V3 packages используются автоматически; local source fallback
-  сохраняет независимость workstation от доступности builder. Official Gentoo
-  binrepo не участвует в production path. Приёмка записана 2026-10-10.
-
-Сравнение V3 поддерживает эту policy только для проверенных workload и не
-обосновывает смену workstation target. Canonical результаты — в
-[benchmark и его ограничениях](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
+Ноутбук получает бинарные пакеты только из private binrepo builder. Builder собирает userspace с `-march=x86-64-v3`; ноутбук сохраняет `-march=alderlake`. Эти target не взаимозаменяемы: binpkg содержит уже собранные файлы и metadata о build environment, но не меняет ноутбучные `CFLAGS`. В `CPU_FLAGS_X86` ноутбука есть `avx_vnni`, `sha` и `vpclmulqdq`; страница builder описывает для него общий subset без этих трёх флагов. Если package USE-настройки из-за этого не совпадают, Portage пропустит GPKG и соберёт ebuild локально. Не отключай проверку USE ради увеличения числа бинарных пакетов.
 
 ### Private binrepo на workstation
 
-**Production policy принята 2026-10-10.** Обычный `emerge` автоматически
-использует подходящий private binpkg. Если пакет отсутствует, несовместим
-с package policy/USE или private binhost недоступен, Portage разрешает
-обычную local source build с Alder Lake optimization. Official Gentoo binary
-packages в этом production path не участвуют; ядро остаётся local-only.
-
-Файл: `/etc/portage/make.conf`.
+Файл: `/etc/portage/make.conf` на ноутбуке.
 
 ```makefile
 FEATURES="${FEATURES} getbinpkg"
+EMERGE_DEFAULT_OPTS="${EMERGE_DEFAULT_OPTS} --usepkg-exclude 'app-admin/keepassxc sys-auth/fprintd sys-auth/libfprint app-crypt/sbctl app-crypt/sbsigntools sys-boot/efibootmgr sys-kernel/installkernel sys-kernel/dracut sys-kernel/gentoo-kernel dev-util/perf sys-firmware/intel-microcode sys-kernel/linux-firmware sys-firmware/sof-firmware'"
 ```
 
-Позже существующая строка `FEATURES="${FEATURES} ccache"` дополняет effective
-`FEATURES` и сохраняет `getbinpkg`.
-
-Официальный Gentoo **binary repository** исключён из active `binrepos.conf`:
-его конфиг перенесён из `/etc/portage/binrepos.conf/gentoobinhost.conf` в
-`/etc/portage/gentoobinhost.conf.disabled`. Обычный Gentoo ebuild repository
-остаётся source repository системы.
-
-Файл: `/etc/portage/binrepos.conf/gentoo-builder.conf`.
-Единственный active remote binary repository:
+Файл: `/etc/portage/binrepos.conf/gentoo-builder.conf`. Это единственный active remote binrepo:
 
 ```ini
 [gentoo-builder]
@@ -141,381 +84,242 @@ location = /var/cache/binhost/gentoo-builder
 verify-signature = false
 ```
 
-Private repo сейчас unsigned: `verify-signature = false` — принятое текущее
-состояние этого репозитория. Signing не является blocker или обязательным
-следующим шагом production path.
+Official Gentoo binary repository в active `binrepos.conf` не включён. Gentoo ebuild repository продолжает использоваться для исходных ebuilds и distfiles. Private binrepo сейчас не подписывает GPKG; `verify-signature = false` относится к проверке подписи binpkg и никак не отключает Secure Boot или подпись UKI.
 
-### Ручной update: builder first → PASS → workstation
+При обычном `emerge` Portage запрашивает индекс builder и использует пакет, если версия, ABI, USE и другие условия разрешения подходят. Если GPKG отсутствует, не соответствует текущей package policy или binhost недоступен, Portage оставляет ebuild в плане и собирает его из исходников. Это source fallback: он сохраняет возможность обслуживания ноутбука без builder, но может потребовать существенно больше времени.
 
-1. На `gentoo-builder-01` синхронизировать Gentoo repositories / overlays,
-   проверить resolver и выполнить обычный update `@world`. `buildpkg`
-   автоматически создаёт новые GPKG; update должен завершиться успешно.
-2. Только после PASS builder синхронизировать repositories / overlays на
-   workstation и выполнить обычный update `@world`. Подходящие private GPKG
-   используются автоматически, остальное собирается локально из source.
-
-Builder служит простым staging/build gate. Если его update не прошёл,
-routine update workstation не продолжается до разбора причины.
-Scheduled обновление builder не используется и сейчас не требуется;
-exact repository snapshot pinning не реализован. При срочном независимом
-обновлении workstation возможна local source build; routine workflow
-остаётся builder-first.
-
-### Проверка binary consumption
-
-Ниже — проверки владельца 2026-10-10; при обновлении документации команды
-не запускались на живой системе.
+Проверить выбор можно без установки:
 
 ```bash
-curl -I https://binhost.apps.home.9fans.uk/Packages
+doas emerge --pretend --verbose app-arch/zstd
 ```
 
-Ответ: HTTP/2 200, `via: 1.0 Caddy`. Canonical endpoint:
-`https://binhost.apps.home.9fans.uk`. Backend и ingress configuration —
-на [странице builder](../../../gentoo-builder-01/).
+В плане строка `[binary ...]` означает GPKG, `[ebuild ...]` — сборку из исходников. Если ожидаемый пакет показан как `ebuild`, сначала проверь, что `getbinpkg` есть в `portageq envvar FEATURES`, binhost доступен, а USE и ABI совпадают. Не отключай `--binpkg-respect-use`: несовместимый binpkg может установить неверный набор функций.
 
-| Проверка на workstation | Результат |
-|-------------------------|-----------|
-| `emerge -gpv1 app-arch/zstd` | `[binary Rg]`; 1 reinstall, 1 binary |
-| `emerge -gfv1 app-arch/zstd` | Реальная загрузка private GPKG, HTTP 200 |
-| `emerge -g -1v app-arch/zstd` | `[binary Rg]`, `>>> Emerging binary`, package merged successfully; без локальной компиляции zstd |
-| `emerge -pv1 app-arch/zstd` после включения `getbinpkg` и исключения official binrepo | `[binary   Rg   ] app-arch/zstd-1.5.7-r1-1`; automatic consumption без `-g` — PASS |
+На ноутбуке `--usepkg-exclude` задаёт, какие GPKG нельзя автоматически устанавливать. На builder другая настройка — `--buildpkg-exclude`: она исключает пакеты из автоматического создания GPKG при обычном merge. Списки сейчас зеркальны.
 
-Загружен пакет
-`https://binhost.apps.home.9fans.uk/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`;
-сохранён в
-`/var/cache/binhost/gentoo-builder/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`.
+Builder кладёт бинарные пакеты в `/var/cache/binpkgs` в формате GPKG. `pkgdir-index-trusted` полагается на актуальный локальный индекс `Packages`, а `compress-index` сохраняет также его сжатую копию для выдачи binhost.
 
-В последнем pretend `0 KiB` означает, что GPKG уже cached после предыдущего
-E2E fetch. Выбран именно binary package, а не source build.
-
-### Проверка source fallback
-
-Владелец проверил fallback отдельно 2026-10-10, исключив cache false positive.
-Перед тестом cached private GPKG
-`/var/cache/binhost/gentoo-builder/app-arch/zstd/zstd-1.5.7-r1-1.gpkg.tar`
-временно переименован в `zstd-1.5.7-r1-1.gpkg.tar.saved` в том же каталоге;
-на builder остановлен `gentoo-binhost.service`.
-
-Обычный production-style вызов без `-g`:
-
-```bash
-emerge -1v app-arch/zstd
-```
-
-Portage сообщил `[gentoo-builder] HTTP Error 502: Bad Gateway`, но
-не завершился ошибкой и выбрал `[ebuild   R    ] app-arch/zstd-1.5.7-r1`.
-Начались verifying ebuild manifests, успешная проверка подписи source archive
-и распаковка source в `PORTAGE_TMPDIR`.
-
-**PASS:** resolver/source fallback при недоступном private binhost и реальный
-вход в source build path. После доказательства source path владелец намеренно
-остановил сборку Ctrl+C; полный fallback source rebuild/merge zstd этим тестом
-не подтверждён. Архитектурное требование независимости workstation от
-доступности builder принято.
-
-## Оптимизация
-
-Глобально `-O2`; ThinLTO глобально там, где package/ebuild policy допускает;
-`-O3` — только для отдельного пакета после собственного benchmark. По итогам
-сравнения `-O2` и `-O3` selective-правила не создавались; полные результаты,
-методика и ограничения приведены в
-[документе эксперимента](../../../../experiments/compiler-optimization/o2-vs-o3/).
-
-- Fortran — `-O2` без ThinLTO: GNU Fortran не понимает `-flto=thin`
-  (расширение Clang).
-- Полный rebuild `@world` после смены optimization/LTO policy завершён
-  2026-09-21: система загрузилась штатно, основные сервисы работают, регрессий,
-  связанных с `-O2` + ThinLTO, в журналах не выявлено. Это не значит, что
-  каждый установленный файл собран с ThinLTO: ebuild'ы могут фильтровать LTO
-  (`filter-lto`), а часть пакетов вообще не использует C/C++ toolchain.
-
-## Package.env и GCC-исключения
-
-Текущая структура — 4 файла `env/`, 3 файла `package.env`:
-
-```text
-/etc/portage/env:          gcc-fallback  kernel-llvm  p-cores  ssd
-/etc/portage/package.env:  00-toolchain  10-performance  30-gcc-fallback
-```
-
-Действующая policy:
-
-- C/C++ — глобально `-O2` + ThinLTO, если ebuild сам его не фильтрует;
-  локального `no-lto-llvm` blacklist больше нет.
-- GCC fallback — только два текущих исключения: `sys-devel/binutils` (реальная
-  проблема Clang + PGO) и `x11-libs/pango` (временное исключение перед
-  переходом на LLVM 23 из-за известной проблемы Clang 23). Назначения — в
-  `30-gcc-fallback`. BFD policy находится внутри `env/gcc-fallback`: GCC LTO
-  (`-flto=auto`) несовместим с глобальным `-fuse-ld=lld`.
-- Performance policy (`p-cores`, `ssd`) — в `00-toolchain` и
-  `10-performance`: clang/lld/llvm (`p-cores ssd`), gentoo-kernel
-  (`kernel-llvm p-cores ssd`), firefox, qtbase и thunderbird (`p-cores ssd`),
-  mesa — только `ssd`.
-
-### Как к этому пришли
-
-- Основной аудит и очистка `make.conf` — 2026-09-11; optimization policy
-  применена 2026-09-20.
-- No-LTO exception cleanup завершён 2026-09-21: все 102 локальных
-  `no-lto-llvm` overrides перепроверены и сняты контролируемыми batch'ами
-  (проверка — `emerge --buildpkgonly -1`); `env/no-lto-llvm`, `env/no-ccache`
-  (после исчезновения последнего потребителя) и `package.env/20-compatibility`
-  удалены. Все overrides оказались больше не нужны: для части пакетов ebuild
-  сам управляет LTO (`filter-lto`), а часть Go/Rust-пакетов не использует эти
-  C/C++ flags напрямую.
-- Перепроверены 2026-09-20 и больше не документируются как GCC-исключения:
-  `app-shells/bash` (включая `USE=pgo`), `app-containers/lxc-7.0.0-r1`,
-  `app-editors/nano`, `dev-cpp/highway`, `net-analyzer/nmap`,
-  `media-libs/libjxl`, modern OpenJDK — все успешно собираются production
-  Clang.
-
-## Загрузка
-
-Путь загрузки:
-
-```text
-systemd-boot → UKI (Dracut) → LUKS2 (TPM2) → Btrfs (@)
-```
-
-- Текущее ядро — `7.2.9-bdsm`: boot и User-status LED acceptance — PASS
-  2026-10-04; полный regression-тест всех подсистем отдельно не проводился.
-  Историческая verification point (2026-09-22) — `7.2.7-bdsm`: установлены
-  `sys-kernel/gentoo-kernel-7.2.7` и `-7.2.6`, `installkernel-68-r1`; система
-  успешно загрузилась на ядре 7.2.7 после обновления.
-- `kernel-install` использует `layout=uki`, `initrd_generator=dracut` и
-  `uki_generator=dracut` (`/etc/kernel/install.conf`, проверено 2026-09-22).
-  Production-генератор UKI — Dracut: он создаёт UKI, а systemd-boot загружает
-  его с ESP. `ukify` — только USE-capability `sys-kernel/installkernel`
-  (см. package policy ниже), в generation path не входит.
-- Dracut подписывает UKI ключами sbctl; после установки плагин sbctl проверяет
-  подпись итогового EFI-файла.
-- `bootctl list` (2026-09-22): текущая загрузка — `gentoo-7.2.7-bdsm.efi`
-  (selected); в ESP также `gentoo-7.2.6-bdsm.efi`, `gentoo-7.2.2-bdsm.efi` и
-  Arch UKI (`arch-linux-cachyos.efi` — default, `arch-linux.efi`).
-- Secure Boot и наличие корректно подписанных boot artifacts проверены
-  2026-09-22.
-- Автоматическая TPM2-разблокировка LUKS последний раз подтверждена реальной
-  успешной загрузкой 2026-09-14; 2026-09-22 её повторно не тестировали.
-- AppArmor / LSM: принятая cmdline — `apparmor=1` и
-  `lsm=landlock,lockdown,yama,apparmor,bpf`; устаревший
-  `security=apparmor` удалён. После сборки и загрузки `7.2.9-bdsm`
-  `/sys/kernel/security/lsm` подтвердил активный runtime-набор:
-  `lockdown,capability,landlock,yama,apparmor,bpf`.
-  В kernel config `# CONFIG_INTEGRITY is not set` (`CONFIG_INTEGRITY=n`):
-  старый token `integrity` в cmdline не имел собранной infrastructure
-  и отсутствовал в runtime. Он удалён из принятой UKI cmdline для
-  согласованности с ядром; это не security fix и не функциональное изменение
-  работающей системы. `CONFIG_DM_INTEGRITY` и `CONFIG_BLK_DEV_INTEGRITY` —
-  отдельные возможности device-mapper и block layer; они намеренно сохранены,
-  и удаление `integrity` из `lsm=` их не отключает.
-
-## Package policy
-
-Подтверждено сверкой с живой системой 2026-09-12 (файлы
-`/etc/portage/package.use/`).
+Файл: `/etc/portage/make.conf` на builder.
 
 ```makefile
-# /etc/portage/package.use/20-kernel-boot
-sys-kernel/gentoo-kernel      initramfs savedconfig modules-sign modules-compress -debug
-sys-kernel/installkernel      systemd-boot ukify dracut uki -grub -efistub -ugrd -refind
-sys-kernel/linux-firmware     compress-zstd deduplicate -savedconfig
-sys-firmware/intel-microcode  dist-kernel initramfs split-ucode hostonly -vanilla
+FEATURES="${FEATURES} buildpkg binpkg-logs compress-index pkgdir-index-trusted"
+BINPKG_FORMAT="gpkg"
+PKGDIR="/var/cache/binpkgs"
+EMERGE_DEFAULT_OPTS="${EMERGE_DEFAULT_OPTS} --buildpkg-exclude 'app-admin/keepassxc sys-auth/fprintd sys-auth/libfprint app-crypt/sbctl app-crypt/sbsigntools sys-boot/efibootmgr sys-kernel/installkernel sys-kernel/dracut sys-kernel/gentoo-kernel dev-util/perf sys-firmware/intel-microcode sys-kernel/linux-firmware sys-firmware/sof-firmware'"
 ```
 
-- `savedconfig` ядра хранится в `/etc/portage/savedconfig/sys-kernel/`
-  (проверено 2026-09-22): rolling-файл `gentoo-kernel` и версионные
-  `gentoo-kernel-7.2.6`, `gentoo-kernel-7.2.7` (приоритет PF > PN по правилу
-  eclass); файлов `*.bak` нет.
-- Прежний флаг `-generic` у gentoo-kernel устарел: в текущих ebuild его нет
-  (схема сменилась на `generic-uki`), из живой конфигурации он убран.
-- При выключенном `savedconfig` у linux-firmware сохранённый список
-  `linux-firmware-20260916` не применяется — судьба файла не решена (обновлён
-  с прежнего `20260810`, проверено 2026-09-22).
-- Точечные `llvm_slot_*`-правила удалены 2026-09-12: при установленных слотах
-  LLVM 22 и 23 все потребители (mesa, mesa_clc, niri, bpftool, perf, firefox,
-  xwayland-satellite) резолвятся в 22, потому что слот 23 их ebuild'ами ещё не
-  поддерживается. Когда появится `llvm_slot_23`, дефолты перевернутся на него
-  сами — в этот момент решать вопрос перехода.
-- `video_cards_i915` у mesa удалён 2026-09-12: легаси-драйвер Gen2–Gen5,
-  графику Alder Lake обслуживает iris (значение `intel` в `VIDEO_CARDS`).
-- Java: source `dev-java/openjdk:17` больше не нужен; система переведена на
-  `dev-java/openjdk-bin:25` — system VM через `eselect java-vm`, проверено
-  `java -version` (Temurin 25.0.4 LTS) и `javac -version`.
-
-## USE-policy: детали
-
-Раздел для точечных решений по USE-флагам; читать основной текст выше можно
-без него.
-
-Глобальные изменения `make.conf` (аудит 2026-09-12):
-
-- Из глобального `USE` удалены семь флагов без установленных потребителей
-  (`mapi`, `vpp`, `zink`, `networkmanager`, `udisks2`, `libnotify`, `acpi`).
-  Драйвер Zink не затронут: он управляется `video_cards_zink` из
-  `VIDEO_CARDS`.
-- Ещё четыре флага перенесены точечно в `package.use`: `sound-server`
-  (pipewire), `screencast` (niri), `lto` (gcc), `gles2` (gst-plugins-base,
-  mesa-progs). `egl`, `ffmpeg`, `v4l`, `pgo`, `custom-cflags` и `btrfs`
-  остаются глобальной политикой.
-- Глобально в `make.conf` включён `verify-provenance`: применяется
-  поддерживающими его `dev-python/*` ebuild'ами для проверки PyPI
-  provenance/attestations. Дополняет `verify-sig`, не заменяет его, и не
-  распространяется на все Python-пакеты.
-
-### Review 2026-09-22: базовые и system-пакеты
-
-Частичный review USE-флагов; зафиксированы только принятые решения (применены
-владельцем):
-
-- `app-alternatives/gzip` — выбран `pigz` (parallel gzip) вместо reference
-  GNU gzip.
-- `dev-libs/libpcre2` — `jit`: PCRE2 JIT capability и JIT в `pcre2grep`;
-  автоматического использования JIT каждым consumer PCRE2 это не даёт.
-- `dev-libs/openssl` — `ktls`: kernel support уже присутствует; USE-флаг
-  только компилирует поддержку kTLS в OpenSSL, фактическое использование
-  требует opt-in со стороны приложения/runtime (`SSL_OP_ENABLE_KTLS` или
-  эквивалент).
-- `sys-process/audit` — `io-uring`: поддержка kernel Audit `io_uring`
-  filter/правил и интерпретации io_uring operations; сам `auditd` при этом на
-  io_uring не переводится.
-- `sys-apps/util-linux` — `caps` (добавляет `setpriv` для диагностики
-  capabilities/hardening), `-cramfs` (legacy filesystem tooling не нужен).
-- `app-misc/pax-utils` — `caps`: `pspax` отображает capability sets процессов.
-- `sys-devel/gettext` — `git`: `autopoint` использует Git backend для
-  internal infrastructure data.
-- `sys-apps/coreutils` — `caps` (capability-aware file utilities) и `gmp`
-  (multiprecision arithmetic в `factor`, `expr`, `basenc`).
-
-Архитектурные решения того же review:
-
-- **TPM policy**: `app-crypt/tpm2-tss -fapi -policy`,
-  `app-crypt/tpm2-tools -fapi`, `app-crypt/gnupg -tpm`. TPM используется для
-  LUKS2/`systemd-cryptenroll`; TSS FAPI не задействован, GnuPG keys на TPM не
-  хранятся.
-- **Контейнеры**: `app-containers/lxc landlock` — в дополнение к сохраняемым
-  `apparmor caps seccomp`; `app-containers/containerd -cri` — Kubernetes/CRI
-  не используется. Runtime storage drivers проверены: Docker — `overlay2`,
-  Podman — `overlay`, поэтому `app-containers/docker -btrfs` и
-  `app-containers/podman -btrfs` — осознанное решение, несмотря на Btrfs host
-  filesystem. Для `containerd` действует та же логика: `-btrfs` после
-  resolver-проверки, что `containerd[btrfs]` больше никому не требуется.
-- **Privilege hardening**: `sys-process/htop caps -filecaps` — обычному htop
-  не выдаётся постоянный `CAP_SYS_PTRACE`, расширенный доступ — `doas htop`;
-  `sys-apps/smartmontools caps` — smartd сбрасывает лишние privileges через
-  libcap-ng.
-- **Chrony**: `net-misc/chrony -phc -refclock -rtc` — проверено по
-  `/etc/chrony/chrony.conf`, соответствующие directives отсутствуют; обычный
-  `rtcsync` от USE=`rtc` не зависит.
-- **Graphics**: `media-libs/mesa -vaapi -lm-sensors` при
-  `VIDEO_CARDS="intel zink"` — Gallium VA-API для этого Intel setup не
-  используется (VA-API обслуживается отдельным Intel/libva stack), а
-  `lm-sensors` нужен Mesa только для Gallium HUD, который не используется.
-- **LLVM runtime policy**: `clang-runtime:22` и `clang-runtime:23` —
-  `compiler-rt openmp sanitize` при `-default-compiler-rt -default-libcxx
-  -default-lld -libcxx -llvm-libunwind`. По умолчанию сохраняется GNU runtime
-  ABI; наличие compiler-rt/sanitizer runtimes не переводит систему на LLVM
-  runtimes — это отдельный [Experiment
-  C](../../../../experiments/llvm23-toolchain/#experiment-c-граница-runtime-эксперимента) (NOT STARTED).
-- **OpenVPN**: `net-vpn/openvpn dco kernel-ovpn` (решение 2026-09-22, по
-  итогам инцидента с `ovpn-dco`): DCO включён через mainline in-kernel модуль
-  `ovpn` (`CONFIG_OVPN=m`, собирается с ядром). Out-of-tree
-  `net-vpn/ovpn-dco` не вводится: он требует снимать
-  `CONFIG_TRIM_UNUSED_KSYMS` и дублирует in-kernel модуль; при включении
-  `dco` без `kernel-ovpn` пакет `ovpn-dco` падает в setup phase на
-  kernel-config check.
-
-### Review 2026-09-22: desktop и прикладной стек
-
-**Desktop / document stack**
-
-- `app-text/poppler cairo` — Cairo/GLib backend включён; устранена
-  бессмысленная комбинация `introspection -cairo`.
-- `dev-java/openjdk-bin -source` — runtime/JDK сохраняется, установка
-  исходников не нужна.
-- `media-gfx/imagemagick lcms tiff` — ICC color-management и TIFF support
-  входят в capability универсального image tool.
-
-**Multimedia**
-
-- `media-libs/gst-plugins-base orc`, `gst-plugins-good orc`,
-  `gst-plugins-bad orc` — единая ORC/JIT policy для основного GStreamer stack.
-- `media-video/ffmpeg pulseaudio` — libpulse backend поверх PipeWire
-  compatibility layer.
-- `app-emulation/spice opus` — Opus audio support.
-- `media-libs/libheif -kvazaar` — HEVC encoding остаётся на x265; второй
-  encoder не нужен.
-
-**Firmware / platform**
-
-- `sys-apps/fwupd uefi gnutls` — UEFI capsule/update functionality для
-  ноутбука; `gnutls` требуется этой конфигурацией.
-
-**Secrets / TPM**
-
-- `app-crypt/libsecret -pam -tpm` — TPM integration libsecret не используется,
-  что согласуется с TPM policy выше (TPM — только LUKS2/
-  `systemd-cryptenroll`). USE-флаг `pam` включает поддержку PAM в
-  `gnome-base/gnome-keyring[pam]`; модуль `pam_gnome_keyring.so` установлен.
-  Текущий PAM stack его не вызывает, поэтому активной PAM-интеграции с GNOME
-  Keyring сейчас нет.
-
-**Qt / desktop performance**
-
-- `dev-qt/qtdeclarative jit` — QML JIT runtime path остаётся доступным для Qt
-  Quick/QML consumers.
-- `dev-qt/qtbase io-uring` — включён io_uring backend Qt; осознанный
-  performance/capability choice, а не утверждение о гарантированном
-  ускорении.
-- `media-gfx/qimgv video exif` — video/animated media через libmpv и EXIF
-  metadata support.
-- `gui-apps/noctalia jemalloc` — jemalloc сохранён как выбранная runtime
-  memory-allocation policy для long-running shell (состояние — в [системном
-  desktop-разделе](../../desktop/noctalia/)).
-
-**Network analysis**
-
-- `net-analyzer/wireshark http2 http3 sshdump` — полноценная современная
-  HTTP/2 и HTTP/3 support; remote capture через SSH.
-
-**Firefox cleanup**
-
-- Локальный `www-client/firefox -jumbo-build` удалён и не заменён явным
-  `jumbo-build`: актуальный Gentoo profile форсирует `jumbo-build` для
-  Firefox, а `USE=pgo` также его требует. Отрицательный локальный override
-  стал no-op и больше не является policy — `jumbo-build` наследуется от
-  профиля.
-
-Мелкие подтверждённые решения: `app-misc/fastfetch drm pulseaudio`,
-`dev-lang/ruby gmp`.
-
-Review 2026-09-22 завершён. Он закрыл только перечисленные решения и не
-заменяет полный аудит `/etc/portage` от 2026-09-14.
-
-## Проверка состояния
-
-Разделы сверяются с живой системой поэтапно:
-
-| Раздел | Проверено |
-|--------|-----------|
-| Secure Boot и подписи boot artifacts | 2026-09-22 |
-| TPM2 auto-unlock LUKS (реальная загрузка) | 2026-09-14 |
-| Toolchain и package.env | 2026-09-20…21 |
-| Package policy (`package.use/`) | 2026-09-12 |
-| USE-policy review | 2026-09-22 |
-| Текущее ядро, UKI-генератор, savedconfig | 2026-09-22; текущее ядро — 2026-10-04 |
-
-Основные команды проверки:
+Проверь эффективные значения после изменений Portage config:
 
 ```bash
-portageq envvar CFLAGS CXXFLAGS   # -O2 -flto=thin
-bootctl list                      # текущая загрузка — UKI ядра 7.2.9-bdsm
-java -version                     # openjdk-bin:25, Temurin 25.0.4 LTS
+portageq envvar FEATURES BINPKG_FORMAT PKGDIR
 ```
+
+Ожидаются `buildpkg`, `gpkg` и `/var/cache/binpkgs` среди выведенных значений. Если значение отличается, проверь `/etc/portage/make.conf` и перекрывающие настройки Portage до обновления builder.
+
+Обычный update builder не создаёт GPKG для списка исключений; обычный update ноутбука не устанавливает их из binrepo. Это разные переключатели на двух системах, а не настройка совместимости GPKG. Ядро — специальный случай: helper script передаёт `--ignore-default-opts --buildpkgonly` при сборке и `--ignore-default-opts --usepkgonly` при установке. Так исключение действует в обычном потоке, но не мешает отдельной контролируемой сборке ядра. Остальные исключения оставлены локальными согласно package policy ниже.
+
+Причины сгруппированы по роли пакетов:
+
+| Пакеты | Почему остаются вне обычного binpkg потока |
+|--------|--------------------------------------------|
+| `app-admin/keepassxc` | Для используемой версии применяется локальный Portage patch; обычный source merge гарантирует, что он попадёт в установленный пакет. |
+| `sys-auth/fprintd`, `sys-auth/libfprint` | `libfprint` устанавливается с локальным patchset для сканера ELAN ноутбука; `fprintd` остаётся в том же hardware-specific стеке. |
+| `app-crypt/sbctl`, `app-crypt/sbsigntools`, `sys-boot/efibootmgr` | Утилиты обслуживают Secure Boot и UEFI именно ноутбука; builder использует другой boot path (SeaBIOS/GRUB). Конфигурация и состояние UEFI остаются на ноутбуке. |
+| `sys-kernel/installkernel`, `sys-kernel/dracut` | На ноутбуке они собраны для `systemd-boot` и Dracut UKI path; builder использует GRUB и не генерирует workstation UKI. Package USE policy для этих пакетов различается. |
+| `sys-kernel/gentoo-kernel` | Отдельный version-specific workflow с `savedconfig` и локальными патчами. Он создаётся на builder вручную, обходя обычный buildpkg exclusion. |
+| `dev-util/perf` | Его обновление связано с kernel headers и конфигурацией целевой системы, поэтому оно не входит в portable userspace binpkg set. |
+| `sys-firmware/intel-microcode`, `sys-kernel/linux-firmware`, `sys-firmware/sof-firmware` | Это firmware stack ноутбука; для Intel microcode также включён `hostonly`, который нельзя собирать по CPU builder. |
+
+Исключение не означает, что бинарный формат сам по себе несовместим: локальная сборка нужна для принятой package/patch/boot policy. Если причина исключения исчезнет, меняй обе стороны (`--buildpkg-exclude` и `--usepkg-exclude`) после отдельной проверки совместимости.
+
+## Обычное обновление Portage
+
+Routine workflow — сначала обновить builder, затем ноутбук. Builder собирает GPKG при package merge через `FEATURES=buildpkg`; его userspace target и package policy предназначены для совместимых бинарных пакетов. Не продолжай обычное обновление ноутбука, если update builder завершился ошибкой.
+
+1. На `gentoo-builder-01` синхронизируй repositories/overlays, проверь resolver и выполни update `@world` с `--newuse`:
+
+   ```bash
+   doas emaint sync -a
+   doas emerge --pretend --verbose --update --deep --newuse --complete-graph @world
+   doas emerge --ask --verbose --update --deep --newuse --complete-graph @world
+   ```
+
+   Pretend должен завершиться без resolver-конфликтов. После подтверждённого update builder создаёт GPKG для обновлённых пакетов, кроме `--buildpkg-exclude`; индекс `Packages` должен отражать доступные пакеты в binhost. Если sync или merge завершился ошибкой, сначала исправь проблему на builder; обновление ноутбука не начинай.
+2. На ноутбуке синхронизируй repositories/overlays и проверь resolver:
+
+   ```bash
+   doas emaint sync -a
+   doas emerge --pretend --verbose --update --deep --newuse --complete-graph @world
+   ```
+
+   Ожидается полный план обновления без конфликтов зависимостей. Если sync завершился с rsync status `23` или `RepoStorageException`, сначала проверь владельца Gentoo repository по [инструкции usersync](../../../troubleshooting/portage-usersync-repository-ownership/).
+
+3. Просмотри список пакетов, USE changes и планируемые source builds. Если план приемлем, выполни обычное обновление:
+
+   ```bash
+   doas emerge --ask --verbose --update --deep --newuse --complete-graph @world
+   ```
+
+   Подходящие GPKG будут выбраны автоматически, остальные пакеты соберутся из исходников. На вопрос Portage подтверди продолжение только после просмотра списка. Если private binhost недоступен, а план переключился на дорогие локальные сборки, отложи update и восстанови доступ builder; срочный source fallback допустим, если он осознан и хватает места/ресурсов.
+
+Синхронизация builder и ноутбука не привязана к одному snapshot Gentoo repositories: точная фиксация snapshot не настроена. Поэтому builder-first уменьшает риск несовместимых GPKG, но не заменяет проверку resolver на ноутбуке.
+
+## Обновление ядра: сборка GPKG на builder
+
+Для новой версии заранее подготовь на builder:
+
+- version-specific `/etc/portage/savedconfig/sys-kernel/gentoo-kernel-<version>`;
+- оба патча в `/etc/portage/patches/sys-kernel/gentoo-kernel-<version>/`: `10-asus-wmi-user-status-led.patch` и `20-asus-b5402-headset-mic.patch`;
+- ту же версию ebuild, которую будет устанавливать ноутбук.
+
+На ноутбуке хранятся соответствующие version-specific `savedconfig` и оба патча. Сохраняй рабочий UKI до установки новой версии. Каталоги текущих локальных патчей находятся под `/etc/portage/patches/sys-kernel/`; патчи привязаны к версии ebuild и должны быть перенесены в новый каталог после проверки их применимости.
+
+На builder выполни два buildpkg-only шага. Первый собирает ядро с prepared config и патчами, но не устанавливает его в runtime builder. Второй создаёт binpkg для `virtual/dist-kernel`, чтобы dependency closure была доступна ноутбуку:
+
+```bash
+version=7.2.13
+
+doas env ACCEPT_KEYWORDS="amd64 ~amd64" \
+    emerge --ignore-default-opts \
+    --ask --verbose --oneshot --buildpkgonly --usepkg=n \
+    "=sys-kernel/gentoo-kernel-${version}"
+
+doas env ACCEPT_KEYWORDS="amd64 ~amd64" \
+    emerge --ignore-default-opts \
+    --ask --verbose --oneshot --buildpkgonly --usepkg=n --nodeps \
+    "=virtual/dist-kernel-${version}"
+```
+
+`--ignore-default-opts` убирает workstation-style binpkg исключения из обычных параметров; `--usepkg=n` не позволяет builder случайно взять старый бинарный пакет вместо пересборки. Второй шаг использует `--nodeps`, чтобы создать только virtual binpkg без установки его runtime kernel dependency на builder. Ожидаемый результат — оба emerge завершаются успешно и GPKG для ядра и virtual доступны в binrepo. При ошибке patch application проверь версию каталога патчей и соответствие patch исходникам; при ошибке `savedconfig` проверь наличие version-specific файла.
+
+На ноутбуке устанавливай именно собранную версию только из binrepo:
+
+```bash
+version=7.2.13
+
+doas emerge --ignore-default-opts --getbinpkg --usepkgonly \
+    --ask --verbose --oneshot "=sys-kernel/gentoo-kernel-${version}"
+```
+
+`--usepkgonly` запрещает source fallback. Если нет GPKG ядра или `virtual/dist-kernel`, установка остановится до merge: вернись на builder, проверь завершение обоих buildpkg-only шагов и публикацию Packages index. Не убирай `--usepkgonly` для обхода ошибки: это может собрать ядро локально без подготовленного kernel flow.
+
+Локальные патчи добавляют поддержку User-status LED и quirk микрофона гарнитуры. При переходе на новую версию сначала проверь, не появились ли эти изменения upstream и применяются ли патчи к новым исходникам; затем собирай GPKG. Подробное назначение патчей описано в [User-status indicator](../../hardware/user-status-indicator/) и [Headset microphone](../../hardware/headset-microphone/).
+
+## От kernel package до systemd-boot
+
+В Portage включены `savedconfig`, `modules-sign` и `modules-compress` для `sys-kernel/gentoo-kernel`; для `sys-kernel/installkernel` включены `systemd-boot`, `dracut`, `uki` и USE-capability `ukify`. Это не означает, что UKI генерирует ukify: фактический путь задаётся `/etc/kernel/install.conf`.
+
+Файл: `/etc/portage/package.use/20-kernel-boot`.
+
+```text
+sys-kernel/gentoo-kernel      initramfs savedconfig modules-sign modules-compress -debug
+sys-kernel/installkernel     systemd-boot ukify dracut uki -grub -efistub -ugrd -refind
+```
+
+На builder пакет ядра получает environment `workstation-kernel` через отдельную запись. Это compiler environment kernel build на builder, не userspace toolchain и не laptop `make.conf`.
+
+Файл: `/etc/portage/package.env/61-workstation-kernel` на builder.
+
+```text
+sys-kernel/gentoo-kernel workstation-kernel
+```
+
+Файл: `/etc/portage/env/workstation-kernel` на builder.
+
+```makefile
+LLVM=1
+LLVM_IAS=1
+
+CC="/usr/lib/llvm/23/bin/clang"
+CXX="/usr/lib/llvm/23/bin/clang++"
+HOSTCC="/usr/lib/llvm/23/bin/clang"
+HOSTCXX="/usr/lib/llvm/23/bin/clang++"
+LD="/usr/lib/llvm/23/bin/ld.lld"
+AR="/usr/lib/llvm/23/bin/llvm-ar"
+NM="/usr/lib/llvm/23/bin/llvm-nm"
+RANLIB="/usr/lib/llvm/23/bin/llvm-ranlib"
+
+OBJCOPY="/usr/bin/objcopy"
+READELF="/usr/bin/readelf"
+STRIP="/usr/bin/strip"
+OBJDUMP="/usr/bin/objdump"
+
+CFLAGS="-O2 -pipe"
+CXXFLAGS="-O2 -pipe"
+LDFLAGS="-Wl,-O1 -Wl,--as-needed"
+
+KCFLAGS="-march=alderlake -mtune=alderlake"
+KRUSTFLAGS="-C target-cpu=alderlake"
+```
+
+`LLVM=1` и явные пути выбирают LLVM 23 как compiler/linker для kernel и host tools; `LLVM_IAS=1` выбирает integrated assembler. `KCFLAGS` и `KRUSTFLAGS` задают Alder Lake target для kernel C и Rust code. Это environment использует `-O2 -pipe`, без глобальных userspace ThinLTO и `-fuse-ld=lld` flags. Kernel `savedconfig` хранит конфигурацию и Linux module-signature settings; его точная версия хранится отдельно для каждого ebuild.
+
+Файл: `/etc/kernel/install.conf`.
+
+```ini
+layout=uki
+initrd_generator=dracut
+uki_generator=dracut
+```
+
+При merge ядра `installkernel` передаёт новый kernel образ в `kernel-install`. Hook Dracut собирает initramfs и UKI; в этой конфигурации он запускает `dracut --uefi --no-ukify`. `/etc/dracut.conf.d/20-modules.conf` включает `systemd tpm2-tss crypt btrfs` и исключает ненужные `network nfs`. `/etc/dracut.conf.d/90-uki.conf` задаёт UEFI output, Secure Boot signing и cmdline для LUKS2/TPM2 и корневого Btrfs subvolume `@`. UUID дисков в документацию не копируй.
+
+После генерации systemd `kernel-install` кладёт UKI в `/boot/EFI/Linux/`; hook `91-sbctl.install` подписывает итоговый EFI-файл. systemd-boot обнаруживает UKI по Type #2 и показывает его как отдельную запись. Отдельно проверь наличие нового UKI и запись загрузчика до перезагрузки:
+
+```bash
+doas ls -lh /boot/EFI/Linux/
+bootctl list
+doas sbctl verify
+```
+
+Ожидаются UKI новой версии в `/boot/EFI/Linux/`, запись `gentoo-<version>-bdsm.efi` в `bootctl list` и отсутствие ошибок проверки подписи. Если UKI не появился, проверь вывод `emerge`, `journalctl`/логи `kernel-install` и наличие смонтированного ESP в `/boot`; не перезагружайся в новую версию, пока образ не появился и проверка подписи не прошла. Оставь предыдущий рабочий UKI как fallback.
+
+`modules-sign` и Secure Boot решают разные задачи. В versioned kernel `savedconfig` включены подпись и автоматическое подписание модулей; обязательная проверка подписи не включена:
+
+```makefile
+CONFIG_MODULE_SIG=y
+CONFIG_MODULE_SIG_ALL=y
+# CONFIG_MODULE_SIG_FORCE is not set
+```
+
+Эта подпись относится к `.ko` и проверяется ядром при загрузке модуля. Dracut/sbctl отдельно подписывают UKI как EFI PE image, который проверяет Secure Boot firmware. Подпись модулей не заменяет подпись UKI, а подпись UKI не подписывает отдельные внешние модули. Kernel runtime может дополнительно включить enforcement параметром `module.sig_enforce=1`; сама UKI-подпись этого не делает.
+
+После запланированной перезагрузки проверь `uname -r`, `bootctl status` и доступность LUKS-разблокировки. Ожидаются новая версия с суффиксом `-bdsm`, выбранный UKI и обычный запуск системы. Если загрузка не удалась, выбери предыдущую рабочую запись в systemd-boot и вернись к проверке нового kernel config/UKI до следующей попытки.
+
+## Память и кэши сборки
+
+Файл: `/etc/systemd/zram-generator.conf`.
+
+```ini
+[zram0]
+zram-size =ram / 2
+compression-algorithm = zstd
+swap-priority = 100
+fs-type = swap
+```
+
+Это создаёт zram swap размером в половину RAM с `zstd` и priority `100`. Kernel savedconfig содержит `# CONFIG_ZSWAP is not set`, поэтому отдельный zswap backend не используется.
+
+Файл: `/etc/sysctl.d/99-memory.conf`.
+
+```ini
+vm.swappiness = 100
+```
+
+`swappiness=100` — относительная политика reclaim для swap в RAM, а не процент занятой памяти и не порог включения swap.
+
+Для компиляции C/C++ в `/etc/portage/make.conf` включён ccache с каталогом `/var/tmp/ccache` и лимитом `20G`. Rust использует `RUSTC_WRAPPER=/usr/bin/sccache`, кэш `/var/tmp/sccache` с лимитом `20G` и Unix socket `/var/tmp/sccache/sccache.sock`, обслуживаемый `sccache-portage.service`. Это локальные build caches; они не передают исходники builder и не распределяют компиляцию.
+
+Для тяжёлых сборок `package.env/10-performance` назначает `ssd`, который переносит `PORTAGE_TMPDIR` в `/var/tmp/portage-disk`. У остальных пакетов остаётся стандартный `PORTAGE_TMPDIR` Portage. Если сборка заканчивается нехваткой места, проверь `df -h /var/tmp /var/tmp/portage-disk /var/tmp/ccache /var/tmp/sccache` и убедись, что нужный пакет действительно получил environment `ssd`.
 
 ## Связанные документы
 
-- [Базовая система](../../../../installation/base-system/)
-- [UKI через Dracut](../../../../installation/systemd-uki-setup/)
-- [Portage](../../../../managed/portage/)
-- [LLVM 23: эксперимент и выводы](../../../../experiments/llvm23-toolchain/)
+- [gentoo-builder-01](../../../gentoo-builder-01/) — builder target и публикация GPKG.
+- [UKI через Dracut](../../../../installation/systemd-uki-setup/) — общая конфигурация генерации UKI.
+- [CPU optimization](../../hardware/cpu-optimization/) — workstation Alder Lake и переносимый builder target.
+- [Portage usersync troubleshooting](../../../troubleshooting/portage-usersync-repository-ownership/) — rsync status `23` и ownership Gentoo repository.
+- [Gentoo Binary Package Guide](https://wiki.gentoo.org/wiki/Binary_package_guide) и [Portage emerge manual](https://dev.gentoo.org/~zmedico/portage/doc/man/emerge.1.html) — выбор и установка GPKG.
+- [USE-флаг Gentoo `hostonly`](https://packages.gentoo.org/useflags/hostonly) — выбор микрокода Intel для процессора, доступного во время сборки.
+- [Linux kernel module signing](https://docs.kernel.org/admin-guide/module-signing.html) — подписи `.ko` и режим их проверки.
+- [systemd kernel-install](https://freedesktop.org/software/systemd/man/latest/kernel-install.html), [systemd-boot](https://www.freedesktop.org/software/systemd/man/latest/systemd-boot.html) и [Dracut](https://man7.org/linux/man-pages/man8/dracut.8.html) — hooks, UKI и загрузочные записи.

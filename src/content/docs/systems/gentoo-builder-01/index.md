@@ -243,7 +243,7 @@ resolve и update `@world` на builder; `buildpkg` создаёт новые GP
 не продолжается до разбора причины. Scheduled update не используется; exact repository snapshot pinning
 не реализован. Срочное независимое обновление workstation возможно через
 local source build. Подробная operational policy — в
-[workstation Portage](../asus-b5402/system/boot-and-portage/#ручной-update-builder-first--pass--workstation).
+[workstation Portage](../asus-b5402/system/boot-and-portage/#обычное-обновление-portage).
 
 ## Known limitations
 
