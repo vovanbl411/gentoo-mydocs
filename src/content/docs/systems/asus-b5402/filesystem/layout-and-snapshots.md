@@ -2,105 +2,78 @@
 title: Btrfs и Snapper на ASUS ExpertBook B5402
 kind: system
 scope: system
-status: draft
-last_verified: "2026-09-25"
+status: current
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-## Current state
+## Текущее состояние
 
-- Корневая файловая система — Btrfs, плоский (flat) набор субволюмов:
-  `@`, `@home`, `@snapshots` и отдельные субвольмы под сборку и кэши.
-- Сжатие — `zstd:3`.
-- Рабочая директория Portage `/var/tmp/portage` — tmpfs 16 GiB.
-- Snapper создаёт timeline/boot-снимки по systemd timers.
-- Автоматических pre/post-снимков вокруг emerge сейчас нет.
+- Корневая файловая система — Btrfs с плоской схемой субволюмов. Сжатие —
+  `compress=zstd:3`; также используются `noatime` и `discard=async`.
+- `/var/tmp/portage` смонтирован как tmpfs размером 16 GiB.
+- Кэши, дерево Portage и данные Docker/libvirt вынесены в отдельные субволюмы.
+- Snapper создаёт почасовые снимки и снимки при загрузке; таймер очистки
+  удаляет старые снимки по заданным лимитам. Квоты Btrfs выключены.
+- Автоматические снимки до и после `emerge` не настроены.
 
-## Btrfs layout
-
-Субвольмы:
-
-```text
-@               — корень системы
-@home
-@snapshots
-@var_log
-@var_cache
-@distfiles
-@ccache
-@sccache
-@portage_tree
-@docker
-@libvirt
-@portage_tmp
-```
-
-Опции монтирования NVMe: `compress=zstd:3`, `noatime`, `discard=async`,
-`space_cache=v2`.
-
-## Build and cache storage
-
-Сборочная цепочка Portage вынесена из снапшотируемого корня:
+## Субволюмы Btrfs
 
 | Субволюм | Точка монтирования | Назначение |
 |---|---|---|
-| `@ccache` | `/var/tmp/ccache` | кэш C/C++ compiler через ccache (20G); `nodatacow` на каталоге подтверждён |
-| `@sccache` | `/var/tmp/sccache` | кэш Rust через sccache (20G); владелец `portage:portage`, режим `drwxrwsr-x`, установлен NoCoW attribute |
-| `@portage_tmp` | `/var/tmp/portage-disk` | временные файлы тяжёлых сборок |
-| `@distfiles` | `/var/cache/distfiles` | исходные коды пакетов |
-| `@var_cache` | `/var/cache` | прочий системный кэш |
+| `@` | `/` | корневая система |
+| `@home` | `/home` | домашние каталоги |
+| `@snapshots` | `/.snapshots` | снимки Snapper |
+| `@var_log` | `/var/log` | системные журналы |
+| `@var_cache` | `/var/cache` | системные кэши |
+| `@distfiles` | `/var/cache/distfiles` | архивы исходников Portage |
+| `@ccache` | `/var/tmp/ccache` | кэш ccache |
+| `@sccache` | `/var/tmp/sccache` | кэш sccache |
 | `@portage_tree` | `/var/db/repos/gentoo` | дерево Gentoo |
+| `@docker` | `/var/lib/docker` | данные Docker |
+| `@libvirt` | `/var/lib/libvirt` | данные libvirt и образы виртуальных машин |
+| `@portage_tmp` | `/var/tmp/portage-disk` | временные файлы тяжёлых сборок на диске |
 
-Рабочая директория `/var/tmp/portage` — tmpfs размером 16 GiB
-(`uid=portage`, `nosuid`, `nodev`, `noatime`).
+## Сборка и кэши
+
+`/var/tmp/portage` — tmpfs размером 16 GiB с параметрами `uid=portage`,
+`gid=portage`, `mode=775`, `nosuid`, `nodev` и `noatime`. Он отделяет рабочие
+файлы сборки от Btrfs-снимков.
+
+В `/etc/portage/make.conf` заданы каталоги и лимиты кэшей:
+
+- ccache: `/var/tmp/ccache`, `CCACHE_SIZE="20G"`;
+- sccache: `/var/tmp/sccache`, `SCCACHE_CACHE_SIZE="20G"`.
+
+Атрибут `+C` установлен на каталогах `/var/tmp/ccache`, `/var/tmp/sccache`,
+`/var/tmp/portage-disk`, `/var/lib/docker` и `/var/lib/libvirt`. Подробнее о
+наследовании NoCoW — в [общем руководстве по
+Btrfs](../../../../filesystem/btrfs-setup/).
 
 ## Snapper
 
-Snapper создаёт timeline/boot-снимки. Автоматических pre/post-снимков
-вокруг emerge сейчас нет.
+Конфигурация `root` в `/etc/snapper/configs/root` относится к `/`. Доступ к
+снимкам предоставлен группе `wheel` (`ALLOW_GROUPS="wheel"`,
+`SYNC_ACL="yes"`).
 
-Конфигурация `root`:
+Включены `snapper-timeline.timer` для почасовых снимков,
+`snapper-cleanup.timer` для очистки старых снимков и `snapper-boot.timer` для
+снимков при загрузке. Политика хранения:
 
-```text
-ALLOW_GROUPS="wheel"
-SYNC_ACL="yes"
-TIMELINE_LIMIT_HOURLY=2
-TIMELINE_LIMIT_DAILY=3
-TIMELINE_LIMIT_WEEKLY=0
-TIMELINE_LIMIT_MONTHLY=0
-NUMBER_LIMIT=10
-NUMBER_LIMIT_IMPORTANT=5
-SPACE_LIMIT=0.8
-```
+- 2 почасовых и 3 ежедневных снимка; недельный, месячный, квартальный и
+  годовой лимиты равны 0;
+- очистка по количеству: `NUMBER_LIMIT="10"`,
+  `NUMBER_LIMIT_IMPORTANT="5"`.
 
-`TIMELINE_LIMIT_*` — сколько timeline-снимков хранить; `NUMBER_LIMIT` —
-лимит number-cleanup, а не отдельный лимит снимков emerge.
+`SPACE_LIMIT="0.8"` и `FREE_LIMIT="0.2"` заданы в конфигурации. Квоты Btrfs
+выключены, поэтому эти параметры не участвуют в очистке с учётом занятого и
+свободного места. Фактическое удержание снимков определяется числовыми
+лимитами выше.
 
-Автоматизация — systemd timers (timeline, cleanup, boot).
+В `/etc/portage/bashrc` нет pre/post-хука Snapper: файл только вызывает
+`PORTAGE_SCHEDULING_COMMAND`.
 
-Хук Portage в `/etc/portage/bashrc` отсутствует: bashrc содержит только
-`PORTAGE_SCHEDULING_COMMAND` для p-cores, pre/post-снимков на emerge
-не создаётся.
-
-## Verification
-
-- Btrfs перепроверен по живому выводу `findmnt` 2026-09-22; субволюмы
-  подтверждены монтированием 2026-09-12.
-- `@sccache` и `/var/tmp/sccache` проверены 2026-09-25: параметры монтирования
-  Btrfs — `rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2`;
-  каталог принадлежит `portage:portage`, NoCoW attribute установлен.
-- Лимит `@ccache` 20G подтверждён 2026-10-02: `CCACHE_SIZE="20G"` в
-  `make.conf` и `max_size = 20G` в `/var/tmp/ccache/ccache.conf`; после
-  `ccache -c` каталог занимает 19G.
-- `/var/tmp/portage` (tmpfs 16 GiB) подтверждён 2026-09-12.
-- Snapper проверен по конфигу `/etc/snapper/configs/root` 2026-09-22; лимиты
-  timeline снижены с 5/7/1 до 2 часов / 3 дней / недельного 0 (подтверждено
-  `snapper get-config` 2026-10-02). Btrfs quota не включена
-  (`btrfs qgroup show /` → quotas not enabled), поэтому `SPACE_LIMIT` и
-  `FREE_LIMIT` неактивны — удержание снапшотов счётное.
-- Отсутствие Portage-хука проверено по `/etc/portage/bashrc` 2026-09-22.
-
-## Related docs
+## Связанные документы
 
 - [Структура Btrfs](../../../../filesystem/btrfs-setup/)
 - [Snapper](../../../../filesystem/snapper-backups/)
