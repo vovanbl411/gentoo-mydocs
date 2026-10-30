@@ -1,163 +1,109 @@
 ---
 title: ASUS NumberPad — цифровая клавиатура на тачпаде
-kind: guide
+kind: system
 scope: system
 status: current
-last_verified: null
-verified_on: []
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
-Драйвер ASUS NumberPad превращает тачпад в цифровую клавиатуру. На ASUS B5402
-для устройства `ASUE1410:01 04F3:3230` используется раскладка `b7402`.
-Название раскладки относится к драйверу; выбирать её только по модели
-ноутбука не стоит.
+## Текущее состояние
 
-## Установка
+На ASUS B5402 драйвер `sys-apps/asus-numberpad-driver` из
+[asus-numberpad-overlay](https://github.com/vovanbl411/asus-numberpad-overlay)
+использует NumberPad на тачпаде `ASUE1410:01 04F3:3230` с раскладкой `b7402`.
+Драйвер работает как пользовательский systemd-сервис и подключается к
+Wayland-сессии Umbriel. Сервис запускается вручную; автозапуска из Umbriel нет.
 
-Драйвер и его зависимость `dev-python/python-periphery` находятся в
-[asus-numberpad-overlay](https://github.com/vovanbl411/asus-numberpad-overlay).
-Подключи свой checkout оверлея к Portage по его README, разреши предложенные
-Portage testing keywords и установи пакет:
+При запуске драйвер обнаруживает встроенную клавиатуру, тачпад и его hidraw-
+устройство. Для обмена с тачпадом используется hidraw; резервный доступ через
+I²C в текущей настройке не задействован. Номера `eventN` и `hidrawN` могут
+меняться.
 
-```bash
-emerge -pv sys-apps/asus-numberpad-driver
-doas emerge --ask sys-apps/asus-numberpad-driver
-```
+## Конфигурация
 
-Оба Python-пакета должны поддерживать выбранную версию интерпретатора.
-Сервис запускается от обычного пользователя; установка пакета сама его
-не запускает.
+Файл: `~/.config/asus-numberpad-driver/service.conf`
 
-## Раскладка и каталог настроек
+Пользовательский unit читает из него параметры раскладки и каталога настроек:
 
-Доступные раскладки лежат в `/usr/share/asus-numberpad-driver/layouts`.
-Пользовательский сервис читает переменные из
-`~/.config/asus-numberpad-driver/service.conf`.
-
-Если `service.conf` уже существует, сохрани его копию и измени нужные
-значения вручную. Следующий блок создаёт новый файл:
-
-```bash
-mkdir -p "$HOME/.config/asus-numberpad-driver"
-cat > "$HOME/.config/asus-numberpad-driver/service.conf" <<EOF
+```ini
 NUMBERPAD_LAYOUT=b7402
-NUMBERPAD_CONFIG_DIR=$HOME/.config/asus-numberpad-driver/
-EOF
+NUMBERPAD_CONFIG_DIR=<absolute-home>/.config/asus-numberpad-driver/
 ```
 
-`NUMBERPAD_LAYOUT` выбирает раскладку. Во втором параметре нужен абсолютный
-путь без пробелов и со слэшем в конце. Команда подставляет твой домашний каталог;
-сервис не раскрывает `~` как командная оболочка. Драйвер создаёт в этом
-каталоге файл `numberpad_dev`.
+В `NUMBERPAD_CONFIG_DIR` указывается абсолютный путь к домашнему каталогу:
+`<absolute-home>` — placeholder, его нужно заменить реальным путём. Сервис не
+раскрывает `~` или `$HOME` в значении переменной; путь заканчивается `/`.
 
 ## Доступ к устройствам
 
-Драйвер читает события клавиатуры и тачпада через `/dev/input/event*`, создаёт
-виртуальную клавиатуру через `/dev/uinput` и управляет тачпадом через hidraw.
-Если hidraw недоступен, драйвер может обращаться к I²C-шине; рабочий hidraw
-позволяет обойтись без доступа ко всей шине.
+Локальное правило назначает владельца только для hidraw тачпада и `/dev/uinput`.
+В правиле вместо `<user>` указывается пользователь, запускающий сервис.
 
-Номера `event*` и `hidraw*` могут изменяться. Сначала найди устройства:
+Файл: `/etc/udev/rules.d/99-asus-numberpad-local.rules`
 
-```bash
-cat /proc/bus/input/devices
-```
-
-В блоке нужного устройства поле `Handlers` указывает его `event*`.
-Для выбранного узла посмотри постоянные атрибуты:
-
-```bash
-udevadm info --attribute-walk --name=/dev/input/eventN
-udevadm info --attribute-walk --name=/dev/hidrawN
-```
-
-Здесь и далее `eventN` и `hidrawN` нужно заменить найденными именами.
-Сопоставь hidraw с тачпадом по родительскому HID-устройству, а не по номеру узла.
-
-Локальные правила хранятся в
-`/etc/udev/rules.d/99-asus-numberpad-local.rules`. Ниже — шаблон: замени
-`<user>`, имена устройств и HID-идентификатор значениями своей системы.
-Для input возьми `ATTRS{name}`, для hidraw — `KERNELS` родительского
-HID-устройства из вывода `udevadm`. Если идентификатор оканчивается
-номером экземпляра, замени эту часть на `*`, сохранив шину, vendor и product:
-правило не должно зависеть от порядка обнаружения устройств.
-
-```udev
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="<touchpad name>", OWNER="<user>", MODE="0600"
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="<keyboard name>", OWNER="<user>", MODE="0600"
-SUBSYSTEM=="hidraw", KERNELS=="<parent HID identifier>", OWNER="<user>", MODE="0600"
+```text
+SUBSYSTEM=="hidraw", KERNELS=="0018:04F3:3230.*", OWNER="<user>", MODE="0600"
 SUBSYSTEM=="misc", KERNEL=="uinput", OWNER="<user>", MODE="0600"
 ```
 
-Не копируй шаблон с незаменёнными значениями. Для input добавляй только
-устройства, которые нужны драйверу; не открывай все `event*`, hidraw или I²C
-любому пользователю. Чтение input позволяет видеть нажатия клавиш, а запись
-в uinput — вводить их от имени пользователя.
+Доступ к событиям клавиатуры и тачпада предоставляется через группу `input`.
+Её права распространяются и на другие устройства ввода, поэтому можно читать
+события устройств, не связанных с NumberPad.
 
-Если `/dev/uinput` отсутствует, загрузи модуль:
+> ⚠️ **Важный нюанс**: членство в `input` даёт более широкий доступ к событиям
+> устройств ввода, чем требуется для одного NumberPad.
 
-```bash
-doas modprobe uinput
-```
+## Запуск в Umbriel
 
-Для загрузки после перезагрузки добавь строку `uinput` в
-`/etc/modules-load.d/uinput.conf`.
-
-После редактирования правил перечитай их:
+В терминале активной Umbriel-сессии запускай сервис вручную:
 
 ```bash
-doas udevadm control --reload-rules
+systemctl --user start asus-numberpad-driver.service
 ```
 
-Новые права применяются при создании устройств. Для встроенного тачпада
-простой способ применить их — перезагрузка. Проверь от обычного пользователя:
-
-```bash
-ls -l /dev/input/eventN /dev/hidrawN /dev/uinput
-```
-
-Пользователь сервиса должен иметь права чтения и записи нужных узлов.
-Для отмены настройки удали только добавленные строки локальных правил
-и перечитай правила; прежние права вернутся при следующем создании устройств.
-
-## Запуск в Wayland-сессии
-
-Сервису нужны переменные текущего рабочего стола. Выполняй команды из
-терминала внутри Umbriel, не из SSH или отдельной текстовой консоли:
-
-```bash
-: "${WAYLAND_DISPLAY:?}" "${XDG_RUNTIME_DIR:?}" "${DBUS_SESSION_BUS_ADDRESS:?}" &&
-test "${XDG_SESSION_TYPE:-}" = wayland &&
-  systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR XDG_SESSION_TYPE DBUS_SESSION_BUS_ADDRESS &&
-  systemctl --user start asus-numberpad-driver.service
-```
-
-Первые строки проверяют наличие окружения Wayland и передают его
-пользовательскому systemd. Только после этого запускается драйвер.
-
-Проверь состояние и попробуй включить NumberPad на тачпаде:
-
-```bash
-systemctl --user status asus-numberpad-driver.service
-journalctl --user -b -u asus-numberpad-driver.service
-```
-
-Сервис должен работать без ошибок доступа; нажатия в цифровой области
-должны вводить соответствующие цифры. При ошибке `Permission denied` проверь
-узел устройства, указанный в журнале, и права именно этого узла.
-
-Для остановки выполни отдельно:
+Юнит статический: у него нет секции `[Install]`, поэтому `systemctl enable` для
+него не используется. При запуске сервис обнаруживает Wayland-сессию через
+окружение пользовательского systemd. Для ручной остановки:
 
 ```bash
 systemctl --user stop asus-numberpad-driver.service
 ```
 
-У сервиса нет секции установки для `systemctl enable`. Если настраиваешь
-автозапуск из композитора, выполняй последовательность передачи окружения
-и запуска после готовности Wayland, а при выходе останавливай сервис.
-Обычный запуск из SSH не заменяет запуск внутри графической сессии.
+## Проверка
+
+Проверь состояние сервиса и его журнал:
+
+```bash
+systemctl --user status asus-numberpad-driver.service
+journalctl --user -b -u asus-numberpad-driver.service --no-pager
+```
+
+В журнале не должно быть ошибок доступа или конфигурации. После запуска вручную
+проверь NumberPad на тачпаде: нажатия в цифровой области должны вводить
+соответствующие цифры. Состояние сервиса само по себе не подтверждает работу
+физического ввода.
+
+## Устранение проблем
+
+- **`Permission denied`** — проверь права именно того узла, который указан в
+  журнале, и соответствующее правило udev. Не открывай доступ ко всем input
+  или hidraw-устройствам.
+- **Сервис не видит Wayland** — проверь окружение пользовательского systemd.
+  Из Umbriel импортируй переменные текущей сессии и перезапусти сервис:
+
+  ```bash
+  systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR XDG_SESSION_TYPE DBUS_SESSION_BUS_ADDRESS
+  systemctl --user restart asus-numberpad-driver.service
+  ```
+
+- **Неверная раскладка** — проверь `NUMBERPAD_LAYOUT` в
+  `service.conf`; для этого тачпада используется `b7402`.
+- **hidraw недоступен** — проверь, что udev-правило совпадает с родительским
+  HID-устройством тачпада. Не добавляй доступ к I²C, пока не выяснена причина.
 
 ## Связанные материалы
 
-- [Рабочее окружение ноутбука](../../desktop/environment/)
-- [README оверлея](https://github.com/vovanbl411/asus-numberpad-overlay)
+- [Рабочее окружение ASUS B5402](../../desktop/environment/)
+- [asus-numberpad-overlay](https://github.com/vovanbl411/asus-numberpad-overlay) —
+  установка пакета, поддерживаемые версии Python и сведения о сборке.
