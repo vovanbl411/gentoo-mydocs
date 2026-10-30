@@ -3,64 +3,40 @@ title: Микрофон гарнитуры ASUS ExpertBook B5402CBA
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-10"
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
-## Текущее состояние
+## Current state
 
-На ASUS ExpertBook B5402CBA с ядром `7.2.9-bdsm` локальный quirk для
-`1043:1b2f` успешно применяется без `hda_model`. Realtek ALC294 получает
-`Headset Mic=0x19`; pin `0x19` реально активирован как `IN VREF_80`.
-В PipeWire появляется `Stereo Microphone`: подтверждена настройка pin
-кодека, а не только наличие источника в PipeWire.
+ASUS ExpertBook B5402CBA использует кодек Realtek ALC294 с subsystem ID
+`1043:1b2f`. Для текущей версии `sys-kernel/gentoo-kernel` применяется локальный
+version-specific патч `20-asus-b5402-headset-mic.patch`, который назначает
+существующий quirk `ALC2XX_FIXUP_HEADSET_MIC`. Постоянный `hda_model` override
+не используется. В codec dump видны pin `0x19` с `IN VREF_80` и headset mic
+topology; ALSA показывает controls `Headset Mic Jack`, `Capture` и
+`Headset Mic Boost`, а PipeWire — источник `Stereo Microphone`. Это подтверждает
+topology, но functional capture совместимой CTIA TRRS-гарнитуры пока не
+подтверждён.
 
-Окончательная functional acceptance внешнего микрофона **не пройдена**:
-с текущим подключённым устройством `Headset Mic Jack=off`, direct ALSA
-capture через `plughw:0,0` даёт тишину, VU не реагирует. Проверка отложена
-до появления заведомо совместимой CTIA TRRS-гарнитуры или адаптера.
-Состояние подтверждено 2026-10-10.
+## Текущая конфигурация
 
-Постоянная конфигурация — штатный драйвер `snd_hda_codec_alc269` и локальный
-патч, применяющий существующий `ALC2XX_FIXUP_HEADSET_MIC` к codec subsystem
-ID `0x10431b2f` (`1043:1b2f`). После перезагрузки с патчем временный
-`hda_model` полностью удалён из cmdline; параметр модуля показывает `(null)`.
-Quirk B5402 пока локальный; его включение в upstream не подтверждено.
+Для ALC294 используется штатный драйвер `snd_hda_codec_alc269` с
+`CONFIG_SND_HDA_CODEC_ALC269=m`. Локальный quirk выбирается автоматически по
+SSID `1043:1b2f`; параметр `snd_sof_intel_hda_generic.hda_model` в production
+cmdline отсутствует. `HWDEP`, `RECONFIG` и `PATCH_LOADER` для этого quirk не
+требуются.
 
-## Постоянная конфигурация и локальный quirk
+## Локальный патч
 
-### Драйвер и production kernel config
+Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-<version>/20-asus-b5402-headset-mic.patch`
 
-Для ALC294 необходима штатная поддержка `CONFIG_SND_HDA_CODEC_ALC269=m`.
-В оптимизированной конфигурации ядра эта опция первоначально отсутствовала.
-Её включение обеспечило специализированный драйвер ALC294, но само по себе
-не добавило headset mic в topology. Локальный quirk ниже добавляет этот вход;
-получение сигнала с внешнего микрофона пока не подтверждено.
+Значение `<version>` должно совпадать с выбранной версией
+`sys-kernel/gentoo-kernel`. Порядок сборки GPKG на builder и установки ядра
+описан в [разделе «Загрузка и Portage»](../../system/boot-and-portage/).
 
-Подтверждённый production HDA config:
-
-```makefile
-# CONFIG_SND_HDA_HWDEP is not set
-# CONFIG_SND_HDA_RECONFIG is not set
-# CONFIG_SND_HDA_PATCH_LOADER is not set
-CONFIG_SND_HDA_GENERIC_LEDS=y
-CONFIG_SND_HDA_GENERIC=m
-CONFIG_SND_HDA_CODEC_REALTEK=m
-CONFIG_SND_HDA_CODEC_REALTEK_LIB=m
-CONFIG_SND_HDA_CODEC_ALC269=m
-```
-
-`HWDEP`, `RECONFIG` и `PATCH_LOADER` использовались или рассматривались
-только для диагностики. Локальный quirk от них не зависит; в
-production они отключены. Это отличается от `CONFIG_SND_HDA_CODEC_ALC269`,
-который необходим для штатной поддержки кодека.
-
-### Локальный Gentoo patch
-
-Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.9/20-asus-b5402-headset-mic.patch`
-
-Патч добавляет в таблицу quirk драйвера
-`sound/hda/codecs/realtek/alc269.c` запись для SSID этой машины:
+В патче добавлена запись в таблицу quirk драйвера
+`sound/hda/codecs/realtek/alc269.c`:
 
 ```c
 SND_PCI_QUIRK(0x1043, 0x1b2f,
@@ -68,110 +44,87 @@ SND_PCI_QUIRK(0x1043, 0x1b2f,
               ALC2XX_FIXUP_HEADSET_MIC),
 ```
 
-Применение quirk подтверждено после сборки ядра с локальным патчем и
-перезагрузки без диагностического `snd_sof_intel_hda_generic.hda_model`
-в cmdline. Это подтверждение topology, а не окончательная проверка capture.
-Каталог патча привязан к `gentoo-kernel-7.2.9`: при обновлении ядра нужно
-проверить наличие quirk в новых исходниках и необходимость переноса патча,
-затем повторить проверку capture.
+Запись сопоставляет subsystem ID ноутбука с уже существующим fixup Realtek.
+Она не добавляет собственного алгоритма настройки кодека. Патч привязан к
+версии ebuild ядра.
 
-Перед повторной сборкой сохрани рабочий boot entry/UKI для отката.
-Сборка и загрузка описаны в [системном разделе Boot и Portage](../../system/boot-and-portage/)
-и [руководстве по UKI через Dracut](../../../../installation/systemd-uki-setup/).
+## Почему нужен quirk
 
-## Технические детали и диагностика
+Quirk был выбран после диагностики:
 
-| Параметр | Подтверждённое значение |
-|----------|------------------------|
-| Машина | ASUS ExpertBook B5402CBA |
-| Проверенное ядро | `7.2.9-bdsm` |
-| Стек | SOF/HDA |
-| Кодек / драйвер | Realtek ALC294 / `snd_hda_codec_alc269` |
-| Codec subsystem ID | `0x10431b2f` / `1043:1b2f` |
-| Firmware init pin config `0x19` | `0x411111f0` — N/A |
-| Активный pin `0x19` с quirk | `IN VREF_80` |
-| Pin `0x21` | Корректно определяется как headphone pin |
+- Firmware init config для pin `0x19` (`0x411111f0`, N/A) не создавал рабочую
+  headset mic topology.
+- Одного включения специализированного драйвера ALC294 было недостаточно.
+- Диагностический `hda_model=headset-mode` не добавил вход микрофона.
+- `hda_model=alc2xx-fixup-headset-mic` добавил headset mic в topology.
 
-Firmware/BIOS не предоставляет рабочую pin configuration для headset mic
-pin `0x19`. Без quirk в dmesg список `inputs:` оставался пустым даже со
-специализированным драйвером. Применение существующего
-`ALC2XX_FIXUP_HEADSET_MIC` добавляет headset mic в topology и активирует
-pin `0x19`. Эти наблюдения не устанавливают более глубокую причину поведения
-firmware/BIOS и не подтверждают получение сигнала с внешнего микрофона.
+Поэтому production-конфигурация применяет тот же существующий fixup
+автоматически по SSID, без постоянного диагностического override.
 
-Причина оставшегося отсутствия сигнала пока не установлена. Возможны
-физическая несовместимость подключённого устройства с combo jack либо
-недостаточность выбранного codec fixup; ни один вариант пока не подтверждён.
+## Пример в upstream
 
-Проверенные диагностические overrides:
-
-| Параметр cmdline | Результат |
-|-----------------|-----------|
-| `snd_sof_intel_hda_generic.hda_model=headset-mode` | Не исправил проблему: `inputs:` оставался пустым |
-| `snd_sof_intel_hda_generic.hda_model=alc2xx-fixup-headset-mic` | Появились `Headset Mic=0x19`, ALSA controls `Headset Mic Jack`, `Capture`, `Headset Mic Boost` и PipeWire source `Stereo Microphone`; функциональная работа внешнего микрофона не подтверждена |
-
-Override подтвердил изменение topology на этой машине. В постоянной
-конфигурации его заменяет автоматический выбор quirk по SSID.
-
-Linux upstream уже применяет `ALC2XX_FIXUP_HEADSET_MIC` для ASUS Vivobook S14
-S5406SA с ALC294 и аналогичной проблемой микрофона гарнитуры:
+В Linux quirk `ALC2XX_FIXUP_HEADSET_MIC` применяется для ASUS Vivobook S14
+S5406SA с ALC294 и сходной проблемой:
 [commit f2d08f3651fb12634347fef2c41687a807a7dcba](https://github.com/torvalds/linux/commit/f2d08f3651fb12634347fef2c41687a807a7dcba).
-Это precedent для выбора существующего fixup, а не upstream patch B5402.
+Это precedent для выбора fixup на другом устройстве, а не подтверждение
+upstream-поддержки B5402. Документированное включение B5402 в upstream здесь
+не подтверждается; локальная конфигурация продолжает использовать
+version-specific patch.
 
-## Проверка
+## Что ещё не подтверждено
 
-После загрузки ядра с локальным патчем:
+Наличие topology и источника `Stereo Microphone` не доказывает, что combo jack
+получает сигнал от внешнего микрофона. Functional capture с заведомо
+совместимой CTIA TRRS-гарнитурой или адаптером пока не проверен. Предыдущая
+попытка с доступным устройством не дала сигнала, но совместимость этого
+устройства с combo jack не была подтверждена, поэтому результат не доказывает
+неисправность quirk.
+
+## Проверка текущего состояния
+
+Команды ниже только читают состояние системы. Номер ALSA-карты сначала определи
+по `/proc/asound/cards`.
 
 ```bash
 uname -r
 cat /proc/cmdline
 cat /sys/module/snd_sof_intel_hda_generic/parameters/hda_model
-doas dmesg | rg 'snd_hda_codec_alc269.*(inputs:|Headset Mic)'
+cat /proc/asound/cards
+
+for f in /proc/asound/card*/codec#*; do
+    [ -r "$f" ] || continue
+    echo "== $f =="
+    grep -n -A14 -B2 'Node 0x19' "$f" || true
+done
+
+amixer -c <card-number> scontrols
+amixer -c <card-number> contents | rg -n 'Headset Mic|Mic Jack|Capture|Boost'
 wpctl status
 ```
 
-Подтверждённое применение quirk и состояние topology:
+В codec dump проверь `Codec: Realtek ALC294`, `Subsystem Id: 0x10431b2f`,
+параметры pin `0x19` и `Pin-ctls`. В `wpctl status` ищи `Stereo Microphone`.
+Значение `(null)` у `hda_model` означает, что override не задан.
 
-- `uname -r`: `7.2.9-bdsm`.
-- В cmdline отсутствует `snd_sof_intel_hda_generic.hda_model`.
-- Параметр `hda_model`: `(null)`.
-- В dmesg драйвер `snd_hda_codec_alc269` показывает `inputs:` и
-  `Headset Mic=0x19`.
-- Pin `0x19` активирован как `IN VREF_80`.
-- В `wpctl status` присутствует `Stereo Microphone`.
+## Будущий тест внешнего микрофона
 
-Результат проверки текущего подключённого микрофона:
-
-- `Headset Mic Jack=off`.
-- Direct ALSA capture через `plughw:0,0` даёт тишину.
-- VU не реагирует.
-
-Наличие источника и активного pin не заменяет проверку звука. Окончательная
-проверка отложена до появления заведомо совместимой CTIA TRRS-гарнитуры или
-адаптера. С ним нужно повторить проверку jack detection, direct ALSA capture
-и VU, затем выбрать ID источника `Stereo Microphone` из `wpctl status`.
-В примере замени `<source-id>` этим ID:
+Проводить тест имеет смысл с заведомо совместимой CTIA TRRS-гарнитурой или
+адаптером. Проверь обнаружение подключения и состояние `Headset Mic Jack` в
+ALSA, затем выбери ID источника `Stereo Microphone` из `wpctl status` и запиши
+несколько слов:
 
 ```bash
 pw-record --target <source-id> /tmp/headset-mic-test.wav
-# Произнеси несколько слов и заверши запись Ctrl+C.
+# Скажи несколько слов и останови запись Ctrl+C.
 pw-play /tmp/headset-mic-test.wav
 ```
 
-Критерий успеха — слышимая запись именно внешнего микрофона гарнитуры.
-Приведённые команды предназначены для будущей проверки на машине.
-Прежняя запись через `pw-record` и воспроизведение через `pw-play` не служат
-доказательством захвата именно внешнего микрофона.
+Успех — на записи слышен именно внешний микрофон гарнитуры.
 
 ## Откат
 
-При проблемах с новым ядром загрузи сохранённый рабочий boot entry/UKI.
-Чтобы отменить локальный quirk, убери указанный patch из применяемого
-Portage каталога, пересобери ядро и UKI по принятой процедуре и перезагрузись.
-Сохрани `CONFIG_SND_HDA_CODEC_ALC269=m`: отмена quirk не требует отключать
-штатный драйвер ALC294.
-
-Без quirk и без диагностического override микрофон гарнитуры ранее
-отсутствовал; после отката нужно проверить topology и capture заново.
-`hda_model=alc2xx-fixup-headset-mic` остаётся проверенным диагностическим
-вариантом, но в принятой production-конфигурации он не используется.
+Чтобы отменить quirk, убери файл
+`20-asus-b5402-headset-mic.patch` из применяемого version-specific каталога
+патчей и пересобери workstation kernel по [принятой GPKG-процедуре](../../system/boot-and-portage/).
+При regression загрузи предыдущий рабочий kernel. Настройку
+`CONFIG_SND_HDA_CODEC_ALC269=m` оставь включённой.
