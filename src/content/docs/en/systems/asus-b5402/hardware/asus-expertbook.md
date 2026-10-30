@@ -2,48 +2,39 @@
 title: ASUS ExpertBook B5402CBA specifics
 kind: system
 scope: system
-status: draft
-last_verified: "2026-10-04"
+status: current
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
 ## Current state
 
-- Power is managed by TLP; `tlp-pd` provides power profiles for Noctalia.
-- Battery charge is limited to 80%; the battery is identified as `BAT1`.
-- `CONFIG_ASUS_WMI=m` and `CONFIG_ASUS_NB_WMI=m` are enabled in the kernel;
-  `CONFIG_ASUS_ARMOURY` is disabled.
-- Fn keys and backlight work through asus-nb-wmi; key handling is configured
-  through binds in Niri.
+- TLP manages power. `tlp-pd` provides the power profile interface for
+  Noctalia; both services are running.
+- The `BAT1` charge threshold is set to 80% in
+  `/etc/tlp.d/99-custom.conf`.
+- The running kernel enables `CONFIG_ASUS_WMI=m`,
+  `CONFIG_ASUS_NB_WMI=m`, and `CONFIG_ASUS_WMI_DEPRECATED_ATTRS=y`.
+- Umbriel is the production desktop. Its configuration handles brightness
+  keys with `brightnessctl`, audio keys with `wpctl`, and uses `XF86Display`
+  to cycle the User-status indicator mode.
+- The kernel User-status LED ABI, userspace modes, and limitations are
+  documented on the [dedicated page](../user-status-indicator/).
 
-- The external User-status indicator uses a local kernel LED interface; the
-  userspace `auto/busy/off` controller and Fn+1 integration are live-verified.
-  See the [dedicated document](../user-status-indicator/).
+## Power and battery
 
-## Power management and battery (TLP)
+TLP manages power profiles and the charge threshold. `tlp-pd` provides Noctalia
+with a power profile interface; the shell gets battery state through
+`sys-power/upower`. A separate `sys-power/power-profiles-daemon` is not used.
 
-Power is managed by `sys-power/tlp-1.10.1` with `ppd` and `rdw` enabled.
-`tlp-pd` provides Noctalia with the standard interface for switching profiles,
-while `sys-power/upower` reports battery state to the shell. A separate
-`sys-power/power-profiles-daemon` is not used.
-
-By default, TLP selects `performance` on AC power and `balanced` on battery.
-For extended battery operation, the `power-saver` profile is available
-manually.
-
-To extend battery lifetime while working on AC power, charging is limited to
-80%.
-
-The battery is identified in the system as `BAT1`.
+`/etc/tlp.d/99-custom.conf` enables Intel HWP dynamic boost on AC and in the
+normal battery profile. It is disabled for the `power-saver` profile. The
+charge threshold limits `BAT1` to 80%.
 
 File: `/etc/tlp.d/99-custom.conf`
 
 ```conf
-# Charging limit for ASUS ExpertBook (BAT1)
 STOP_CHARGE_THRESH_BAT1=80
-
-# Intel HWP dynamic boost: improves responsiveness after I/O wakeups.
-# Enabled for normal AC/BAT profiles, disabled in the power-saving profile.
 CPU_HWP_DYN_BOOST_ON_AC=1
 CPU_HWP_DYN_BOOST_ON_BAT=1
 CPU_HWP_DYN_BOOST_ON_SAV=0
@@ -51,75 +42,51 @@ CPU_HWP_DYN_BOOST_ON_SAV=0
 
 Do not set this threshold separately through UPower or directly through sysfs.
 
-With `intel_pstate` in `active` mode, TLP manages HWP dynamic boost. It is
-enabled for normal AC/BAT profiles to improve responsiveness after I/O wakeups
-and deliberately disabled for `power-saver`. No separate kernel command-line
-parameter, systemd unit, or sysfs workaround is used. Current values:
-`scaling_driver=intel_pstate`, `scaling_governor=powersave`, and
-`energy_performance_preference=balance_performance`.
+## ASUS kernel support
 
-## ASUS support in the kernel (Kconfig)
+The running kernel enables:
 
-The saved Gentoo configuration
-(`/etc/portage/savedconfig/sys-kernel/gentoo-kernel`) enables:
+- `CONFIG_ASUS_WMI=m` — the base ASUS WMI driver, also used by TLP for the
+  charge threshold.
+- `CONFIG_ASUS_NB_WMI=m` — the ASUS laptop driver, including hotkeys and
+  system indicators.
+- `CONFIG_ASUS_WMI_DEPRECATED_ATTRS=y` — compatibility attributes for older
+  management utilities.
 
-- `CONFIG_ASUS_NB_WMI=m`: the main driver for ASUS laptops (hotkeys,
-  Bluetooth, Wi-Fi).
-- `CONFIG_ASUS_WMI=m`: the basic ASUS WMI driver; TLP also uses it for the
-  battery charge threshold.
-- `CONFIG_ASUS_WMI_DEPRECATED_ATTRS=y`: required for compatibility with some
-  older management utilities.
+`CONFIG_ASUS_ARMOURY` is not used because it does not provide useful
+power-management attributes on this model.
 
-Historical nuance: `CONFIG_ASUS_ARMOURY` is disabled. On this model the driver
-did not provide useful power-management attributes and printed
-`No matching power limits found for this system`. `CONFIG_ASUS_WMI` remains
-enabled.
+## Keys and indicators
 
-## Function keys and indicators
+Umbriel handles multimedia/Fn keys in `~/.config/umbriel/keybinds.toml`:
 
-Fn keys and system indicators work through the asus-nb-wmi module.
-
-- **Keyboard backlight**: adjusted through
+- `XF86MonBrightnessUp` and `XF86MonBrightnessDown` change brightness through
+  `brightnessctl --class=backlight`.
+- Volume and mute keys call `wpctl`; playback controls use `playerctl`.
+- `XF86Display` runs `~/.local/bin/user-status-led cycle`; Fn+1 cycles the
+  indicator modes through this binding.
+- The keyboard backlight is available at
   `/sys/class/leds/asus::kbd_backlight`.
-- **Multimedia keys**: in the tiling compositor (Niri), key handling is
-  configured through binds that invoke:
-  - `light` — to control display brightness.
-  - `wpctl` — to control PipeWire audio streams.
 
-## Battery state
+Umbriel is the [production desktop](../desktop/environment/); installation
+and configuration are covered in the [Umbriel guide](../../../../desktop/umbriel/).
 
-Readings on 2026-09-14:
-
-- **Design Capacity**: 5260 mAh
-- **Full Charge Capacity**: 4301 mAh
-- **Health (Capacity)**: 81.8%
-- **Cycle Count**: 137
-
-## Verification
+## Checking the current state
 
 ```bash
 doas tlp-stat -s
-tlpctl list
+doas tlp-stat -c
 doas tlp-stat -b
-```
-
-On 2026-09-14, `tlp-stat -b` confirmed the active `natacpi (asus_wmi)` plugin,
-the value `charge_control_end_threshold = 80`, and the `Not charging` state at
-80.3% charge.
-
-After `tlp start` on 2026-09-27, the selected profile was
-`performance/AC (auto)`. `tlp-stat -c` showed that all three
-`CPU_HWP_DYN_BOOST_*` values were read from `/etc/tlp.d/99-custom.conf`.
-Check the active value with:
-
-```bash
 cat /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
 ```
 
-Expected and observed output: `1`. Persistence after reboot has not been
-checked separately.
+Check that TLP and `tlp-pd` are running, `BAT1` uses an 80% threshold, and
+`hwp_dynamic_boost` matches the active power profile.
 
 ## Related docs
 
-- [Niri](../../../../desktop/niri/) — multimedia-key handling.
+- [User-status indicator](../user-status-indicator/)
+- [Boot and Portage](../../system/boot-and-portage/) — building the
+  version-specific kernel GPKG on the builder and installing it on the laptop
+  from the binrepo.
 - [CPU optimization: Intel Alder Lake](../cpu-optimization/)

@@ -3,119 +3,58 @@ title: User-status indicator ASUS ExpertBook B5402CBA
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-07"
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
 ## Current state
 
-По записи 2026-10-07 внешний оранжевый индикатор на крышке работает через
-`/sys/class/leds/:status` на `7.2.9-bdsm`. Физический ON/OFF прошёл приёмку
-2026-10-04. Локальный Gentoo patch совпадает по design с submitted upstream v1:
-регистрация после успешного чтения состояния, без DMI whitelist и trigger.
+Внешний User-status indicator на крышке доступен через бинарный kernel LED
+ABI `/sys/class/leds/:status` (`0` — выключен, `1` — включён). Для ASUS WMI
+устройства с ID `0x00040019` используется локальный version-specific patch
+`/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.13/10-asus-wmi-user-status-led.patch`.
+Ядро ноутбука собирается на `gentoo-builder-01` как GPKG и устанавливается из
+binrepo; порядок обновления описан в [руководстве по загрузке и Portage](../../system/boot-and-portage/).
 
-### Локальный kernel patch
+Userspace-контроллер [`asus-user-status-led`](https://github.com/vovanbl411/asus-user-status-led)
+реализует режимы `auto`, `busy` и `off`. Сервис `user-status-led.service`
+запускает `~/.local/bin/user-status-led`. Режим `auto` включает индикатор при
+активном PipeWire capture, когда активная связь соединяет `Audio/Source` с
+работающим `Stream/Input/Audio`; `busy` включает его постоянно, `off` выключает.
 
-Файл: `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.9/10-asus-wmi-user-status-led.patch`
+В конфигурации Umbriel клавиша `XF86Display` вызывает
+`~/.local/bin/user-status-led cycle`; Fn+1 переключает режимы через эту
+привязку.
 
-Патч добавляет `ASUS_WMI_DEVID_USER_STATUS_LED = 0x00040019` и бинарный LED
-class device с `max_brightness = 1`, `brightness_set_blocking`, чтением через
-`asus_wmi_get_devstate_simple()` и записью через `asus_wmi_set_devstate()`.
-Регистрация требует `asus_wmi_get_devstate_simple(...) >= 0`.
-ABI — `":" LED_FUNCTION_STATUS`.
+## Локальный kernel patch
 
-### Upstream status
+Патч добавляет ASUS WMI device ID `0x00040019` как бинарное LED-устройство с
+`max_brightness = 1`. Чтение и запись состояния идут через ASUS WMI. Устройство
+регистрируется только после успешного чтения текущего состояния. В результате
+появляется ABI `/sys/class/leds/:status`.
 
-v1 submitted / awaiting review; принятие или merge не подтверждены.
-[Submission и проверки](../../../../experiments/asus-user-status-indicator/#upstream-v1)
-сохранены в исследовании. v2 готовится только по конкретному review feedback
-или при обнаружении новой проблемы.
+Патч привязан к версии `sys-kernel/gentoo-kernel`. При обновлении ядра переноси
+его в новый version-specific каталог только после проверки применимости к
+новым исходникам и проверки, не появилась ли поддержка upstream. История
+исследования и upstream submission сохранена в
+[исследовании User-status indicator](../../../../experiments/asus-user-status-indicator/).
 
-## Userspace на Gentoo
-
-Ядро предоставляет бинарное управление LED (`0/1`); режимы `auto`, `busy` и
-`off` реализованы отдельно в userspace. На этой системе работает
-[`asus-user-status-led`](https://github.com/vovanbl411/asus-user-status-led):
-`busy` включает индикатор, `off` выключает, а `auto` следует за активным
-потребителем реального PipeWire `Audio/Source`. Подробная реализация,
-архитектура и установка описаны в отдельном проекте; эта страница фиксирует
-hardware/kernel path и его интеграцию на Gentoo.
-
-Live functional acceptance на ASUS ExpertBook B5402CBA прошёл: ручные `busy` и
-`off`; `auto` в простое; захват через `pw-record` с переходом ON → OFF;
-отсутствие ложного срабатывания от Noctalia Spectrum; реальный вызов Vesktop
-с включением LED, сохранением ON при mute приложения и выключением после
-выхода из вызова; цикл режимов через Fn+1; исправление AUTO CPU feedback loop.
-Fn+1 проходит через firmware event `0x61` → `KEY_SWITCHVIDEOMODE` →
-`XF86Display` → Niri → `user-status-led`; одно физическое нажатие даёт один
-переход режима. Сервис активен, а возврат в `auto` во время активного вызова
-сразу повторно оценивает состояние PipeWire. Исправление CPU-loop проверено:
-в простое работает один долгоживущий `pw-dump --monitor`, обычный `pw-dump`
-не запускается непрерывно, CPU usage низкий.
-
-Открыты две проверки: визуальная оценка restart-flicker и reboot/login
-lifecycle. После входа ещё нужно подтвердить сохранённый режим, запуск user
-service, udev permissions, обычный старт `auto`, отсутствие возврата CPU-loop
-и работу Fn+1.
-
-## Verification
-
-Проверено на live-системе 2026-10-04:
-
-| Параметр | Значение |
-|----------|----------|
-| Модель | ASUS ExpertBook B5402CBA |
-| BIOS | `B5402CBA.314` |
-| Kernel | `7.2.9-bdsm` |
-| Пакет | `sys-kernel/gentoo-kernel-7.2.9` |
-| Registration | `asus_wmi_get_devstate_simple(...) >= 0` |
-
-После загрузки `7.2.9-bdsm` зарегистрирован `/sys/class/leds/:status`;
-`orange:status` отсутствует. Проверка наличия и чтение состояния:
+## Проверка состояния
 
 ```bash
 uname -r
 ls -l /sys/class/leds/:status
 cat /sys/class/leds/:status/max_brightness
 cat /sys/class/leds/:status/brightness
+systemctl --user status user-status-led.service --no-pager
 ```
 
-Подтверждённая цель symlink:
+Для текущего ядра ожидается LED ABI `:status` с `max_brightness` равным `1`;
+user service запускает `~/.local/bin/user-status-led daemon`.
 
-```text
-../../devices/platform/asus-nb-wmi/leds/:status
-```
+## Связанные документы
 
-Live-значения: `max_brightness = 1`, `brightness = 0`. Команды ниже меняют
-состояние физического индикатора; запись `0` выключает его.
-
-Включение:
-
-```bash
-printf '1\n' | doas tee /sys/class/leds/:status/brightness
-```
-
-Выключение:
-
-```bash
-printf '0\n' | doas tee /sys/class/leds/:status/brightness
-```
-
-Физическая проверка 2026-10-04: `1` зажёг именно внешний оранжевый
-User-status indicator на крышке; `0` погасил тот же индикатор.
-
-| Live acceptance 2026-10-04 | Результат |
-|----------------------------|-----------|
-| `7.2.9-bdsm` boot | PASS |
-| Registration `:status` | PASS |
-| `orange:status` отсутствует | PASS |
-| `max_brightness = 1` | PASS |
-| DSTS state read | PASS |
-| DEVS write `1` → physical LED ON | PASS |
-| DEVS write `0` → physical LED OFF | PASS |
-
-## Related docs
-
-- [Специфика ASUS ExpertBook B5402CBA](../asus-expertbook/)
-- [ASUS ExpertBook B5402](../../)
-- [Идентификация firmware, Windows reference, выбор ABI и историческая диагностика](../../../../experiments/asus-user-status-indicator/)
+- [Специфика ASUS ExpertBook B5402CBA](./asus-expertbook/)
+- [Загрузка и Portage](../../system/boot-and-portage/) — сборка version-specific
+  kernel GPKG на builder и установка на ноутбук из binrepo.
+- [Исследование ASUS User-status indicator](../../../../experiments/asus-user-status-indicator/)
