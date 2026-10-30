@@ -3,111 +3,66 @@ title: "Оптимизация CPU: Intel Alder Lake (i7-1260P)"
 kind: system
 scope: system
 status: draft
-last_verified: "2026-10-10"
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
 ## Current state
 
-- CPU: Intel Core i7-1260P, Alder Lake (гибридные P/E-ядра).
-- Userspace-флаги компиляции: `-march=alderlake`; набор `CPU_FLAGS_X86` записан по
-  результату `cpuid2cpuflags` (см. ниже).
-- Ядро: `CONFIG_X86_NATIVE_CPU=y` — штатная native CPU optimization,
-  подтверждено владельцем 2026-10-07.
-- Драйвер частот: intel_pstate в режиме active.
-- HFI / Intel Thread Director: `CONFIG_INTEL_HFI_THERMAL=y`.
-- BOLT не используется (отключён с 2026-07, см. ниже).
-- IOMMU включён; поддержка TXT включена в конфигурации ядра.
-- TDX неприменим: аппаратуры TDX на этом процессоре нет.
+- CPU: Intel Core i7-1260P, Alder Lake, с P- и E-ядрами.
+- Для userspace на workstation заданы `-march=alderlake`, `-O2` и ThinLTO.
+- `CPU_FLAGS_X86` соответствует инструкциям, доступным Portage на этой системе.
+- Для управления частотами используется `intel_pstate` в режиме `active`.
+- В конфигурации работающего ядра включены HFI, Intel Idle, RAPL, Turbo
+  Boost Max 3.0 и IOMMU. `CONFIG_X86_NATIVE_CPU` и `CONFIG_INTEL_TXT` не
+  включены.
+- BOLT отключён; возвращаться к нему можно только в рамках отдельного эксперимента с новым профилем.
 
-## Флаги компиляции и инструкции
+## Userspace
 
-Для userspace в `make.conf` используется `-march=alderlake`. Это включает поддержку
-специфичных инструкций для данной архитектуры, за исключением тех, что
-заблокированы аппаратно (например, AVX-512).
-
-Набор инструкций, записанный по результату `cpuid2cpuflags` для i7-1260P:
+Флаги `CFLAGS` и `CXXFLAGS` на workstation используют `-march=alderlake`.
+Текущий набор `CPU_FLAGS_X86`:
 
 ```makefile
-# Оптимальный набор для i7-1260P в make.conf
 CPU_FLAGS_X86="aes avx avx2 avx_vnni bmi1 bmi2 f16c fma3 mmx mmxext pclmul popcnt rdrand sha sse sse2 sse3 sse4_1 sse4_2 ssse3 vpclmulqdq"
 ```
 
-Для portable userspace binpkg отдельного `gentoo-builder-01` выбран
-`-march=x86-64-v3`. Сравнения на zstd, OpenSSL и Mesa не выявили практически
-значимой runtime-регрессии V3 в протестированных workload. Результат
-поддерживает builder policy, но не доказывает универсальное равенство targets
-и не меняет `-march=alderlake` на рабочей станции. Полная методика и evidence
-приведены в [сравнении Alder Lake и x86-64-v3](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
+Обычные переносимые userspace binpkg собираются на `gentoo-builder-01` с целью
+`x86-64-v3`. Это отдельная политика builder; она не меняет Alder Lake policy
+локальных userspace-сборок workstation. Сравнение производительности и
+ограничения эксперимента описаны в
+[сравнении Alder Lake и x86-64-v3](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/).
 
-## CPU optimization ядра
+## Ядро
 
-По проверке владельца от 2026-10-07, `CONFIG_X86_NATIVE_CPU=y` включает
-штатную native CPU optimization через upstream Kconfig. Ручной
-`KCFLAGS="-march=alderlake"` для этого не требуется и правильно оставлен
-закомментированным. Ядро планируется продолжать собирать локально, чтобы
-`native` означал именно Alder Lake.
+`sys-kernel/gentoo-kernel` для workstation собирается на `gentoo-builder-01`
+только в виде GPKG и там не устанавливается. Для сборки применяется отдельное
+окружение `workstation-kernel`: `KCFLAGS` задаёт
+`-march=alderlake -mtune=alderlake`, а `KRUSTFLAGS` —
+`-C target-cpu=alderlake`. Подробности приведены в
+[документе о загрузке и Portage](../../system/boot-and-portage/#обновление-ядра-сборка-gpkg-на-builder).
 
-Принятый builder target `x86-64-v3` относится только к portable userspace
-binpkg и не заменяет локальную Alder Lake policy. По проверке владельца
-от 2026-10-08, `-march=x86-64-v3` и production LLVM/Clang/LLD policy
-применены; final `@world` resolver чист. Синхронизация userspace package
-policy завершена 2026-10-09; local binpkg production подтверждена владельцем
-2026-10-10: успешно собраны GPKG для `app-arch/zstd-1.5.7-r1`,
-`dev-libs/openssl-3.5.8` и `media-libs/mesa-26.2.4`; индекс `Packages` создан
-при первом zstd pilot.
-Private binhost, end-to-end установка, automatic consumption и server ON/OFF
-source fallback — CLOSED / PASS по приёмке владельца 2026-10-10; границы
-OFF-теста (source path подтверждён, полный rebuild/merge остановлен) — в
-[production workflow binary build host](../../system/boot-and-portage/#gentoo-binary-build-host--production).
+В конфигурации работающего ядра `CONFIG_X86_NATIVE_CPU` не включён. Эта
+настройка не описывает compiler flags отдельной сборки на builder. Среди
+включённых параметров CPU и платформы:
 
-## Планировщик, Thread Director и управление частотами
+- `CONFIG_INTEL_HFI_THERMAL=y` — поддержка Hardware Feedback Interface для
+  гибридного CPU.
+- `CONFIG_INTEL_IDLE=y`, `CONFIG_INTEL_RAPL=y` и `CONFIG_INTEL_TURBO_MAX_3=y`.
+- `CONFIG_INTEL_IOMMU=y`, `CONFIG_INTEL_IOMMU_DEFAULT_ON=y`,
+  `CONFIG_INTEL_IOMMU_SCALABLE_MODE_DEFAULT_ON=y` и `CONFIG_INTEL_IOMMU_SVM=y`.
+- `CONFIG_INTEL_TDX_HOST` и `CONFIG_INTEL_TXT` не включены.
 
-Для распределения задач между производительными (P) и энергоэффективными (E)
-ядрами Linux использует Hardware Feedback Interface (HFI). В сохранённой
-записи `.config` указаны следующие параметры:
+Частотный драйвер работающей системы — `intel_pstate`; его режим — `active`.
 
-- **Intel Thread Director (HFI)**: В ядре активирован
-  `CONFIG_INTEL_HFI_THERMAL=y`. Именно этот модуль собирает телеметрию
-  с процессора и помогает планировщику корректно раскидывать потоки по
-  гибридным ядрам.
-- **Управление питанием**: Используется `CONFIG_INTEL_IDLE=y` и
-  `CONFIG_INTEL_RAPL=y` (Running Average Power Limit) для точного контроля
-  состояний простоя и энергопотребления.
-- **Турбо-буст**: Включен `CONFIG_INTEL_TURBO_MAX_3=y` (Intel Turbo Boost Max
-  Technology 3.0) для определения самых быстрых ядер и направления на них
-  однопоточной нагрузки.
-- **Драйвер частот**: Используется intel_pstate в режиме active для
-  динамического масштабирования частоты.
+## BOLT
 
-## Аппаратная безопасность и виртуализация
-
-- **IOMMU (VT-d)**: Включен по умолчанию с поддержкой масштабируемого режима
-  (`CONFIG_INTEL_IOMMU_DEFAULT_ON=y`,
-  `CONFIG_INTEL_IOMMU_SCALABLE_MODE_DEFAULT_ON=y`, `CONFIG_INTEL_IOMMU_SVM=y`).
-- **Intel TXT**: Поддержка Trusted Execution Technology включена в конфигурации
-  ядра (`CONFIG_INTEL_TXT=y`).
-- **Intel TDX**: не применимо к этому процессору — TDX существует только в
-  серверных Xeon (Sapphire Rapids и новее); клиентские Alder Lake этой
-  аппаратуры не имеют. `CONFIG_INTEL_TDX_HOST` в ядре не включён, включать
-  смысла нет (проверено 2026-09-22 по `/proc/config.gz`).
-
-## BOLT: why disabled
-
-BOLT сейчас не используется — отключён с 2026-07. Возврат к BOLT возможен
-только как отдельный controlled experiment с новым профилированием и
-benchmark, если такая цель когда-нибудь появится. Инструкция сохранена в
-[`archive/bolt.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/bolt.md) как историческая справка.
-Использовать старый профиль вслепую нельзя — см.
-[`CHECKPOINT.md`](https://github.com/vovanbl411/gentoo-mydocs/blob/main/CHECKPOINT.md).
-
-Раньше для критически важных компонентов (LLVM-тулчейн, Clang) применялся BOLT
-(Binary Optimization and Layout Tool) — переупорядочивание кода внутри
-бинарных файлов на основе профилей производительности (perf). Это давало
-ощутимый прирост скорости компиляции на архитектуре Alder Lake.
+BOLT не используется. Старую инструкцию см. в
+[архиве BOLT](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/bolt.md).
+Возврат к нему требует отдельного эксперимента с новым профилированием.
 
 ## Related docs
 
-- [Загрузка и Portage](../../system/boot-and-portage/) — toolchain,
-  оптимизация, политика `-O2` + ThinLTO.
-- [BOLT (архив)](https://github.com/vovanbl411/gentoo-mydocs/blob/main/archive/bolt.md)
+- [Загрузка и Portage](../../system/boot-and-portage/) — toolchain и отдельный
+  workflow сборки ядра для workstation.
+- [Сравнение Alder Lake и x86-64-v3](../../../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/) — результаты сравнения целей компиляции.
