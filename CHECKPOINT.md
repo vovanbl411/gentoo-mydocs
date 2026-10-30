@@ -4,12 +4,12 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Checkpoint updated | 2026-10-10 |
+| Checkpoint updated | 2026-10-30 |
 | Full-system audit baseline | 2026-09-22 — опорная сверка ядра, boot/UKI, graphics и polkit; полный аудит `/etc/portage` — 2026-09-14 |
-| Recent partial verification | Headset mic — 2026-10-10; ядро + User-status LED — 2026-10-07 |
+| Recent partial verification | Ядро и version-specific patches, User-status LED service/session, toolchain и headset topology — 2026-10-30; pin topology headset mic через kernel log не подтверждена |
 | Builder/binhost production acceptance | CLOSED / PASS — 2026-10-10; automatic private binpkg consumption и OFF source fallback приняты |
 | Ветка | `main` |
-| Система | Gentoo hardened/systemd, ядро `7.2.9-bdsm`, BIOS `B5402CBA.314` |
+| Система | Gentoo hardened/systemd, ядро `7.2.13-bdsm`, BIOS `B5402CBA.314` |
 | Аппаратура | ASUS ExpertBook B5402CBA, Intel Core i7-1260P (Alder Lake) |
 | Документация | Миграция Starlight RU/EN завершена; `check:i18n` входит в `npm run build` |
 
@@ -21,8 +21,8 @@
 - **Профиль / toolchain**:
   `default/linux/amd64/23.0/no-multilib/hardened/systemd`;
   основной Clang/LLD 22, глобально `-O2` + ThinLTO.
-  LLVM 23.1.1 намеренно используется для ядра через `env/kernel-llvm`;
-  `rust-bin-1.97.1`. `-O3` допустим только после package-specific benchmark;
+  Отдельное окружение `workstation-kernel` на builder использует LLVM 23;
+  `-O3` допустим только после package-specific benchmark;
   selective-правила не созданы. Подробности — в
   [сравнении `-O2` и `-O3`](src/content/docs/experiments/compiler-optimization/o2-vs-o3.md).
   BOLT отключён.
@@ -33,20 +33,21 @@
   записанной конфигурации. Переход на ukify/PCR-подпись не выбран.
   [Boot/UKI](src/content/docs/systems/asus-b5402/system/boot-and-portage.md),
   [doas](src/content/docs/systems/asus-b5402/security/doas.md).
-- **Ядро**: `7.2.9-bdsm`; boot и User-status LED acceptance — PASS
-  2026-10-04. Это не regression-тест всех подсистем.
+- **Ядро**: running `7.2.13-bdsm`; установлены
+  `sys-kernel/gentoo-kernel-7.2.13` и `virtual/dist-kernel-7.2.13`.
+  Workstation kernel собирается на `gentoo-builder-01` как version-specific
+  GPKG и устанавливается с private binrepo; version-specific `savedconfig`
+  и local patches. Подробности — в
+  [загрузке и Portage](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#обновление-ядра-сборка-gpkg-на-builder).
   [Обзор системы](src/content/docs/systems/asus-b5402/index.md).
 - **Graphics**: текущий live-драйвер — `i915`; тест Xe завершён откатом,
   активной миграции на Xe нет.
   [Графический стек](src/content/docs/systems/asus-b5402/hardware/graphics.md).
-- **Headset mic**: ALC294, SSID `1043:1b2f`, `7.2.9-bdsm` — topology
-  подтверждена 2026-10-10. Локальный `20-asus-b5402-headset-mic.patch` применяет
-  `ALC2XX_FIXUP_HEADSET_MIC`; `CONFIG_SND_HDA_CODEC_ALC269=m` включён.
-  После reboot без `hda_model` (`(null)`) видны `Headset Mic=0x19`,
-  активный pin `IN VREF_80` и `Stereo Microphone`. Functional acceptance
-  не пройдена: `Headset Mic Jack=off`, `plughw:0,0` даёт тишину, VU не реагирует.
-  Проверка отложена до совместимой CTIA TRRS-гарнитуры/адаптера; причина
-  отсутствия сигнала не установлена. Quirk B5402 пока локальный.
+- **Headset mic**: ALC294, SSID `1043:1b2f`; local
+  `20-asus-b5402-headset-mic.patch` применяет `ALC2XX_FIXUP_HEADSET_MIC`.
+  На текущем kernel нет `hda_model` override, PipeWire показывает
+  `Stereo Microphone`; `Headset Mic=0x19` через kernel log в этой сверке
+  не подтверждён. Capture с совместимой CTIA TRRS-гарнитурой не подтверждён.
   [Конфигурация и проверка](src/content/docs/systems/asus-b5402/hardware/headset-microphone.md).
 - **Desktop**: Umbriel + Noctalia, Niri — fallback; вход через greetd/tuigreet.
   PipeWire и один polkit-агент подтверждены ранее в сессии Niri.
@@ -54,18 +55,13 @@
 - **Memory**: zram `RAM/2`, `zstd`, priority `100`;
   `vm.swappiness=100`, zswap отключён.
   [Управление памятью](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#управление-памятью).
-- **User-status LED — kernel**: live ABI `/sys/class/leds/:status`,
-  `max_brightness=1`, successful state-read registration gate
-  `asus_wmi_get_devstate_simple(...) >= 0`; физический ON/OFF — PASS.
-  `orange:status` отсутствует. Локальный design совпадает с submitted
-  upstream v1: без DMI whitelist и trigger. Upstream v1 submitted / awaiting
-  review; accepted или merged не подтверждены. Локальный патч:
-  `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.9/10-asus-wmi-user-status-led.patch`.
-  [Реализация и acceptance](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md).
-- **User-status LED — userspace**: `asus-user-status-led` функционально
-  live-verified: Auto/Busy/Off, реальный PipeWire capture, Vesktop call,
-  Noctalia Spectrum negative check, Fn+1 и исправление AUTO CPU feedback loop
-  — PASS. Restart-flicker и reboot/login lifecycle остаются OPEN.
+- **User-status LED**: ABI `/sys/class/leds/:status` с бинарной яркостью
+  `0/1`; local version-specific patch —
+  `/etc/portage/patches/sys-kernel/gentoo-kernel-7.2.13/10-asus-wmi-user-status-led.patch`.
+  Userspace поддерживает `auto/busy/off`; Umbriel Fn+1 переключает режимы.
+  Service включён и активен, persisted mode читается; reboot/login lifecycle
+  работает.
+  [Реализация](src/content/docs/systems/asus-b5402/hardware/user-status-indicator.md).
 - **Backups / sync**: KeePassXC backup automation и Google Drive delivery
   приняты; обычная Syncthing-синхронизация Gentoo ↔ Android принята.
   Реальный conflict/merge recovery остаётся PENDING.
@@ -75,11 +71,6 @@
 
 ## Active work / Next step
 
-**Userspace/workstation acceptance:** следующие проверки — визуальная оценка
-restart-flicker и reboot/login lifecycle: persisted mode, запуск user service,
-udev permissions, нормальный старт AUTO, отсутствие CPU-loop regression и
-работа Fn+1 после reboot.
-
 **Kernel upstream:** v1 submitted / awaiting maintainer/reviewer feedback;
 accepted или merged не подтверждены. v2 готовить только по конкретному review
 feedback или при обнаружении новой проблемы. Подробности submission — в
@@ -87,7 +78,7 @@ feedback или при обнаружении новой проблемы. По�
 
 **Gentoo Builder → private binrepo → workstation — CLOSED / PASS (2026-10-10):**
 VM `5201` / `gentoo-builder-01` работает с целевого диска. No-multilib,
-LLVM/Clang/LLD 22.1.8, portable `x86-64-v3`, repository/package-policy
+LLVM/Clang/LLD 22, portable `x86-64-v3`, repository/package-policy
 синхронизация и full convergence — PASS с 2026-10-09; temporary bootstrap
 exceptions удалены, userspace fallback для binutils/pango сохранён.
 Stable `6.18.54-gentoo-dist-bin`, GRUB `2.14-r5`, BIOS/SeaBIOS + GPT,
@@ -107,13 +98,16 @@ OFF source fallback без cached GPKG — CLOSED / PASS: после HTTP 502 Po
 доказательства source path; полный fallback rebuild/merge не подтверждён.
 Private repo принят unsigned (`verify-signature = false`); signing не blocker.
 
-Routine update — вручную, builder-first: sync/resolve/update `@world` на
-builder (`buildpkg` создаёт GPKG) → только после PASS sync/update `@world`
+Routine userspace update — вручную, builder-first: sync/resolve/update `@world`
+на builder (`buildpkg` создаёт GPKG) → только после PASS sync/update `@world`
 на workstation. При failure builder routine update workstation не продолжается
-до разбора причины. Scheduled update не используется; exact repository
-snapshot pinning не реализован. Подходящие private V3 binpkgs используются
-автоматически, остальное собирается локально с Alder Lake policy; срочное
-независимое обновление workstation возможно через source. Kernel local-only.
+до разбора причины. Workstation kernel отдельно собирается на builder как
+version-specific GPKG; его намеренно исключают из routine `@world` flow и
+обновляют отдельной kernel procedure. Workstation устанавливает его из private
+binrepo. Scheduled update не используется; exact repository snapshot pinning
+не реализован. Подходящие private V3 binpkgs используются автоматически,
+остальное собирается локально с Alder Lake policy; срочное независимое
+обновление workstation возможно через source.
 Конфигурация, acceptance evidence и workflow — в
 [workstation Portage](src/content/docs/systems/asus-b5402/system/boot-and-portage.md#private-binrepo-на-workstation).
 Empirical comparison portable V3 vs Alder Lake завершён без практически
