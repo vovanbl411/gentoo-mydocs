@@ -17,6 +17,9 @@ systemd-boot + UKI, Btrfs + Snapper, Secure Boot и TPM 2.0. Примеры
 - [Ручная установка Gentoo amd64](./installation/gentoo-installation/) — от LiveCD до успешного first boot с целевого диска; проверенная ветка — BIOS + GPT + GRUB, UEFI не проверена.
 - [Базовая настройка после установки](./installation/base-system/) — Portage и LLVM toolchain.
 
+- [Umbriel и Noctalia](./desktop/umbriel/) — установка и запуск рабочего стола.
+- [Niri](./desktop/niri/) — запасная сессия.
+
 ## Остальные материалы
 
 Разделы руководств, состояние эталонной системы, troubleshooting и

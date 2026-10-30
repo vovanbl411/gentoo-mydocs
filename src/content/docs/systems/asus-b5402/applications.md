@@ -7,91 +7,86 @@ last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
-## Current state
+## Приложения
 
-- Zed — редактор кода, пакет `app-editors/zed` из [zed-overlay](https://github.com/vovanbl411/zed-overlay).
+- Zed — редактор кода, пакет `app-editors/zed` из
+  [zed-overlay](https://github.com/vovanbl411/zed-overlay).
 - spotatui — терминальный клиент Spotify, пакет `media-sound/spotatui` из
-  [spotatui-overlay](https://github.com/vovanbl411/spotatui-overlay). Включены
-  USE `cover`, `mpris`, `visualizer`, `local-files` и `youtube`.
-- Firefox — native Gentoo: сборка под Wayland (LLVM 22, PGO, аппаратное
-  ускорение), профиль обслуживает profile-sync-daemon.
-- Steam и GUI-приложения — Flatpak (remote — flathub);
-  разрешения выдаются через Flatseal с предпочтением Wayland.
-- ChatGPT Desktop — system Flatpak (`com.openai.ChatGPT`, версия
-  `26.1013.40934-1`, branch `master`; проверено 2026-10-18). Permissions и
-  порядок установки — в [руководстве ChatGPT Desktop](../../../settings/chatgpt-desktop/).
-- OBS Studio — Flatpak (`com.obsproject.Studio` 32.2.2, проверено 2026-09-22).
-- Perplexity — AppImage + пользовательский `.desktop`
-  (`~/.local/share/applications/perplexity.desktop`); схема
-  `perplexity-app://` зарегистрирована.
-- r2modman — AppImage; запускает Flatpak-версию Steam через wrapper
-  `~/.local/bin/steam.sh` (`flatpak run com.valvesoftware.Steam "$@"`).
-- KeePassXC — native Gentoo (`app-admin/keepassxc`, runtime
-  `2.8.0-snapshot`). Live DB — в `~/Documents/KeePassSync/`: ровно один
-  top-level regular non-symlink `*.kdbx` (mode `0600`). Встроенные копии с timestamp
-  перед сохранением и ежедневные локальные копии в `~/Backups/KeePassXC/`
-  включены. Доставка в Google Drive работает ежедневно в 20:00 local time
-  через `keepassxc-backup.service` / `keepassxc-backup.timer`
-  (`Persistent=true`, `Linger=no`); таймер включён. Backup прошёл приёмку
-  2026-09-29; 2026-09-28 реальная KDBX-копия после доставки и скачивания
-  совпала побайтно (`cmp`, SHA-256 — PASS). Обычная Android sync работает
-  с 2026-09-30. Реальное conflict recovery /
-  KeePassXC merge остаётся pending. Подробнее: [backup](../../../settings/keepassxc-backup/)
-  и [phone sync](../../../settings/keepassxc-phone-sync/).
-- Syncthing `net-p2p/syncthing-2.0.16` работает как systemd --user service
-  (`Linger=no`). Синхронизирует только `~/Documents/KeePassSync/`, Folder ID
-  `keepassxc-live`, с Android Syncthing-Fork и KeePassDX по пути
-  `Documents/KeePassSync`. Защищённая LAN sync и изменения в обоих
-  направлениях работают (2026-09-30). Настройка и recovery — в
-  [phone-sync guide](../../../settings/keepassxc-phone-sync/).
-- rclone (`net-misc/rclone`) ежедневно доставляет KeePassXC backups в
-  `gdrive:Backups/KeePassXC/` без удаления remote-файлов. Собственный OAuth
-  Desktop client использует `drive.file`; приложение — *In production*.
-  Remote и transport проверены 2026-09-29; конфигурация и OAuth lifecycle —
-  в [backup guide](../../../settings/keepassxc-backup/).
-- Thunderbird `157.0` — native Gentoo; Wayland, WebRender и Mesa `iris`
-  на Intel Iris Xe ADL GT2 под Niri, `pulse-rust` через PipeWire/Pulse.
-  Шесть IMAP-аккаунтов (Gmail ×4, Yandex ×1, Mail.ru ×1); отправка и получение
-  работают, полная offline sync включена. Профиль — в `~/.config/thunderbird/`.
-  Два выбранных Gmail получают звук + визуальное уведомление, остальные
-  синхронизируются тихо. Policy задаёт `NTFNTF: Notify on This Folder Not That Folder`
-  1.3.1. `x11-libs/libnotify` оставлен explicit world package для проверенного
-  notification path. Runtime проверен 2026-10-01, уведомления — 2026-10-07.
-  Подробности — в [Thunderbird guide](../../../settings/thunderbird/).
+  [spotatui-overlay](https://github.com/vovanbl411/spotatui-overlay).
+  Для воспроизведения Spotify нужна подписка Premium. Включены USE-флаги
+  `cover`, `mpris`, `visualizer`, `local-files` и `youtube`.
+- Firefox — пакет Gentoo с поддержкой Wayland, PGO и аппаратного ускорения.
+  Профиль обслуживает profile-sync-daemon в режиме overlayfs.
+- Steam — Flatpak из Flathub. Разрешения приложений Flatpak настраиваются
+  через Flatseal с предпочтением Wayland.
+- ChatGPT Desktop — системный Flatpak `com.openai.ChatGPT`, ветка `master`.
+  Установка и разрешения описаны в
+  [руководстве ChatGPT Desktop](../../../settings/chatgpt-desktop/).
+- OBS Studio — Flatpak `com.obsproject.Studio`.
+- Perplexity — AppImage с файлом запуска
+  `~/.local/share/applications/perplexity.desktop`; для ссылок приложения
+  зарегистрирована схема `perplexity-app://`.
+- r2modman — AppImage. Запускает Flatpak-версию Steam через
+  `~/.local/bin/steam.sh`: `flatpak run com.valvesoftware.Steam "$@"`.
+- KeePassXC — пакет Gentoo `app-admin/keepassxc`. База открывается с локального
+  диска; Syncthing синхронизирует её с телефоном, rclone доставляет резервные
+  копии в Google Drive. Подробности — ниже.
+- Thunderbird — пакет Gentoo с поддержкой Wayland, WebRender и звука через
+  PipeWire/Pulse. Настройки почты и уведомлений описаны ниже и в
+  [руководстве Thunderbird](../../../settings/thunderbird/).
 
-## Flatpak policy
+## KeePassXC: база, синхронизация и резервные копии
 
-Проверка system Flatpak inventory 2026-10-18 подтвердила ChatGPT Desktop;
-`org.electronjs.Electron2.BaseApp` — base app/dependency, а не пользовательское
-приложение. Отдельная проверка runtime maintenance от 2026-10-04 показала, что
-неиспользуемый EOL runtime
-`org.freedesktop.Platform.ffmpeg-full//24.08` отсутствует; `flatpak update`
-показал `Nothing to update`. Проверка охватывала inventory и runtimes,
-без повторной проверки поведения каждого приложения. Разрешения и
-обслуживание описаны в [Flatpak guide](../../../settings/flatpak/).
+Рабочая база находится в `~/Documents/KeePassSync/`. В этом каталоге должна
+быть ровно одна база `*.kdbx`: обычный файл, не символическая ссылка, с правами
+`0600`. Скрипт резервного копирования ищет файл только в самом каталоге,
+без вложенных папок. Если обнаружено несколько баз, например копия конфликта
+Syncthing, он останавливается, чтобы не сохранить случайно выбранный файл.
 
-## Firefox
+Syncthing (`net-p2p/syncthing`) работает как пользовательская служба systemd.
+Папка `keepassxc-live` синхронизирует только `~/Documents/KeePassSync/`
+с `Documents/KeePassSync` на Android, где используются Syncthing-Fork
+и KeePassDX. Другие каталоги с резервными копиями в синхронизацию не входят.
+Если на двух устройствах появились разные изменения, порядок сохранения
+копий и слияния описан в
+[руководстве по синхронизации](../../../settings/keepassxc-phone-sync/).
 
-- profile-sync-daemon активен, режим overlayfs.
-- Текущие размеры профиля (2026-09-22): живой вид через overlay — ~653 MiB,
-  upper-слой в `/run/user/1000/psd/` — ~168 MiB.
+KeePassXC создаёт копию с отметкой времени перед сохранением. Дополнительно
+`keepassxc-backup.timer` ежедневно в 20:00 по местному времени запускает
+`keepassxc-backup.service`: служба создаёт копию базы в `~/Backups/KeePassXC/`,
+доставляет копии в `gdrive:Backups/KeePassXC/` и после успешной доставки
+удаляет локальные копии возрастом 90 дней и старше. При ошибке передачи
+локальные копии сохраняются. Из Google Drive файлы автоматически не удаляются.
 
-## Границы проверки
+Для таймера задано `Persistent=true`: пропущенный запуск выполняется, когда
+пользовательская служба systemd снова становится активной. `Linger=no`, поэтому
+без пользовательской сессии отдельного фонового запуска нет. Эти настройки
+также не повторяют автоматически уже завершившуюся с ошибкой передачу.
 
-Источники пакетов и включённые USE-флаги Zed и spotatui проверены 2026-10-30.
+rclone (`net-misc/rclone`) использует собственное OAuth-приложение типа
+Desktop со scope `drive.file` и статусом *In production*. Google Drive хранит
+резервные копии; открывать рабочую базу через облачное монтирование не нужно.
+Скрипты, службы, восстановление и настройка OAuth описаны в
+[руководстве по резервным копиям](../../../settings/keepassxc-backup/).
 
-Firefox, OBS, Perplexity и r2modman проверены 2026-09-22; даты backup, sync,
-Thunderbird и Flatpak указаны выше. 2026-10-18 проверялись ChatGPT Desktop и
-его system permissions; остальные приложения повторно не проверялись. Команды
-проверки и ожидаемые результаты — в профильных guides.
+## Thunderbird
 
-## Plans (не применены)
+Настроены шесть IMAP-аккаунтов: четыре Gmail, Yandex и Mail.ru. Полная
+автономная синхронизация включена; профиль находится в `~/.config/thunderbird/`.
+Два выбранных Gmail показывают уведомления со звуком, остальные аккаунты
+синхронизируются без уведомлений. Выбор папок задаёт расширение
+`NTFNTF: Notify on This Folder Not That Folder`.
 
-- OBS: package policy и настройки порта-стека остаются планом.
-- Perplexity: перенос конфигурации в chezmoi остаётся планом.
-- KeePassXC: обычная phone sync принята; end-to-end conflict recovery и
-  KeePassXC merge остаются pending. См.
-  [руководство по синхронизации](../../../settings/keepassxc-phone-sync/).
+Для системных уведомлений отдельно установлен `x11-libs/libnotify`.
+Thunderbird предлагает эту библиотеку как дополнительную возможность,
+поэтому установка самого почтового клиента не добавляет её автоматически.
+
+## Обслуживание Flatpak
+
+Приложения устанавливаются из Flathub. `org.electronjs.Electron2.BaseApp` —
+основа для сборки Electron-приложения, а не отдельное приложение для запуска.
+Обновление программ, удаление неиспользуемых сред выполнения и настройка
+разрешений описаны в [руководстве Flatpak](../../../settings/flatpak/).
 
 ## Общие руководства
 

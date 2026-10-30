@@ -24,7 +24,8 @@ live-базы с Android через Syncthing и KeePassDX.
 - [Ручная установка Gentoo amd64](src/content/docs/installation/gentoo-installation.md) — от LiveCD до успешного first boot с целевого диска; проверенная ветка — BIOS + GPT + GRUB, UEFI не проверена.
 - [Базовая настройка после установки](src/content/docs/installation/base-system.md)
 - [Загрузка через systemd-boot и UKI](src/content/docs/installation/systemd-uki-setup.md)
-- [Настроить рабочий стол на Niri](src/content/docs/desktop/niri.md)
+- [Настроить Umbriel и Noctalia](src/content/docs/desktop/umbriel.md)
+- [Niri — запасная сессия](src/content/docs/desktop/niri.md)
 - [Состояние эталонной системы ASUS B5402](src/content/docs/systems/asus-b5402/index.md)
 
 ## Руководства
@@ -38,7 +39,8 @@ live-базы с Android через Syncthing и KeePassDX.
 
 ### Рабочий стол
 
-- [Niri](src/content/docs/desktop/niri.md) — Wayland-композитор.
+- [Umbriel](src/content/docs/desktop/umbriel.md) — установка, запуск Noctalia и возврат к Niri.
+- [Niri](src/content/docs/desktop/niri.md) — запасной Wayland-композитор.
 - [Noctalia Shell](src/content/docs/desktop/noctalia-shell.md) — оболочка для Umbriel и Niri.
 - [Уведомления](src/content/docs/desktop/notifications.md) — Freedesktop/Noctalia/libnotify stack.
 - [Wayland portals](src/content/docs/desktop/wayland-portals.md) — скринкастинг и системные диалоги.
@@ -52,6 +54,7 @@ live-базы с Android через Syncthing и KeePassDX.
 ### Оборудование
 
 - [Графический стек Intel в Gentoo](src/content/docs/hardware/intel-graphics.md) — i915/Xe, Mesa, OpenGL и Vulkan.
+- [ASUS NumberPad](src/content/docs/systems/asus-b5402/hardware/numberpad.md) — цифровая клавиатура на тачпаде.
 - [ELAN fingerprint](src/content/docs/hardware/elan-fingerprint-04f3-0c77.md) — поддержка сканера отпечатков в Gentoo.
 
 ### Сеть
