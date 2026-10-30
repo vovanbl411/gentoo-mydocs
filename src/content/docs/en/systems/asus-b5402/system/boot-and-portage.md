@@ -117,7 +117,7 @@ portageq envvar FEATURES BINPKG_FORMAT PKGDIR
 
 Expect `buildpkg`, `gpkg`, and `/var/cache/binpkgs` among the reported values. If any differ, check `/etc/portage/make.conf` and overriding Portage settings before updating the builder.
 
-An ordinary builder update does not create GPKGs for excluded packages; an ordinary laptop update does not install them from the binrepo. These are separate controls on the two systems, not binpkg compatibility settings. The kernel is a special case: the helper passes `--ignore-default-opts --buildpkgonly` when building and `--ignore-default-opts --usepkgonly` when installing. This keeps the exclusion in effect for routine operations while allowing the separate controlled kernel build.
+An ordinary builder update does not create GPKGs for excluded packages; an ordinary laptop update does not install them from the binrepo. These are separate controls on the two systems, not binpkg compatibility settings. `--usepkg-exclude` prevents selecting a binary package; it does not exclude an ebuild from the update plan. The ordinary laptop update commands below therefore explicitly exclude `sys-kernel/gentoo-kernel` and `virtual/dist-kernel`. The separate procedure builds both GPKGs for the laptop kernel on the builder without installing it there. The builder's own kernel (`sys-kernel/gentoo-kernel-bin`) is updated according to its ordinary package policy.
 
 The packages are grouped by role:
 
@@ -150,15 +150,17 @@ The routine workflow updates the builder first and the laptop second. The builde
 
    ```bash
    doas emaint sync -a
-   doas emerge --pretend --verbose --update --deep --newuse --complete-graph @world
+   doas emerge --pretend --verbose --update --deep --newuse --complete-graph \
+       --exclude=sys-kernel/gentoo-kernel --exclude=virtual/dist-kernel @world
    ```
 
-   The expected result is a complete update plan without dependency conflicts. If sync ends with rsync status `23` or `RepoStorageException`, first check Gentoo repository ownership using the [usersync instructions](../../../troubleshooting/portage-usersync-repository-ownership/).
+   The expected result is a complete update plan without dependency conflicts, apart from the two explicitly excluded kernel packages. If sync ends with rsync status `23` or `RepoStorageException`, first check Gentoo repository ownership using the [usersync instructions](../../../../troubleshooting/portage-usersync-repository-ownership/).
 
 3. Review the package list, USE changes, and planned source builds. If the plan is acceptable, run the update:
 
    ```bash
-   doas emerge --ask --verbose --update --deep --newuse --complete-graph @world
+   doas emerge --ask --verbose --update --deep --newuse --complete-graph \
+       --exclude=sys-kernel/gentoo-kernel --exclude=virtual/dist-kernel @world
    ```
 
    Suitable GPKGs are selected automatically; the rest are built from source. Confirm at the Portage prompt only after reviewing the list. If the private binhost is unavailable and the plan switches to expensive local builds, defer the update and restore builder access; an urgent source fallback is possible when intentional and there is enough disk space and capacity.
@@ -167,18 +169,20 @@ Builder and laptop syncs are not pinned to the same Gentoo repository snapshot. 
 
 ## Kernel update: build a GPKG on the builder
 
-Prepare these on the builder for the new version:
+First choose an available `sys-kernel/gentoo-kernel` version from the ebuild tree and check its plan, for example with `emerge --search sys-kernel/gentoo-kernel` and a pretend query for the selected atom. Replace `REPLACE_WITH_SELECTED_VERSION` in the commands below with the exact ebuild version. Use the same selected version on the builder and laptop. The version-specific `savedconfig` and patch directories must match it.
+
+Prepare these on the builder for the selected version:
 
 - version-specific `/etc/portage/savedconfig/sys-kernel/gentoo-kernel-<version>`;
 - both patches in `/etc/portage/patches/sys-kernel/gentoo-kernel-<version>/`: `10-asus-wmi-user-status-led.patch` and `20-asus-b5402-headset-mic.patch`;
 - the same ebuild version that the laptop will install.
 
-The laptop also stores the corresponding version-specific `savedconfig` and both patches. Keep the working UKI before installing a new version. Current local patches are under `/etc/portage/patches/sys-kernel/`; patch directories are tied to the ebuild version and must be copied to the new version directory after checking that they still apply.
+The laptop kernel is built on the builder only as a binpkg; it is not installed into the builder system. The laptop also stores the corresponding version-specific `savedconfig` and both patches. Keep the working UKI before installing a new version. Current local patches are under `/etc/portage/patches/sys-kernel/`; patch directories are tied to the ebuild version and must be copied to the new version directory after checking that they still apply.
 
 Run two buildpkg-only steps on the builder. The first builds the kernel with the prepared config and patches without installing it into the builder runtime. The second creates the `virtual/dist-kernel` binpkg so the dependency closure is available to the laptop:
 
 ```bash
-version=7.2.13
+version=REPLACE_WITH_SELECTED_VERSION
 
 doas env ACCEPT_KEYWORDS="amd64 ~amd64" \
     emerge --ignore-default-opts \
@@ -196,7 +200,7 @@ doas env ACCEPT_KEYWORDS="amd64 ~amd64" \
 On the laptop, install only the built version from the binrepo:
 
 ```bash
-version=7.2.13
+version=REPLACE_WITH_SELECTED_VERSION
 
 doas emerge --ignore-default-opts --getbinpkg --usepkgonly \
     --ask --verbose --oneshot "=sys-kernel/gentoo-kernel-${version}"
@@ -318,7 +322,7 @@ For heavier builds, `package.env/10-performance` assigns `ssd`, which moves `POR
 - [gentoo-builder-01](../../../gentoo-builder-01/) — builder target and GPKG publication.
 - [UKI with Dracut](../../../../installation/systemd-uki-setup/) — general UKI generation configuration.
 - [CPU optimization](../../hardware/cpu-optimization/) — workstation Alder Lake and portable builder target.
-- [Portage usersync troubleshooting](../../../troubleshooting/portage-usersync-repository-ownership/) — rsync status `23` and Gentoo repository ownership.
+- [Portage usersync troubleshooting](../../../../troubleshooting/portage-usersync-repository-ownership/) — rsync status `23` and Gentoo repository ownership.
 - [Gentoo Binary Package Guide](https://wiki.gentoo.org/wiki/Binary_package_guide) and [Portage emerge manual](https://dev.gentoo.org/~zmedico/portage/doc/man/emerge.1.html) — GPKG selection and installation.
 - [Gentoo `hostonly` USE flag](https://packages.gentoo.org/useflags/hostonly) — processor-specific Intel microcode selection.
 - [Linux kernel module signing](https://docs.kernel.org/admin-guide/module-signing.html) — `.ko` signatures and enforcement.

@@ -117,7 +117,7 @@ portageq envvar FEATURES BINPKG_FORMAT PKGDIR
 
 Ожидаются `buildpkg`, `gpkg` и `/var/cache/binpkgs` среди выведенных значений. Если значение отличается, проверь `/etc/portage/make.conf` и перекрывающие настройки Portage до обновления builder.
 
-Обычный update builder не создаёт GPKG для списка исключений; обычный update ноутбука не устанавливает их из binrepo. Это разные переключатели на двух системах, а не настройка совместимости GPKG. Ядро — специальный случай: helper script передаёт `--ignore-default-opts --buildpkgonly` при сборке и `--ignore-default-opts --usepkgonly` при установке. Так исключение действует в обычном потоке, но не мешает отдельной контролируемой сборке ядра. Остальные исключения оставлены локальными согласно package policy ниже.
+Обычный update builder не создаёт GPKG для списка исключений; обычный update ноутбука не устанавливает их из binrepo. Это разные переключатели на двух системах, а не настройка совместимости GPKG. `--usepkg-exclude` запрещает только выбор бинарного пакета и не исключает ebuild из плана обновления. Поэтому обычные команды обновления ноутбука ниже явно исключают `sys-kernel/gentoo-kernel` и `virtual/dist-kernel`; отдельная процедура собирает оба GPKG для ядра ноутбука на builder, не устанавливая его там. Собственное ядро builder (`sys-kernel/gentoo-kernel-bin`) обновляется по его обычной package policy.
 
 Причины сгруппированы по роли пакетов:
 
@@ -150,15 +150,17 @@ Routine workflow — сначала обновить builder, затем ноу�
 
    ```bash
    doas emaint sync -a
-   doas emerge --pretend --verbose --update --deep --newuse --complete-graph @world
+   doas emerge --pretend --verbose --update --deep --newuse --complete-graph \
+       --exclude=sys-kernel/gentoo-kernel --exclude=virtual/dist-kernel @world
    ```
 
-   Ожидается полный план обновления без конфликтов зависимостей. Если sync завершился с rsync status `23` или `RepoStorageException`, сначала проверь владельца Gentoo repository по [инструкции usersync](../../../troubleshooting/portage-usersync-repository-ownership/).
+   Ожидается полный план обновления без конфликтов зависимостей, кроме двух явно исключённых пакетов ядра. Если sync завершился с rsync status `23` или `RepoStorageException`, сначала проверь владельца Gentoo repository по [инструкции usersync](../../../../troubleshooting/portage-usersync-repository-ownership/).
 
 3. Просмотри список пакетов, USE changes и планируемые source builds. Если план приемлем, выполни обычное обновление:
 
    ```bash
-   doas emerge --ask --verbose --update --deep --newuse --complete-graph @world
+   doas emerge --ask --verbose --update --deep --newuse --complete-graph \
+       --exclude=sys-kernel/gentoo-kernel --exclude=virtual/dist-kernel @world
    ```
 
    Подходящие GPKG будут выбраны автоматически, остальные пакеты соберутся из исходников. На вопрос Portage подтверди продолжение только после просмотра списка. Если private binhost недоступен, а план переключился на дорогие локальные сборки, отложи update и восстанови доступ builder; срочный source fallback допустим, если он осознан и хватает места/ресурсов.
@@ -167,18 +169,20 @@ Routine workflow — сначала обновить builder, затем ноу�
 
 ## Обновление ядра: сборка GPKG на builder
 
-Для новой версии заранее подготовь на builder:
+Сначала выбери доступную версию `sys-kernel/gentoo-kernel` из дерева ebuilds и проверь её план, например через `emerge --search sys-kernel/gentoo-kernel` и pretend-запрос выбранного атома. В команде ниже замени `REPLACE_WITH_SELECTED_VERSION` на точную версию ebuild. На builder и ноутбуке используй одну и ту же выбранную версию. Версионные `savedconfig` и каталоги патчей должны соответствовать ей.
+
+Для выбранной версии заранее подготовь на builder:
 
 - version-specific `/etc/portage/savedconfig/sys-kernel/gentoo-kernel-<version>`;
 - оба патча в `/etc/portage/patches/sys-kernel/gentoo-kernel-<version>/`: `10-asus-wmi-user-status-led.patch` и `20-asus-b5402-headset-mic.patch`;
 - ту же версию ebuild, которую будет устанавливать ноутбук.
 
-На ноутбуке хранятся соответствующие version-specific `savedconfig` и оба патча. Сохраняй рабочий UKI до установки новой версии. Каталоги текущих локальных патчей находятся под `/etc/portage/patches/sys-kernel/`; патчи привязаны к версии ebuild и должны быть перенесены в новый каталог после проверки их применимости.
+Ядро ноутбука собирается на builder только для binpkg: оно не устанавливается в систему builder. На ноутбуке хранятся соответствующие version-specific `savedconfig` и оба патча. Сохраняй рабочий UKI до установки новой версии. Каталоги текущих локальных патчей находятся под `/etc/portage/patches/sys-kernel/`; патчи привязаны к версии ebuild и должны быть перенесены в новый каталог после проверки их применимости.
 
 На builder выполни два buildpkg-only шага. Первый собирает ядро с prepared config и патчами, но не устанавливает его в runtime builder. Второй создаёт binpkg для `virtual/dist-kernel`, чтобы dependency closure была доступна ноутбуку:
 
 ```bash
-version=7.2.13
+version=REPLACE_WITH_SELECTED_VERSION
 
 doas env ACCEPT_KEYWORDS="amd64 ~amd64" \
     emerge --ignore-default-opts \
@@ -196,7 +200,7 @@ doas env ACCEPT_KEYWORDS="amd64 ~amd64" \
 На ноутбуке устанавливай именно собранную версию только из binrepo:
 
 ```bash
-version=7.2.13
+version=REPLACE_WITH_SELECTED_VERSION
 
 doas emerge --ignore-default-opts --getbinpkg --usepkgonly \
     --ask --verbose --oneshot "=sys-kernel/gentoo-kernel-${version}"
@@ -318,7 +322,7 @@ vm.swappiness = 100
 - [gentoo-builder-01](../../../gentoo-builder-01/) — builder target и публикация GPKG.
 - [UKI через Dracut](../../../../installation/systemd-uki-setup/) — общая конфигурация генерации UKI.
 - [CPU optimization](../../hardware/cpu-optimization/) — workstation Alder Lake и переносимый builder target.
-- [Portage usersync troubleshooting](../../../troubleshooting/portage-usersync-repository-ownership/) — rsync status `23` и ownership Gentoo repository.
+- [Portage usersync troubleshooting](../../../../troubleshooting/portage-usersync-repository-ownership/) — rsync status `23` и ownership Gentoo repository.
 - [Gentoo Binary Package Guide](https://wiki.gentoo.org/wiki/Binary_package_guide) и [Portage emerge manual](https://dev.gentoo.org/~zmedico/portage/doc/man/emerge.1.html) — выбор и установка GPKG.
 - [USE-флаг Gentoo `hostonly`](https://packages.gentoo.org/useflags/hostonly) — выбор микрокода Intel для процессора, доступного во время сборки.
 - [Linux kernel module signing](https://docs.kernel.org/admin-guide/module-signing.html) — подписи `.ko` и режим их проверки.
