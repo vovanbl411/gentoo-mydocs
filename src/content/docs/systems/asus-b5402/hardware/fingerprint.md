@@ -3,49 +3,25 @@ title: Сканер отпечатков ELAN на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: current
-last_verified: "2026-09-27"
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
 ## Текущее состояние
 
-- Сканер: `04f3:0c77 Elan Microelectronics Corp. ELAN:ARM-M4`; USB-интерфейс
-  класса Vendor Specific Class, интерфейс 0, без драйвера ядра.
-- Установленные пакеты: `dev-libs/libgusb-0.4.9`,
-  `sys-auth/libfprint-1.94.7`, `sys-auth/fprintd-1.94.3-r1`.
-- Патчи Portage: `/etc/portage/patches/sys-auth/libfprint-1.94.7/`; применена
-  полная серия из 11 патчей `patches/series` от Alexys829.
-- Обнаружение устройства через `fprintd`, запись `right-index-finger` и
-  последующая проверка: успешно.
-- Разблокировка экрана Noctalia v5 по отпечатку: успешно.
-- Вход через greetd по отпечатку: успешно.
-- Аутентификация `doas` по отпечатку: успешно.
-- Аутентификация polkit по отпечатку и парольный fallback: успешно.
-- KeePassXC Linux Quick Unlock через polkit/отпечаток: PASS. Для текущего
-  `app-admin/keepassxc-2.8.0_pre20260629-r1` нужен однострочный патч Portage,
-  привязанный к версии пакета, для регистрации D-Bus metatype.
-- Общий `system-auth` не менялся; PAM настроен локально для соответствующих
-  сервисов. Noctalia использует собственную интеграцию с `fprintd`/D-Bus.
+- В ASUS ExpertBook B5402 используется сканер `04f3:0c77 Elan Microelectronics Corp. ELAN:ARM-M4`. Его обслуживают `sys-auth/libfprint` и `sys-auth/fprintd`; для поддержки этого устройства нужен аппаратный patchset ELAN для libfprint.
+- Для установленного `sys-auth/libfprint-1.94.7` настроен каталог `/etc/portage/patches/sys-auth/libfprint-1.94.7/`; применяется полная серия из 11 патчей `patches/series` от Alexys829. В частности, `10-elanmoc-list-never-under-report.patch` не даёт вернуть неполный список отпечатков как успешный.
+- `fprintd` обнаруживает сканер; в списке для пользователя сохранён `right-index-finger`. Сервис запускается по запросу и после проверки списка отпечатков не остаётся активным.
+- Отпечаток настроен для аутентификации через greetd, doas и polkit. PAM-конфигурация polkit сначала вызывает `pam_fprintd`, затем включает `system-auth`. Noctalia использует собственную интеграцию с `fprintd`/D-Bus.
+- KeePassXC Linux Quick Unlock обращается к polkit, где настроена fingerprint-аутентификация. В текущем `app-admin/keepassxc-2.8.0` нужную регистрацию D-Bus metatype поставляет Gentoo ebuild; отдельный локальный патч для старой snapshot-версии этому пакету не нужен. Подробности и история ошибки — в [разборе Quick Unlock и polkit](../../../../troubleshooting/keepassxc-quick-unlock-polkit/).
 
-Указанное состояние проверено 2026-09-27. Парольный fallback greetd отдельно
-во время работы не проверялся.
+Общий PAM `system-auth` не менялся: вызовы `pam_fprintd` настроены в отдельных файлах PAM для greetd, doas и polkit.
 
-## Результаты проверки
+## Ошибка чтения слота
 
-Запись auditd подтверждает успешную аутентификацию через отпечаток в doas;
-имя локальной учётной записи заменено шаблоном:
+`Slot 0 returned status 0xff while listing` означает ошибку чтения одного из слотов сканера. Используемый patchset libfprint не возвращает неполный список отпечатков как успешный, чтобы `fprintd` не принял его за полный и не удалил отсутствующие записи.
 
-```text
-op=PAM:authentication grantors=pam_fprintd acct="<user>" exe="/usr/bin/doas" res=success
-```
-
-## Известное наблюдение
-
-После неудачного совпадения отпечатка при запросе списка появлялось сообщение
-`Slot 0 returned status 0xff while listing`. С этой прошивкой и patchset такой
-сбой не позволяет вернуть неполный список, из-за которого `fprintd` мог бы
-удалить локальные отпечатки. Записанный отпечаток сохранился, а последующая
-проверка завершилась совпадением. Это не мешало работе.
+Сам статус `0xff` не объясняет причину ошибки со стороны сканера.
 
 ## Связанные документы
 

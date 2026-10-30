@@ -3,110 +3,59 @@ title: "KeePassXC Quick Unlock: QMap error during polkit authentication"
 kind: troubleshooting
 scope: general
 status: current
-last_verified: "2026-09-27"
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
-## 1. Symptom
+## Current fix
 
-In KeePassXC `2.8.0-snapshot`, Linux Quick Unlock failed with:
+The error `Marshalling failed: Unregistered type QMap<QString,QString> passed in arguments` occurred in Linux Quick Unlock on `app-admin/keepassxc-2.8.0_pre20260629-r1`: KeePassXC did not register `QMap<QString, QString>` as a D-Bus metatype before calling polkit.
+
+The current Gentoo `app-admin/keepassxc-2.8.0` ebuild already includes the required registration. It applies `keepassxc-2.8.0-polkit-register-details.patch`, which calls `qDBusRegisterMetaType<QMap<QString, QString>>()`. If you have the old snapshot installed, update to `app-admin/keepassxc-2.8.0`. Do not carry over the local patch for the snapshot: it remains in a directory scoped to `2.8.0_pre20260629-r1` and is not part of the current setup.
+
+## Error history
+
+### Symptom and cause
+
+On `2.8.0_pre20260629-r1`, Linux Quick Unlock failed with:
 
 ```text
 Failed to authenticate with Quick Unlock: Polkit returned an error:
 Marshalling failed: Unregistered type QMap<QString,QString> passed in arguments
 ```
 
-The tested system had `app-admin/keepassxc-2.8.0_pre20260629-r1` and
-`sys-apps/keyutils-1.6.3-r1` installed. The policy file
-`/usr/share/polkit-1/actions/org.keepassxc.KeePassXC.policy` was present;
-`pkaction` reported `implicit active: auth_self` for action
-`org.keepassxc.KeePassXC.unlockDatabase`. The fingerprint reader and polkit
-already worked in other scenarios. The error occurred before polkit/PAM
-authentication.
+The snapshot build was based on upstream commit [`ce28e2afb7a59ab5c4b64512b7119eec4a9f2008`](https://github.com/keepassxreboot/keepassxc/commit/ce28e2afb7a59ab5c4b64512b7119eec4a9f2008). KeePassXC could not marshal the `details` argument for the polkit `CheckAuthorization` call because Qt did not know `QMap<QString, QString>` as a D-Bus metatype. The error occurred inside KeePassXC before polkit/PAM authentication, so a fingerprint reader and polkit that worked in other scenarios did not prevent it.
 
-## 2. Cause
+The polkit settings did not cause this error: policy `/usr/share/polkit-1/actions/org.keepassxc.KeePassXC.policy` was present, and action `org.keepassxc.KeePassXC.unlockDatabase` used `implicit active: auth_self`.
 
-This Gentoo ebuild is based on upstream commit
-[`ce28e2afb7a59ab5c4b64512b7119eec4a9f2008`](https://github.com/keepassxreboot/keepassxc/commit/ce28e2afb7a59ab5c4b64512b7119eec4a9f2008).
-Its Linux Quick Unlock code does not register `QMap<QString, QString>` as a
-D-Bus metatype. As a result, the polkit `CheckAuthorization` call cannot
-marshal its `details` argument: KeePassXC fails before fingerprint
-authentication begins.
+The failure occurred earlier, while KeePassXC serialized the `details` argument.
 
-[Upstream PR #13089](https://github.com/keepassxreboot/keepassxc/pull/13089)
-includes a separate fix for this error that registers the type.
+### Old workaround for `2.8.0_pre20260629-r1`
 
-## 3. Fix
+The local Portage patch for the snapshot added
+`qDBusRegisterMetaType<QMap<QString, QString>>()` to polkit type registration.
+The old file was:
+`/etc/portage/patches/app-admin/keepassxc-2.8.0_pre20260629-r1/01-fix-quick-unlock-qmap-dbus.patch`.
 
-For **this exact package version**, use a local Portage user patch. Portage
-applies it during a normal rebuild; PAM and polkit rules are unaffected.
+After rebuilding the snapshot with the local patch, Quick Unlock worked again through polkit and `pam_fprintd`.
 
-Directory: `/etc/portage/patches/app-admin/keepassxc-2.8.0_pre20260629-r1/`.
+This workaround applies only to `2.8.0_pre20260629-r1`; Gentoo `2.8.0` already includes the fix in its ebuild.
 
-File: `/etc/portage/patches/app-admin/keepassxc-2.8.0_pre20260629-r1/01-fix-quick-unlock-qmap-dbus.patch`.
+## Verify Quick Unlock
 
-Create the file in `bash`. The `sed` command adds a space to the empty line
-inside the diff, marking it as unchanged context so the patch applies:
+When Quick Unlock starts, KeePassXC should request polkit authentication. Check that polkit completes the configured fingerprint or password authentication and that `Unregistered type QMap<QString,QString>` no longer appears.
 
-```bash
-patch_dir=/etc/portage/patches/app-admin/keepassxc-2.8.0_pre20260629-r1
-doas install -d "$patch_dir"
-sed 's/^$/ /' <<'EOF' | doas tee "$patch_dir/01-fix-quick-unlock-qmap-dbus.patch" >/dev/null
---- a/src/quickunlock/Polkit.cpp
-+++ b/src/quickunlock/Polkit.cpp
-@@ -48,6 +48,7 @@ Polkit::Polkit()
- {
-     PolkitSubject::registerMetaType();
-     PolkitAuthorizationResults::registerMetaType();
-+    qDBusRegisterMetaType<QMap<QString, QString>>();
-
-     /* Note we explicitly use our own dbus path here, as the ::systemBus() method could be overridden
-        through an environment variable to return an alternative bus path. This bus could have an application
-EOF
-```
-
-Then rebuild the package through Portage:
-
-```bash
-doas emerge --ask --oneshot --rebuild =app-admin/keepassxc-2.8.0_pre20260629-r1
-```
-
-## 4. Verification
-
-Retry KeePassXC Quick Unlock with a fingerprint. On the ASUS ExpertBook B5402,
-unlocking succeeded after the rebuild. An audit record confirmed that the
-polkit helper authenticated the user through `pam_fprintd`:
+For an auditd check of the polkit path, successful fingerprint authentication by the polkit helper looks like this:
 
 ```text
 op=PAM:authentication grantors=pam_fprintd acct="<user>" exe="/usr/lib/polkit-1/polkit-agent-helper-1" res=success
 ```
 
-Polkit reported successful one-shot authorization for the action initiated by
-the KeePassXC process:
+`<user>` is a placeholder for the local account name. This record confirms PAM authentication by the helper, but does not by itself prove that Quick Unlock succeeded; check the result in KeePassXC as well.
 
-```text
-successfully authenticated as unix-user:<user>
-to gain ONE-SHOT authorization for action
-org.keepassxc.KeePassXC.unlockDatabase
-```
+## References
 
-`<user>` replaces the local account name. Successful Quick Unlock and these
-records confirm the KeePassXC → polkit → PAM → fingerprint path.
-
-## 5. Rollback / maintenance
-
-After a KeePassXC upgrade, check whether the new source includes
-`qDBusRegisterMetaType<QMap<QString, QString>>()`. If the upstream fix is
-included, remove the local patch and rebuild the package without it. The
-version-scoped directory does not apply to other KeePassXC versions; do not
-carry the patch forward without checking.
-
-To roll back this version, remove the named patch and rebuild the same package.
-This restores the original Quick Unlock behavior; the fingerprint and polkit
-configuration remain independent of this patch.
-
-## 6. References
-
+- [KeePassXC upstream PR #13848](https://github.com/keepassxreboot/keepassxc/pull/13848)
 - [KeePassXC upstream PR #13089](https://github.com/keepassxreboot/keepassxc/pull/13089)
-- [ELAN fingerprint reader guide](../../hardware/elan-fingerprint-04f3-0c77/)
+- [ELAN 04f3:0c77 fingerprint reader guide](../../hardware/elan-fingerprint-04f3-0c77/)
 - [ASUS B5402 fingerprint state](../../systems/asus-b5402/hardware/fingerprint/)
