@@ -17,8 +17,8 @@ verified_on: [asus-b5402]
 - Основной рабочий стол — Umbriel. Его конфигурация обрабатывает клавиши
   яркости через `brightnessctl`, клавиши звука через `wpctl`, а `XF86Display`
   запускает переключение режима User-status indicator.
-- Kernel User-status LED ABI, userspace-режимы и ограничения описаны
-  на [отдельной странице](../user-status-indicator/).
+- Kernel User-status LED ABI и userspace-режимы описаны на [отдельной
+  странице](../user-status-indicator/).
 
 ## Питание и батарея
 
@@ -70,7 +70,7 @@ multimedia/Fn-клавиш:
 - Подсветка клавиатуры доступна через
   `/sys/class/leds/asus::kbd_backlight`.
 
-Umbriel — [основной рабочий стол](../desktop/environment/); установка и
+Umbriel — [основной рабочий стол](../../desktop/environment/); установка и
 конфигурация описаны в [руководстве Umbriel](../../../../desktop/umbriel/).
 
 ## Проверка состояния

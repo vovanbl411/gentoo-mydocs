@@ -18,8 +18,8 @@ verified_on: [asus-b5402]
 - Umbriel is the production desktop. Its configuration handles brightness
   keys with `brightnessctl`, audio keys with `wpctl`, and uses `XF86Display`
   to cycle the User-status indicator mode.
-- The kernel User-status LED ABI, userspace modes, and limitations are
-  documented on the [dedicated page](../user-status-indicator/).
+- The kernel User-status LED ABI and userspace modes are documented on the
+  [dedicated page](../user-status-indicator/).
 
 ## Power and battery
 
@@ -68,7 +68,7 @@ Umbriel handles multimedia/Fn keys in `~/.config/umbriel/keybinds.toml`:
 - The keyboard backlight is available at
   `/sys/class/leds/asus::kbd_backlight`.
 
-Umbriel is the [production desktop](../desktop/environment/); installation
+Umbriel is the [production desktop](../../desktop/environment/); installation
 and configuration are covered in the [Umbriel guide](../../../../desktop/umbriel/).
 
 ## Checking the current state

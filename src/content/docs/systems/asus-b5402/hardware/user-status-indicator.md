@@ -54,7 +54,7 @@ user service запускает `~/.local/bin/user-status-led daemon`.
 
 ## Связанные документы
 
-- [Специфика ASUS ExpertBook B5402CBA](./asus-expertbook/)
+- [Специфика ASUS ExpertBook B5402CBA](../asus-expertbook/)
 - [Загрузка и Portage](../../system/boot-and-portage/) — сборка version-specific
   kernel GPKG на builder и установка на ноутбук из binrepo.
 - [Исследование ASUS User-status indicator](../../../../experiments/asus-user-status-indicator/)

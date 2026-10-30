@@ -57,7 +57,7 @@ The current kernel should expose the `:status` LED ABI with
 
 ## Related docs
 
-- [ASUS ExpertBook B5402CBA specifics](./asus-expertbook/)
+- [ASUS ExpertBook B5402CBA specifics](../asus-expertbook/)
 - [Boot and Portage](../../system/boot-and-portage/) — building the
   version-specific kernel GPKG on the builder and installing it on the laptop
   from the binrepo.
