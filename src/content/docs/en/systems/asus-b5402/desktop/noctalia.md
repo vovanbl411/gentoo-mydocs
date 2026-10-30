@@ -1,5 +1,5 @@
 ---
-title: Noctalia v5 on ASUS ExpertBook B5402
+title: Noctalia on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: current
@@ -7,95 +7,82 @@ last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
-This page records the state of Noctalia on the reference system. Installation,
-updates, and the general configuration model are described in
-[`desktop/noctalia-shell.md`](../../../../desktop/noctalia-shell/).
+## Desktop shell
 
-## Current state
+Noctalia displays the panel, application menu, notifications and lock screen.
+It starts with Umbriel from `~/.config/umbriel/core.toml`.
+The `gui-apps/noctalia` package is installed from
+[noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay) with USE
+`jemalloc`, which selects an alternative memory allocator.
 
-Noctalia is the desktop shell and notification handler. Applications can send
-notifications to it through the `x11-libs/libnotify` library.
-`gui-apps/noctalia` is installed from [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay)
-with USE `jemalloc`.
+[Installing and updating Noctalia](../../../../desktop/noctalia-shell/).
 
-The installed `virtual/notification-daemon::noctalia-overlay` virtual package
-lets Portage recognize Noctalia as a notification provider; the virtual package
-itself starts nothing. Delivery and its verification are described in the
+## Where to change settings
+
+The main configuration is `~/.config/noctalia/config.toml`. Noctalia also
+reads the other TOML files in this directory, so settings can be split by topic.
+
+Changes made through Noctalia's interface are saved to
+`~/.local/state/noctalia/settings.toml`. This file is loaded later and can
+override values from `~/.config/noctalia/`.
+
+If a setting in `config.toml` has no effect, first check its value in
+`settings.toml`. Editing the main file again will not help while the later
+setting still overrides it.
+
+After editing TOML, check the syntax:
+
+```bash
+noctalia config validate
+```
+
+The command should finish without errors. If it points to a particular file
+and line, fix them before the next desktop login.
+
+## Notifications
+
+Noctalia itself acts as the notification handler. Portage uses
+`virtual/notification-daemon` from `noctalia-overlay` to recognize Noctalia
+as a suitable program without adding a second handler.
+
+Thunderbird uses the `x11-libs/libnotify` library. It is installed explicitly
+because installing Thunderbird does not necessarily add it automatically.
+
+Test message:
+
+```bash
+notify-send "Noctalia test" "Notifications work"
+```
+
+With Do Not Disturb disabled, a banner should appear. If no message is shown
+or Portage proposes X11 dependencies, follow the
 [notifications guide](../../../../desktop/notifications/).
 
-## Package source
+## Updating
 
-The public [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay)
-is enabled in Portage. Its structure, setup, and update policy are described
-in the `noctalia-overlay` README. The overlay tracks stable releases only.
-
-## Configuration
-
-`~/.config/noctalia/config.toml` and
-`~/.local/state/noctalia/settings.toml` are present on the system. The general
-configuration model is described in the Noctalia guide; the 2026-09-23 check
-confirmed only that the files exist, not their contents.
-
-## Keyword policy
-
-Historical file at the previous check: `/etc/portage/package.accept_keywords/noctalia`
-
-```text
-gui-apps/noctalia                ~amd64
-dev-cpp/sdbus-c++                ~amd64
-```
-
-The rules reflect the Portage plan on the verification date. Before removing
-or extending the list, repeat `emerge --pretend` for the current version.
-
-## Verification
-
-Installed package sources were checked on 2026-10-30; Noctalia notification
-delivery under Umbriel was not tested separately.
+The overlay tracks stable releases. First sync it and inspect what Portage
+proposes:
 
 ```bash
-noctalia --version
-cat /var/db/pkg/gui-apps/noctalia-*/repository
+doas emaint sync -r noctalia-overlay
+emerge -pv gui-apps/noctalia
 ```
 
-The first command shows the Noctalia version; the second shows the installed
-package repository (`noctalia-overlay`). To see who displays notifications
-in the current session, run:
+After reviewing the plan:
 
 ```bash
-gdbus call \
-  --session \
-  --dest org.freedesktop.Notifications \
-  --object-path /org/freedesktop/Notifications \
-  --method org.freedesktop.Notifications.GetServerInformation
+doas emerge --ask --verbose --update --oneshot gui-apps/noctalia
 ```
 
-If Noctalia displays notifications, the server name in the response is
-`noctalia`. Result under Niri on 2026-10-07:
+Add keyword rules to `/etc/portage/package.accept_keywords/` according to
+Portage's current message. Do not copy old dependency lists without reviewing
+them: they change with the packages.
 
-```text
-('noctalia', 'noctalia-dev', '5.2.1', '1.2')
-```
+User settings are in the home directory and are not replaced by package
+updates. Before major configuration changes, back up both settings directories.
 
-An external `Notify` call displayed a visual notification — PASS. This does
-not check user TOML contents; the 2026-09-23 check confirmed only the presence
-of `config.toml` and `settings.toml`.
+## Related material
 
-## History
-
-The 2026-09-30 check confirmed package 5.2.0 from `noctalia-overlay` and
-`USE=jemalloc`; the 2026-10-07 check confirmed running service version 5.2.1,
-without a new package metadata audit.
-
-Version `5.0.1` replaced Noctalia Shell `4.7.7`. After moving to the GURU
-package, the former local `/var/db/repos/noctalia-local` overlay and its entry
-in `/etc/portage/repos.conf/` were removed. The current `noctalia-overlay` is
-a separate public overlay created later: the candidate was checked with
-`emerge --pretend` on 2026-09-15, then
-`gui-apps/noctalia-5.1.0::noctalia-overlay` replaced `5.0.1::guru` with
-`USE="jemalloc"` on 2026-09-22.
-
-## Related docs
-
-- [Noctalia v5 for Niri](../../../../desktop/noctalia-shell/) — installation,
-  updates, configuration model.
+- [Noctalia configuration model](../../../../desktop/noctalia-shell/)
+- [Starting the shell in Umbriel](../../../../desktop/umbriel/#configuration-and-noctalia)
+- [Desktop environment](../environment/)

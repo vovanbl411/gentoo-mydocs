@@ -12,13 +12,13 @@ verified_on: [asus-b5402]
 
 ## Сейчас
 
-- Gentoo hardened/systemd (no-multilib); основной toolchain Clang/LLD 22,
+- Gentoo hardened/systemd (no-multilib); сборка через Clang/LLD,
   глобально `-O2` + ThinLTO.
 - Intel Core i7-1260P (Alder Lake, гибридные P/E-ядра).
 - Графика Intel Iris Xe — драйвер ядра i915, Mesa iris, Vulkan ANV.
 - Рабочий стол — Umbriel + Noctalia; Niri сохранён как fallback; вход через
   greetd/tuigreet.
-- Ядро `7.2.9-bdsm` — собирается LLVM 23.1.1; загрузка systemd-boot → UKI
+- Ядро — `sys-kernel/gentoo-kernel` с собственной конфигурацией; загрузка systemd-boot → UKI
   (Dracut) → LUKS2/TPM2 → Btrfs.
 - Хранилище — Btrfs + Snapper; второй NVMe: состояние проверено, план
   backup/data не применён (осталась старая разметка Arch/LUKS).
@@ -28,29 +28,29 @@ verified_on: [asus-b5402]
 
 ## Desktop
 
-- [Noctalia v5](desktop/noctalia/) — установленная версия, источник пакета
-  и локальная keyword-политика.
+- [Noctalia](desktop/noctalia/) — настройки оболочки и уведомлений.
 - [Umbriel, Niri, порталы и GTK](desktop/environment/) — записанное состояние
   рабочего окружения и polkit-агент.
 
 ## Hardware
 
+- [ASUS NumberPad](hardware/numberpad/) — настройка цифровой клавиатуры тачпада.
 - [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — драйверы ядра,
   TLP и батарея.
 - [Микрофон гарнитуры](hardware/headset-microphone/) — ALC294: локальный quirk
-  активирует headset mic pin; functional acceptance отложена до проверки
-  с совместимой CTIA TRRS-гарнитурой/адаптером. Состояние — 2026-10-10.
-- [User-status indicator](hardware/user-status-indicator/) — kernel LED control
-  и userspace-контроллер `auto/busy/off` с Fn+1 integration проверены на живой
-  системе; firmware evidence и выбор Linux ABI — в
+  активирует вход микрофона. Для проверки нужна совместимая CTIA TRRS-гарнитура
+  или адаптер.
+- [User-status indicator](hardware/user-status-indicator/) — управление внешним индикатором,
+  режимы `auto/busy/off` и переключение через Fn+1. Устройство прошивки
+  и выбор интерфейса Linux описаны в
   [исследовании](../../experiments/asus-user-status-indicator/).
 - [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — флаги
   компиляции, планировщик, аппаратная безопасность.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.
-- [Второй NVMe и резервные копии](hardware/second-disk/) — состояние диска
-  проверено 2026-09-22, план применения не выполнен.
-- [Сканер отпечатков ELAN](hardware/fingerprint/) — работа и локальные
-  интеграции проверены 2026-09-27.
+- [Второй NVMe и резервные копии](hardware/second-disk/) — план использования диска;
+  не применяй разметку без проверки содержимого.
+- [Сканер отпечатков ELAN](hardware/fingerprint/) — настройка входа
+  и подтверждения привилегированных действий.
 
 ## Boot и Portage
 
@@ -79,12 +79,13 @@ verified_on: [asus-b5402]
 
 ## Общие руководства
 
-- [Noctalia v5 для Niri](../../desktop/noctalia-shell/)
+- [Установка Umbriel](../../desktop/umbriel/)
+- [Noctalia](../../desktop/noctalia-shell/)
 - [Niri](../../desktop/niri/)
 
-## О полноте записей
+## Как пользоваться разделом
 
-Каталог заполняется поэтапно: отсутствие записи не означает, что компонент
-не установлен или не настроен. Частичная сверка с системой проведена
-2026-09-22, точные даты — в `last_verified` отдельных документов. Дату
-`last_verified` следует заполнять только после новой фактической проверки.
+Общие руководства объясняют установку и настройку, а этот раздел хранит
+выбранные параметры ноутбука. Планы, например использование второго NVMe,
+отмечены отдельно от применённых настроек. Перед действиями с дисками
+сверяй устройства и содержимое с собственной системой.
