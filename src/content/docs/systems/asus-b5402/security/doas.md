@@ -19,7 +19,7 @@ authentication подключена локально в `/etc/pam.d/doas`; об�
 
 Файл: `/etc/doas.conf`
 
-Фактические правила без имени пользователя:
+Фактическое правило:
 
 ```text
 permit persist keepenv :wheel
@@ -29,7 +29,7 @@ permit persist keepenv :wheel
 совпавшее правило и не объединяет параметры разных правил. Подробности описаны
 в [общем руководстве по doas](../../../../security/doas-configuration/).
 
-## Fingerprint authentication
+## Аутентификация по отпечатку
 
 В service-local `/etc/pam.d/doas` для этапа `auth` сначала вызывается
 `pam_fprintd.so` с control `sufficient`, затем подключается `system-auth`.

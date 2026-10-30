@@ -31,9 +31,9 @@ does not merge options across rules. Details are covered in the
 
 ## Fingerprint authentication
 
-The service-local `/etc/pam.d/doas` stack lists `pam_fprintd.so` with the
-`sufficient` control, followed by `system-auth` for authentication. The account
-and session stacks also include `system-auth`. The shared
+In the service-local `/etc/pam.d/doas`, the `auth` stack tries
+`pam_fprintd.so` with the `sufficient` control before including `system-auth`.
+The `account` and `session` stacks also include `system-auth`. The shared
 `/etc/pam.d/system-auth` file does not call `pam_fprintd.so`. The [ELAN
 fingerprint system page](../../hardware/fingerprint/) describes the device and
 its integrations.
