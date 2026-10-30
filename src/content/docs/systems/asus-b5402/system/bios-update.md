@@ -3,137 +3,146 @@ title: Обновление BIOS/UEFI на ASUS ExpertBook B5402CBA
 kind: system
 scope: system
 status: current
-last_verified: "2026-09-09"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-## Current result
+## Текущее состояние
 
-Обновление BIOS с версии `313` до `314` через ASUS Firmware Update/EZ Flash
-выполнено успешно (2026-09-09). На системе используются Secure Boot с ключами
-`sbctl`, LUKS2 и автоматическая разблокировка через TPM2.
+- Установлен BIOS `B5402CBA.314` через ASUS Firmware Update/EZ Flash.
+- Secure Boot включён, используются пользовательские ключи `sbctl`; Setup Mode выключен.
+- Корневая система использует LUKS2 с интеграцией TPM2.
+- Загрузка использует systemd-boot и UKI, которые генерирует Dracut.
+  Подробности — в [разделе о загрузке и Portage](../boot-and-portage/).
 
-- BIOS: `B5402CBA.314`, дата образа из DMI — `06/02/2026`.
-- Secure Boot: восстановлен и включён после обновления, Setup Mode отключён.
-- TPM2/LUKS auto-unlock: работает после обновления — корневой LUKS-раздел
-  разблокировался автоматически (`/dev/tpmrm0`).
-- Ошибочных systemd-юнитов нет.
+## Перед обновлением
 
-Важный нюанс этой машины: при включённом Secure Boot с пользовательскими
-ключами `sbctl` ASUS Firmware Update отклонял официальный образ — контрольная
-сумма, модель и версия файла были правильными. Обновление сработало только
-после временного отключения Secure Boot (см. [Firmware update](#firmware-update)).
-Это наблюдение конкретной машины, а не универсальное свойство прошивки ASUS.
+### Проверить модель и версию BIOS
 
-## Prerequisites
-
-Перед изменением Secure Boot нужно проверить резервный способ разблокировки
-корневого LUKS-раздела:
+Проверь, что система определяет модель ASUS ExpertBook B5402CBA и текущую
+версию BIOS:
 
 ```bash
-doas cryptsetup open --test-passphrase /dev/nvme1n1p2
+cat /sys/class/dmi/id/product_name
+cat /sys/class/dmi/id/bios_version
 ```
 
-Команда должна завершиться с кодом `0`. Пароль или recovery key нельзя
-сохранять в репозитории.
+### Проверить пароль для LUKS
 
-Ноутбук должен быть подключён к блоку питания. ASUS требует не менее 20%
-заряда батареи; перед этим обновлением было 80%.
-
-## Image verification
-
-Скачивать нужно вариант **BIOS for ASUS EZ Flash Utility** для модели
-`B5402CBA`, а не Windows installer.
-
-Для архива `B5402CBAAS314.zip`:
+До изменения Secure Boot вручную проверь пароль или recovery key корневого
+LUKS. Сначала найди mapper корневой системы и его исходное устройство:
 
 ```bash
-sha256sum "$HOME/Downloads/B5402CBAAS314.zip"
-unzip -t "$HOME/Downloads/B5402CBAAS314.zip"
-unzip -l "$HOME/Downloads/B5402CBAAS314.zip"
+findmnt -no SOURCE,FSTYPE /
+lsblk -o NAME,TYPE,FSTYPE,SIZE,MOUNTPOINTS
+ROOT_MAPPER="REPLACE_WITH_ROOT_MAPPER_NAME"
+doas cryptsetup status "$ROOT_MAPPER"
 ```
 
-Проверенный SHA-256 архива:
+В выводе `cryptsetup status` поле `device:` показывает исходное LUKS-
+устройство. Подставь этот путь в следующую команду и введи секрет только в
+запрос cryptsetup:
 
-```text
-bfb12fb5b44a5f2d4b0a47be221802a66e50536bbf43850c20a9541a4d79c48d
+```bash
+ROOT_LUKS_DEVICE="REPLACE_WITH_ROOT_LUKS_DEVICE"
+doas cryptsetup open --test-passphrase "$ROOT_LUKS_DEVICE"
 ```
 
-В архиве должен находиться один файл `B5402CBAAS.314`. Его внутренний
-идентификатор модели — `B5402CBA`.
+Команда должна завершиться с кодом `0`. Выполни эту проверку вручную
+непосредственно перед обновлением; пароль и recovery key не сохраняй в
+репозитории.
 
-## USB preparation
+### Проверить питание
 
-На использованной флешке были три раздела:
+Подключи ноутбук к адаптеру питания и убедись, что заряд батареи не ниже 20% —
+это требование ASUS для обновления через EZ Flash.
 
-- основной раздел Ventoy — exFAT;
-- служебный `VTOYEFI`;
-- отдельный раздел FAT32 размером 1 GiB для прошивок.
+## Проверка образа
 
-Имена `/dev/sdX` могут измениться. Перед монтированием нужно заново определить
-FAT32-раздел:
+Скачай прошивку только с [официальной страницы поддержки ASUS для
+B5402CBA](https://www.asus.com/us/supportonly/b5402cba/helpdesk_bios/).
+Выбирай **BIOS for ASUS EZ Flash Utility**, а не установщик Windows.
+
+Укажи путь к архиву и проверь его. Сравни SHA-256 со значением, которое ASUS
+опубликовала для выбранной версии:
+
+```bash
+BIOS_ZIP="$HOME/Downloads/REPLACE_WITH_ASUS_EZ_FLASH_ARCHIVE.zip"
+sha256sum "$BIOS_ZIP"
+unzip -t "$BIOS_ZIP"
+unzip -l "$BIOS_ZIP"
+```
+
+Проверь, что архив исправен и содержит образ прошивки для модели `B5402CBA`.
+По имени и описанию файла выбери образ для ASUS EZ Flash.
+
+## Подготовка USB
+
+Для ASUS EZ Flash нужен FAT32-раздел. Конкретная схема флешки, включая
+Ventoy, не является требованием ASUS. Имена устройств могут меняться, поэтому
+перед монтированием заново найди раздел по размеру, файловой системе и метке:
 
 ```bash
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINTS,RO,RM
 ```
 
-В проверенном обновлении это был `/dev/sda3` — в другой сессии имя может
-отличаться, ориентируйся на `lsblk`:
+Укажи FAT32-раздел и имя файла прошивки из архива, затем распакуй образ во
+временный каталог. Выполняй эти команды в одном сеансе оболочки, чтобы
+сохранить значения переменных:
+
+```bash
+USB_FAT32_DEVICE="/dev/REPLACE_WITH_FAT32_PARTITION"
+BIOS_FILE="REPLACE_WITH_FIRMWARE_IMAGE_FILENAME"
+BIOS_DIR="$(mktemp -d)"
+
+unzip -j "$BIOS_ZIP" "$BIOS_FILE" -d "$BIOS_DIR"
+```
+
+Смонтируй найденный раздел. В выводе `findmnt` проверь источник, файловую
+систему FAT32 (`vfat`) и опцию `rw`:
 
 ```bash
 doas mkdir -p /mnt/bios-usb
 doas mount -o rw,nosuid,nodev,noexec,uid=$(id -u),gid=$(id -g),umask=022 \
-  /dev/sda3 /mnt/bios-usb
+  "$USB_FAT32_DEVICE" /mnt/bios-usb
 findmnt -no SOURCE,FSTYPE,OPTIONS /mnt/bios-usb
 ```
 
-В выводе `findmnt` должна быть опция `rw`. Если раздел оказался смонтирован
-только для чтения:
+Скопируй файл и сравни источник с копией. `cmp` не должен вывести различий;
+после этого отключи раздел:
 
 ```bash
-doas mount -o remount,rw /mnt/bios-usb
-```
-
-Распаковка и копирование:
-
-```bash
-mkdir -p /tmp/b5402-bios-314
-unzip -j "$HOME/Downloads/B5402CBAAS314.zip" B5402CBAAS.314 \
-  -d /tmp/b5402-bios-314
-cp /tmp/b5402-bios-314/B5402CBAAS.314 /mnt/bios-usb/
+cp "$BIOS_DIR/$BIOS_FILE" /mnt/bios-usb/
 sync -f /mnt/bios-usb
-cmp /tmp/b5402-bios-314/B5402CBAAS.314 \
-  /mnt/bios-usb/B5402CBAAS.314
+cmp "$BIOS_DIR/$BIOS_FILE" "/mnt/bios-usb/$BIOS_FILE"
 doas umount /mnt/bios-usb
 ```
 
-`cmp` не должен выводить различий. Проверенный SHA-256 распакованного файла:
+## Обновление BIOS
 
-```text
-fba0d81fe3fd1739bddf798f2acc1c5704be56c180830fbc65ffd899f079f4c7
-```
+На этой workstation ASUS Firmware Update отклонял заведомо корректный
+официальный образ, пока Secure Boot с пользовательскими ключами `sbctl` был
+включён. После временного отключения только Secure Boot тот же проверенный
+образ был принят. Это наблюдение относится к этой машине: оно не доказывает
+внутреннюю причину поведения прошивки и не является универсальным правилом
+ASUS.
 
-## Firmware update
-
-При включённом Secure Boot ASUS Firmware Update отклонял официальный образ с
-сообщением, что выбранный файл не подходит для обновления BIOS. Контрольная
-сумма, модель и версия файла при этом были правильными.
-
-На этой системе причиной оказалась проверка при включённом Secure Boot с
-пользовательскими ключами `sbctl`. Сработала такая последовательность:
-
-1. Войти в UEFI клавишей `F2`.
-2. Отключить только Secure Boot.
-3. Не очищать TPM, PK, KEK, `db` или `dbx` и не загружать настройки UEFI по
+1. Войди в UEFI клавишей `F2`.
+2. Если ASUS Firmware Update отклонит проверенный образ при включённом Secure
+   Boot, временно отключи только Secure Boot. Сохрани настройку, перезагрузи
+   систему и снова войди в UEFI клавишей `F2`.
+3. Не очищай TPM, PK, KEK, `db` или `dbx`. Не загружай настройки UEFI по
    умолчанию.
-4. Сохранить настройки и перезагрузиться.
-5. Снова войти в UEFI, открыть `Advanced` → `ASUS Firmware Update` или
-   `ASUS EZ Flash` и выбрать `B5402CBAAS.314` на FAT32-разделе.
-6. Подтвердить обновление и не отключать питание до автоматической
+4. Открой ASUS Firmware Update / EZ Flash и выбери проверенный образ с FAT32-
+   раздела.
+5. Подтверди обновление и не отключай питание до его завершения и
    перезагрузки.
-7. После обновления снова включить Secure Boot и загрузить систему.
+6. После обновления верни Secure Boot в исходное включённое состояние и
+   загрузи Gentoo.
 
-## Post-update verification
+## Проверка после обновления
+
+После загрузки проверь версию BIOS, состояние Secure Boot и доступность TPM2:
 
 ```bash
 cat /sys/class/dmi/id/bios_version
@@ -143,23 +152,23 @@ systemd-cryptenroll --tpm2-device=list
 systemctl --failed
 ```
 
-Результат проверки 2026-09-09:
+Ожидаемый результат:
 
-- BIOS: `B5402CBA.314`;
-- дата образа из DMI: `06/02/2026`;
-- Secure Boot включён, Setup Mode отключён;
-- TPM2 определяется как `/dev/tpmrm0`;
-- корневой LUKS-раздел автоматически разблокировался через TPM2;
-- ошибочных systemd-юнитов нет.
+- версия BIOS соответствует выбранному образу;
+- Secure Boot включён, Setup Mode выключен;
+- TPM2 доступен системе;
+- Gentoo загрузился обычным путём с ожидаемой разблокировкой корневого LUKS2
+  через TPM2;
+- нет новых failed units, связанных с обновлением.
 
-## Recovery notes
+## Восстановление
 
-Если TPM2-разблокировка не сработает, нужно использовать заранее проверенный
-пароль LUKS. Если после включения Secure Boot прошивка отклонит подписанный UKI,
-следует временно отключить Secure Boot, загрузить систему и проверить ключи и
-подписи через `sbctl`. TPM и ключевые базы UEFI очищать нельзя.
+- Если TPM2-разблокировка не сработала, используй заранее проверенный пароль или recovery key LUKS.
+- Если Secure Boot не принимает UKI, временно отключи его, загрузи систему и
+  проверь ключи и подписи через `sbctl`.
+- Не очищай TPM, PK, KEK, `db` или `dbx` как первый способ восстановления.
 
-## Sources
+## Источники
 
 - [BIOS для ASUS ExpertBook B5402CBA](https://www.asus.com/us/supportonly/b5402cba/helpdesk_bios/)
 - [Обновление BIOS через ASUS Firmware Update/EZ Flash](https://www.asus.com/support/faq/1008859/)
