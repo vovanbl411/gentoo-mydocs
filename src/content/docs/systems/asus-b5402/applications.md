@@ -2,100 +2,73 @@
 title: Приложения ASUS ExpertBook B5402
 kind: system
 scope: system
-status: draft
-last_verified: "2026-10-07"
+status: current
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-## Приложения
+## Текущее состояние
 
-- Zed — редактор кода, пакет `app-editors/zed` из
-  [zed-overlay](https://github.com/vovanbl411/zed-overlay).
-- spotatui — терминальный клиент Spotify, пакет `media-sound/spotatui` из
+Для части графических приложений используется Flatpak; AppImage оставлен для
+приложений с локальной интеграцией с рабочим столом.
+
+## Нативные приложения
+
+- **Zed** — `app-editors/zed` из
+  [zed-overlay](https://github.com/vovanbl411/zed-overlay), редактор кода.
+- **spotatui** — `media-sound/spotatui` из
   [spotatui-overlay](https://github.com/vovanbl411/spotatui-overlay).
-  Для воспроизведения Spotify нужна подписка Premium. Включены USE-флаги
-  `cover`, `mpris`, `visualizer`, `local-files` и `youtube`.
-- Firefox — пакет Gentoo с поддержкой Wayland, PGO и аппаратного ускорения.
-  Профиль обслуживает profile-sync-daemon в режиме overlayfs.
-- Steam — Flatpak из Flathub. Разрешения приложений Flatpak настраиваются
-  через Flatseal с предпочтением Wayland.
-- ChatGPT Desktop — системный Flatpak `com.openai.ChatGPT`, ветка `master`.
-  Установка и разрешения описаны в
-  [руководстве ChatGPT Desktop](../../../settings/chatgpt-desktop/).
-- OBS Studio — Flatpak `com.obsproject.Studio`.
-- Perplexity — AppImage с файлом запуска
+  Включены USE-флаги `cover`, `local-files`, `mpris`, `visualizer` и
+  `youtube`.
+- **Vicinae** — `gui-apps/vicinae` из
+  [vicinae-overlay](https://github.com/vovanbl411/vicinae-overlay).
+- **Firefox** — `www-client/firefox`; включены USE-флаги `wayland`, `pgo` и
+  `hwaccel`. Флаг `hwaccel` добавляет поддержку аппаратного ускорения при
+  сборке. Для профиля Firefox настроен `profile-sync-daemon` с режимом
+  `overlayfs`; подробности — в [руководстве Firefox](../../../settings/firefox/).
+- **KeePassXC** — `app-admin/keepassxc`; рабочая база хранится локально,
+  архитектура синхронизации и резервного копирования описана ниже.
+- **Thunderbird** — `mail-client/thunderbird`. Включены USE-флаги `wayland` и
+  `pulseaudio`; для системных уведомлений нужен `x11-libs/libnotify`.
+  Настройки описаны в [руководстве Thunderbird](../../../settings/thunderbird/).
+
+## Flatpak
+
+Для этих приложений используется системная установка Flatpak. Steam,
+OBS Studio, Spotify и Flatseal получены из Flathub; ChatGPT Desktop установлен
+из локально собранного Flatpak bundle.
+
+- Steam — `com.valvesoftware.Steam`; интеграция с r2modman описана в
+  [отдельном руководстве](../../../settings/r2modman/).
+- ChatGPT Desktop — `com.openai.ChatGPT`; способ установки и разрешения
+  описаны в [руководстве ChatGPT Desktop](../../../settings/chatgpt-desktop/).
+- OBS Studio — `com.obsproject.Studio`. На этой системе используется
+  Flatpak-вариант; варианты установки описаны в
+  [руководстве OBS Studio](../../../settings/obs-studio/).
+- Spotify — `com.spotify.Client`; он установлен одновременно с нативным spotatui.
+- Flatseal — `com.github.tchx84.Flatseal`, графический интерфейс для просмотра
+  и настройки разрешений Flatpak-приложений. Общие принципы описаны в
+  [руководстве Flatpak](../../../settings/flatpak/).
+
+## AppImage
+
+- Perplexity запускается через `.desktop`-файл
   `~/.local/share/applications/perplexity.desktop`; для ссылок приложения
-  зарегистрирована схема `perplexity-app://`.
-- r2modman — AppImage. Запускает Flatpak-версию Steam через
-  `~/.local/bin/steam.sh`: `flatpak run com.valvesoftware.Steam "$@"`.
-- KeePassXC — пакет Gentoo `app-admin/keepassxc`. База открывается с локального
-  диска; Syncthing синхронизирует её с телефоном, rclone доставляет резервные
-  копии в Google Drive. Подробности — ниже.
-- Thunderbird — пакет Gentoo с поддержкой Wayland, WebRender и звука через
-  PipeWire/Pulse. Настройки почты и уведомлений описаны ниже и в
-  [руководстве Thunderbird](../../../settings/thunderbird/).
+  зарегистрирована схема `perplexity-app://`. Подробности — в
+  [руководстве Perplexity](../../../settings/perplexity/).
+- Для r2modman используется локальный AppImage. Для интеграции со Steam
+  Flatpak есть скрипт-обёртка `~/.local/bin/steam.sh`, который передаёт
+  аргументы команде `flatpak run com.valvesoftware.Steam`. Подробнее —
+  [r2modman и Steam Flatpak](../../../settings/r2modman/).
 
-## KeePassXC: база, синхронизация и резервные копии
+## KeePassXC: синхронизация и резервные копии
 
-Рабочая база находится в `~/Documents/KeePassSync/`. В этом каталоге должна
-быть ровно одна база `*.kdbx`: обычный файл, не символическая ссылка, с правами
-`0600`. Скрипт резервного копирования ищет файл только в самом каталоге,
-без вложенных папок. Если обнаружено несколько баз, например копия конфликта
-Syncthing, он останавливается, чтобы не сохранить случайно выбранный файл.
+Рабочая база KeePassXC хранится локально. Syncthing синхронизирует её с
+Android, а отдельная схема резервного копирования сохраняет локальные копии
+и отправляет их через rclone в Google Drive. Google Drive используется только
+для резервных копий.
 
-Syncthing (`net-p2p/syncthing`) работает как пользовательская служба systemd.
-Папка `keepassxc-live` синхронизирует только `~/Documents/KeePassSync/`
-с `Documents/KeePassSync` на Android, где используются Syncthing-Fork
-и KeePassDX. Другие каталоги с резервными копиями в синхронизацию не входят.
-Если на двух устройствах появились разные изменения, порядок сохранения
-копий и слияния описан в
-[руководстве по синхронизации](../../../settings/keepassxc-phone-sync/).
-
-KeePassXC создаёт копию с отметкой времени перед сохранением. Дополнительно
-`keepassxc-backup.timer` ежедневно в 20:00 по местному времени запускает
-`keepassxc-backup.service`: служба создаёт копию базы в `~/Backups/KeePassXC/`,
-доставляет копии в `gdrive:Backups/KeePassXC/` и после успешной доставки
-удаляет локальные копии возрастом 90 дней и старше. При ошибке передачи
-локальные копии сохраняются. Из Google Drive файлы автоматически не удаляются.
-
-Для таймера задано `Persistent=true`: пропущенный запуск выполняется, когда
-пользовательская служба systemd снова становится активной. `Linger=no`, поэтому
-без пользовательской сессии отдельного фонового запуска нет. Эти настройки
-также не повторяют автоматически уже завершившуюся с ошибкой передачу.
-
-rclone (`net-misc/rclone`) использует собственное OAuth-приложение типа
-Desktop со scope `drive.file` и статусом *In production*. Google Drive хранит
-резервные копии; открывать рабочую базу через облачное монтирование не нужно.
-Скрипты, службы, восстановление и настройка OAuth описаны в
-[руководстве по резервным копиям](../../../settings/keepassxc-backup/).
-
-## Thunderbird
-
-Настроены шесть IMAP-аккаунтов: четыре Gmail, Yandex и Mail.ru. Полная
-автономная синхронизация включена; профиль находится в `~/.config/thunderbird/`.
-Два выбранных Gmail показывают уведомления со звуком, остальные аккаунты
-синхронизируются без уведомлений. Выбор папок задаёт расширение
-`NTFNTF: Notify on This Folder Not That Folder`.
-
-Для системных уведомлений отдельно установлен `x11-libs/libnotify`.
-Thunderbird предлагает эту библиотеку как дополнительную возможность,
-поэтому установка самого почтового клиента не добавляет её автоматически.
-
-## Обслуживание Flatpak
-
-Приложения устанавливаются из Flathub. `org.electronjs.Electron2.BaseApp` —
-основа для сборки Electron-приложения, а не отдельное приложение для запуска.
-Обновление программ, удаление неиспользуемых сред выполнения и настройка
-разрешений описаны в [руководстве Flatpak](../../../settings/flatpak/).
-
-## Общие руководства
-
-- [Firefox](../../../settings/firefox/)
-- [Flatpak и Flatseal](../../../settings/flatpak/)
-- [ChatGPT Desktop через Flatpak](../../../settings/chatgpt-desktop/)
-- [Резервные копии KeePassXC в Google Drive](../../../settings/keepassxc-backup/)
-- [Синхронизация KeePassXC с Android через Syncthing](../../../settings/keepassxc-phone-sync/)
-- [OBS Studio](../../../settings/obs-studio/)
-- [Perplexity AppImage](../../../settings/perplexity/)
-- [r2modman и Steam Flatpak](../../../settings/r2modman/)
-- [Thunderbird](../../../settings/thunderbird/)
+Порядок синхронизации описан в
+[руководстве KeePassXC и Syncthing](../../../settings/keepassxc-phone-sync/),
+а резервного копирования — в
+[руководстве KeePassXC и rclone](../../../settings/keepassxc-backup/).
