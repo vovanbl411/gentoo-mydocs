@@ -17,6 +17,9 @@ examples are based on a real reference system, an ASUS ExpertBook B5402.
 - [Manual Gentoo amd64 installation](./installation/gentoo-installation/) — from the LiveCD to a successful first boot from the target disk; the verified path is BIOS + GPT + GRUB, UEFI is unverified.
 - [Base system configuration after installation](./installation/base-system/) — Portage and the LLVM toolchain.
 
+- [Umbriel and Noctalia](./desktop/umbriel/) — desktop installation and startup.
+- [Niri](./desktop/niri/) — fallback session.
+
 ## Other materials
 
 The guide sections, the reference system state, troubleshooting notes

@@ -34,6 +34,7 @@ export default defineConfig({
 					label: 'Рабочий стол',
 					translations: { en: 'Desktop' },
 					items: [
+						{ slug: 'desktop/umbriel', label: 'Umbriel' },
 						{ slug: 'desktop/niri', label: 'Niri' },
 						{ slug: 'desktop/noctalia-shell', label: 'Noctalia' },
 						{ slug: 'desktop/notifications', label: 'Уведомления', translations: { en: 'Notifications' } },

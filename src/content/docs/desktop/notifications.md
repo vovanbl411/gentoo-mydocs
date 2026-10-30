@@ -7,113 +7,78 @@ last_verified: "2026-10-07"
 verified_on: [asus-b5402]
 ---
 
-Этот guide помогает проверить доставку desktop notifications в Wayland-сессии:
-от приложения через клиентскую библиотеку и D-Bus до оболочки. Команды
-выполняются от обычного пользователя в активной desktop-сессии; нужны
-`gdbus` и, для теста libnotify, `notify-send`.
+Уведомления на рабочем столе показывает Noctalia. Приложение отправляет ей
+сообщение через D-Bus — шину обмена сообщениями внутри пользовательской
+сессии. Библиотека `libnotify` помогает приложениям отправлять такие сообщения.
 
-На ASUS B5402 уведомления показывает Noctalia. Проверка их доставки в Niri
-описана ниже; работу в Umbriel отдельно не проверяли.
+Ниже — установка нужной библиотеки, интеграция Noctalia с Portage и поиск
+причины, если уведомления не появляются. Команды проверки выполняются
+обычным пользователем в графической сессии.
 
-## 1. Desktop notification stack
+## 1. Как устроена доставка
 
-Для приложений, использующих libnotify, путь к Noctalia выглядит так:
-
-```text
-application
-    ↓
-libnotify
-    ↓
-org.freedesktop.Notifications
-    ↓
-Noctalia
-```
-
-Приложение решает, когда отправлять уведомление; библиотека передаёт запрос;
-notification daemon показывает его. Звук приложения сам по себе не доказывает,
-что визуальное уведомление дошло до daemon. Другие приложения могут обращаться
-к D-Bus напрямую или использовать portal API.
-
-## 2. org.freedesktop.Notifications
-
-Обычные Freedesktop desktop notifications используют session D-Bus service
-`org.freedesktop.Notifications` и object path `/org/freedesktop/Notifications`.
-Метод `Notify` отправляет уведомление, а `GetServerInformation` возвращает
-имя сервера, vendor, версию и версию поддерживаемой спецификации.
-См. [Desktop Notifications Specification](https://specifications.freedesktop.org/notification/latest/protocol.html).
-
-Это другой интерфейс, чем `org.freedesktop.portal.Notification` и его backend
-`org.freedesktop.impl.portal.Notification`. Portal Notification входит в
-[XDG Desktop Portal API](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Notification.html).
-Настройка Notification backend в `xdg-desktop-portal` не определяет владельца
-`org.freedesktop.Notifications`. Выбор portal backend описан в
-[Wayland portals](../wayland-portals/).
-
-## 3. Роль notification daemon
-
-Notification daemon обслуживает стандартный notification service. Эту роль
-может выполнять оболочка, включая Noctalia; отдельный daemon ей не обязателен.
-Проверяй, кто реально обслуживает D-Bus name, и не запускай второй daemon
-только ради наличия пакета с названием `notification-daemon`.
-
-Если запрос дошёл, но уведомление скрыто, проверь DND и настройки отображения
-у текущего daemon.
-
-## 4. libnotify и приложения
-
-[libnotify](https://gnome.pages.gitlab.gnome.org/libnotify/) — клиентская
-библиотека для desktop notifications, а не daemon. В Gentoo это
-`x11-libs/libnotify`; префикс категории `x11-libs` сам по себе не означает,
-что приложение должно работать через X11.
-
-На ASUS B5402 Thunderbird 157.0 требует libnotify для проверенного system
-notification path. Ebuild предлагает его как optional feature, поэтому
-наличие Thunderbird не гарантирует наличие библиотеки. Настройки аккаунтов и
-диагностика приложения — в [Thunderbird guide](../../settings/thunderbird/).
-
-## 5. Noctalia на reference system
-
-На ASUS ExpertBook B5402 / Gentoo / Niri проверено 2026-10-07:
-
-- Noctalia обслуживает `org.freedesktop.Notifications` и возвращает
-  `('noctalia', 'noctalia-dev', '5.2.1', '1.2')`.
-- DND выключен; прямое внешнее D-Bus уведомление отображается — PASS.
-- После установки libnotify Thunderbird отправляет `Notify`, и Noctalia
-  показывает визуальное уведомление — PASS.
-
-Это пример работающего стека, а не требование использовать Noctalia на всех
-системах. Подробности машины — в [системной записи Noctalia](../../systems/asus-b5402/desktop/noctalia/).
-
-## 6. Интеграция с Portage
-
-Приложения могут отправлять уведомления через библиотеку `x11-libs/libnotify`;
-Noctalia показывает их на рабочем столе. Чтобы Portage учитывал Noctalia как
-программу для показа уведомлений, в noctalia-overlay добавлен виртуальный пакет
-`virtual/notification-daemon`.
-
-Виртуальный пакет сам ничего не запускает: он описывает зависимость от
-программы, которая выполняет нужную функцию. При `-gnome -kde` пакет из
-noctalia-overlay включает Noctalia в список допустимых обработчиков. Это
-позволяет удовлетворить зависимость с помощью Noctalia без дополнительного
-обработчика и его зависимостей X11. Подробности подключения — в
-[README noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay/blob/main/README.md).
+Для приложения, использующего libnotify, цепочка выглядит так:
 
 ```text
-x11-libs/libnotify
-    ↓
-virtual/notification-daemon
-    ↓
-gui-apps/noctalia
+приложение → libnotify → D-Bus → Noctalia → уведомление на экране
 ```
 
-На ASUS B5402 виртуальный пакет из noctalia-overlay установлен; файла
-`/etc/portage/profile/package.provided` нет. Библиотека libnotify также
-установлена явно: ebuild Thunderbird предлагает её как необязательную
-возможность и сам не требует её установки.
+Noctalia выполняет роль обработчика уведомлений. Отдельную программу
+`notification-daemon` рядом с ней запускать не нужно.
+Звук и сообщение на экране могут отправляться разными способами: наличие
+звука ещё не означает, что приложение отправило запрос на показ уведомления.
 
-## 7. Verification
+## 2. Установка libnotify и интеграция с Portage
 
-Проверь сервер в текущей пользовательской сессии:
+В Gentoo библиотека называется `x11-libs/libnotify`. Категория `x11-libs`
+не заставляет приложение работать через X11: библиотека передаёт сообщения
+по D-Bus и подходит для Wayland.
+
+Thunderbird предлагает libnotify как необязательную возможность. Чтобы
+получать системные уведомления почты, установи библиотеку явно:
+
+```bash
+doas emerge --ask x11-libs/libnotify
+```
+
+Чтобы Portage учитывал Noctalia как обработчик уведомлений, в
+[noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay) добавлен
+виртуальный пакет `virtual/notification-daemon`. Сам он ничего не запускает:
+он задаёт зависимость от программы, выполняющей нужную функцию.
+
+Подключи оверлей по его README и посмотри план:
+
+```bash
+emerge -pv virtual/notification-daemon
+emerge -pv --tree x11-libs/libnotify
+```
+
+При выключенных USE `gnome` и `kde` виртуальный пакет из `noctalia-overlay`
+позволяет выбрать уже установленную Noctalia. В плане должен быть источник
+`::noctalia-overlay`; установка второго обработчика уведомлений не нужна.
+После просмотра плана установи виртуальный пакет, если он ещё не установлен:
+
+```bash
+doas emerge --ask virtual/notification-daemon::noctalia-overlay
+```
+
+### Portage предлагает зависимости X11
+
+Если план добавляет `x11-misc/notification-daemon`, `libXcursor` или требует
+`USE=X` у GTK/cairo, проверь источник виртуального пакета и его USE-флаги.
+Стандартный вариант `virtual/notification-daemon` может не учитывать Noctalia
+и поэтому выбирать другой обработчик. Вариант из `noctalia-overlay` добавляет
+Noctalia в список подходящих программ.
+
+Если ранее для обхода этой проблемы добавлялась строка
+`virtual/notification-daemon` в `/etc/portage/profile/package.provided`, убери
+именно эту строку и повтори просмотр плана. Такая запись сообщает Portage,
+что зависимость уже удовлетворена, вместо установки настоящего пакета.
+Остальное содержимое файла не удаляй.
+
+## 3. Проверка уведомлений
+
+Сначала узнай, какая программа принимает сообщения:
 
 ```bash
 gdbus call \
@@ -123,53 +88,61 @@ gdbus call \
   --method org.freedesktop.Notifications.GetServerInformation
 ```
 
-Ответ содержит имя, разработчика, версию сервера и версию спецификации. Если
-уведомления показывает Noctalia, имя сервера — `noctalia`. Результат проверки
-ASUS B5402 в Niri приведён в разделе 5; версия может отличаться. Затем проверь клиентский путь libnotify:
+В ответе должны быть имя сервера `noctalia`, разработчик и версии сервера
+и протокола. Если отвечает другая программа, проверь, не запускается ли
+дополнительный обработчик уведомлений.
+
+Отправь пробное уведомление:
 
 ```bash
-notify-send "Notification test" "libnotify → desktop daemon"
+notify-send "Проверка уведомлений" "Сообщение отправлено через libnotify"
 ```
 
-При выключенном DND должно появиться визуальное уведомление. Этот тест
-не проверяет policy уведомлений почтовых аккаунтов.
+При выключенном режиме «Не беспокоить» должен появиться баннер Noctalia.
+Если пробное сообщение видно, а почтовые уведомления отсутствуют, проверь
+[настройки Thunderbird](../../settings/thunderbird/): приложение само решает,
+для каких аккаунтов и событий отправлять уведомления.
 
-Установка виртуального пакета и отсутствие указанного файла подтверждены
-2026-10-30; новый план зависимостей Portage после перехода не проверен.
+## 4. Поиск причины
 
-План Portage, без установки пакетов:
+Если пробное сообщение не видно, сначала проверь, запущена ли Noctalia,
+выключен ли режим «Не беспокоить» и разрешён ли показ уведомлений.
 
-```bash
-emerge -pv virtual/notification-daemon
-emerge -pv --tree x11-libs/libnotify
-```
-
-В плане проверь следующее:
-
-- Выбран `virtual/notification-daemon::noctalia-overlay`.
-- Установленная `gui-apps/noctalia` удовлетворяет provider dependency.
-- Не требуются `x11-misc/notification-daemon` и `libXcursor`.
-- Нет требований включить `USE=X` для `gtk+` или `cairo`.
-
-## 8. Troubleshooting
-
-Для приложений с обычным Freedesktop notification path можно наблюдать
-отправку запроса, затем вызвать тестовое уведомление:
+Чтобы увидеть запросы от приложения, запусти в терминале:
 
 ```bash
 dbus-monitor --session \
   "interface='org.freedesktop.Notifications',member='Notify'"
 ```
 
-Если `Notify` не появляется, проверь настройки приложения, его клиентский
-backend и runtime libraries. Успешный внешний тест daemon не подтверждает
-исправность backend приложения. Если `Notify` виден, но баннера нет, проверь
-владельца сервиса, DND и настройки отображения. Для portal-приложений
-отсутствие прямого `Notify` от приложения само по себе не доказывает сбой:
-проверь выбранный portal path.
+Затем вызови событие, которое должно показать уведомление, например получи
+новое письмо. Остановить наблюдение можно через `Ctrl+C`.
 
-## 9. Related docs
+- Запрос `Notify` появляется, но баннера нет: проверь настройки показа
+  уведомлений в Noctalia.
+- Запроса нет, но `notify-send` работает: проверь настройки самого приложения
+  и наличие libnotify, если приложение использует эту библиотеку.
+- Команда `GetServerInformation` не находит сервер: проверь запуск Noctalia
+  и её журнал.
 
-- [Noctalia](../noctalia-shell/) — установка и конфигурация оболочки.
-- [Wayland portals](../wayland-portals/) — отдельный portal path.
-- [Thunderbird](../../settings/thunderbird/) — выбор аккаунтов и mail acceptance.
+Некоторые приложения отправляют уведомления напрямую по D-Bus, а приложения
+в песочнице могут использовать портал. Для них отсутствие вызова именно
+от libnotify не является признаком ошибки.
+
+## 5. Уведомления и порталы
+
+Обычный обработчик уведомлений использует D-Bus-имя
+`org.freedesktop.Notifications`. Портал предоставляет другой интерфейс —
+`org.freedesktop.portal.Notification`.
+
+Настройка Notification backend в `portals.conf` не выбирает программу,
+которая владеет `org.freedesktop.Notifications`. Поэтому смена backend
+портала не заменяет запуск Noctalia. Настройки остальных порталов описаны
+в [отдельном руководстве](../wayland-portals/).
+
+## Связанные материалы
+
+- [Noctalia — установка и конфигурация](../noctalia-shell/)
+- [Noctalia на ASUS B5402](../../systems/asus-b5402/desktop/noctalia/)
+- [Спецификация уведомлений](https://specifications.freedesktop.org/notification/latest/protocol.html)
+- [libnotify](https://gnome.pages.gitlab.gnome.org/libnotify/)

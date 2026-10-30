@@ -7,69 +7,69 @@ last_verified: "2026-10-10"
 verified_on: [gentoo-builder-01]
 ---
 
-## Current state
+## Назначение
 
-`gentoo-builder-01` — отдельная headless Gentoo VM на Proxmox: VMID `5201`,
-host `pve-01`. Она собирает portable `x86-64-v3` userspace GPKG для ASUS B5402
-и работает как replaceable build appliance. VM создана вручную;
-Terraform/Packer не используются, desktop/UI не устанавливается.
+`gentoo-builder-01` — виртуальная машина Gentoo на Proxmox (`5201`, хост
+`pve-01`). Она собирает бинарные пакеты для ASUS B5402, чтобы тяжёлая
+компиляция не занимала ноутбук. Графическое окружение в VM не устанавливается;
+машина создана вручную, без Terraform и Packer.
 
-Workstation автоматически использует совместимые private packages через
-обычный Portage с `FEATURES=getbinpkg`. При отсутствии или несовместимости
-пакета либо недоступности binhost доступна локальная source build
-с Alder Lake policy. Workstation не зависит от доступности builder для работы.
-Ядро workstation остаётся local-only.
+Пакеты собираются для `x86-64-v3`: этот набор инструкций поддерживают
+и процессор сервера, и Alder Lake в ноутбуке. Portage на ноутбуке скачивает
+подходящие пакеты с включённым `FEATURES=getbinpkg`. Если подходящего пакета
+нет или сервер недоступен, пакет можно собрать из исходников на ноутбуке.
+Самому ноутбуку доступ к builder для повседневной работы не нужен.
 
-## VM и OS
+## Виртуальная машина и ОС
 
-### Proxmox VM
+### Параметры Proxmox
 
 | Параметр | Состояние |
 |----------|-----------|
-| Ресурсы | 16 cores, 1 socket, 16384 MiB RAM, `numa: 0` |
-| CPU exposure | `cpu: host`; гость видит Intel Xeon E5-2696 v4 (Broadwell-EP) |
-| ISA capability | `x86-64-v3` поддерживается внутри VM; `x86-64-v4` не поддерживается |
-| Machine / firmware | В `qm config 5201` нет явных `machine:` / `bios:`; фактические defaults в guest — `pc-i440fx-11.0`, SeaBIOS |
-| Boot order | `scsi0;ide2;net0` — целевой диск первым |
+| Ресурсы | 16 ядер, 1 сокет, 16384 MiB RAM, `numa: 0` |
+| Процессор | `cpu: host`; гость видит Intel Xeon E5-2696 v4 (Broadwell-EP) |
+| Наборы инструкций | `x86-64-v3` поддерживается внутри VM; `x86-64-v4` не поддерживается |
+| Машина и прошивка | `pc-i440fx-11.0`, SeaBIOS; параметры `machine:` и `bios:` в `qm config 5201` не заданы явно |
+| Порядок загрузки | `scsi0;ide2;net0` — целевой диск первым |
 | Диск | Storage `vm-nvme`, 100 GiB, VirtIO SCSI Single; `discard=on`, `iothread=1`, `ssd=1` |
 | Сеть | VirtIO, bridge `vmbr0`, VLAN `20`, `firewall=1` |
-| Guest Agent / tags | `agent: 1`; tags `build`, `gentoo` |
+| Guest Agent и метки | `agent: 1`; метки `build`, `gentoo` |
 
-Диск `/dev/sda` имеет GPT layout:
+Разметка диска `/dev/sda` — GPT:
 
 | Раздел | Размер | Назначение |
 |--------|--------|------------|
-| `/dev/sda1` | 1 MiB | BIOS boot, `bios_grub`, без filesystem |
-| `/dev/sda2` | 8 GiB | Active swap, LABEL `gentoo-swap` |
-| `/dev/sda3` | Около 92 GiB | ext4 root `/`, LABEL `gentoo-root` |
+| `/dev/sda1` | 1 MiB | Загрузка BIOS, `bios_grub`, без файловой системы |
+| `/dev/sda2` | 8 GiB | Swap, метка `gentoo-swap` |
+| `/dev/sda3` | Около 92 GiB | Корень `/`, ext4, метка `gentoo-root` |
 
-LVM, Btrfs и отдельного `/boot` нет; thin provisioning предоставляет
-Proxmox storage layer.
+LVM, Btrfs и отдельного `/boot` нет. Тонкое выделение места обеспечивает
+хранилище Proxmox.
 
-### Guest OS и доступ
+### Система и доступ
 
 | Параметр | Состояние |
 |----------|-----------|
-| Release | Gentoo Base System release 2.18 |
 | Профиль | `default/linux/amd64/23.0/no-multilib/hardened/systemd` |
-| Identity / time / locale | Hostname `gentoo-builder-01`; UTC; `C.UTF-8` |
-| User / privileges | `vladimir` в `wheel`; doas установлен; `/etc/doas.conf`: `permit persist :wheel` |
-| Network | systemd-networkd + systemd-resolved; `ens18`, DHCPv4; `routable (configured)` / `online`, default route, external IPv4 и DNS работают |
-| Resolver | `/etc/resolv.conf` — symlink на systemd-resolved stub |
-| Builder DNS | `gentoo-builder-01.home.9fans.uk` → `10.1.20.99` |
-| SSH | OpenSSH enabled/running; реальный login как `vladimir` подтверждён |
-| QEMU Guest Agent | ACTIVE после boot; service `static`, в journal наблюдаются `guest-ping` |
+| Имя, время и локаль | `gentoo-builder-01`; UTC; `C.UTF-8` |
+| Пользователь и права | `vladimir` в `wheel`; doas установлен; `/etc/doas.conf`: `permit persist :wheel` |
+| Сеть | systemd-networkd + systemd-resolved; интерфейс `ens18`, DHCPv4 |
+| DNS resolver | `/etc/resolv.conf` — символическая ссылка на stub resolver systemd-resolved |
+| DNS-имя builder | `gentoo-builder-01.home.9fans.uk` → `10.1.20.99` |
+| SSH | OpenSSH, вход под пользователем `vladimir` |
+| QEMU Guest Agent | `qemu-guest-agent`; служба запускается при появлении устройства guest agent |
 
-## Build policy
+## Настройки сборки
 
-Profile/ABI contract: `CHOST=x86_64-pc-linux-gnu`, `ABI_X86=64`.
-GCC multilib list содержит только `.;`.
+Профиль no-multilib собирает только 64-битные пакеты:
+`CHOST=x86_64-pc-linux-gnu`, `ABI_X86=64`.
 
-C/C++ используют LLVM/Clang/LLD и `llvm-config` 22.1.8, `-O2` и ThinLTO;
-`llvm-ar`, `llvm-nm`, `llvm-ranlib` установлены и проверены.
+Для C/C++ используются Clang, линкер LLD, оптимизация `-O2` и ThinLTO.
+`llvm-ar`, `llvm-nm` и `llvm-ranlib` нужны для работы с объектными файлами LLVM.
 Fortran использует отдельные флаги без ThinLTO.
 
-Файл: `/etc/portage/make.conf`. Явно заданные значения production policy:
+Файл: `/etc/portage/make.conf`. Путь к Clang в `RUSTFLAGS` и `LLVM_SLOT`
+должны указывать на один установленный слот LLVM:
 
 ```makefile
 LLVM_SLOT="22"
@@ -103,67 +103,67 @@ GOAMD64="v3"
 LC_MESSAGES=C.UTF-8
 ```
 
-`CPU_FLAGS_X86` — пересечение live-выводов `cpuid2cpuflags` Broadwell VM
-и Alder Lake workstation. Workstation-only `avx_vnni`, `sha` и `vpclmulqdq`
-исключены. Userspace targets `-march=native`, `-march=broadwell` и
-`-march=alderlake` на builder не используются.
+`CPU_FLAGS_X86` содержит только инструкции, поддерживаемые и Broadwell
+в VM, и Alder Lake в ноутбуке. Дополнительные инструкции ноутбука
+`avx_vnni`, `sha` и `vpclmulqdq` исключены. Не используй `-march=native`
+или `-march=broadwell` для этих пакетов: целью сборки является общий
+`x86-64-v3`, а не процессор builder.
 
-Rust `dev-lang/rust-bin` 1.97.1 (`host: x86_64-unknown-linux-gnu`)
-использует bundled LLVM 22.1.6 для codegen и system Clang/LLD 22.1.8
-для внешнего linking; разница версий не является
-конфликтом. Глобальный Rust `opt-level=3` не принят.
-Go 1.27.1 (`go1.27.1-X:nodwarf5 linux/amd64`) использует `GOARCH=amd64`,
-`GOAMD64=v3`. Отдельный `GOMAXPROCS` не задаётся: Go eclass Gentoo выводит
-его из числа Make jobs. Статическая линковка простого pure-Go test binary
-не является требованием ко всем Go packages.
+Rust устанавливается пакетом `dev-lang/rust-bin`. Он использует встроенный
+LLVM для генерации кода, а системный Clang/LLD — для линковки. Их версии могут
+различаться. Глобальный `opt-level=3` для Rust не задан.
 
-Effective Python targets из profile policy, а не явных строк `make.conf`:
+Go использует `GOARCH=amd64`, `GOAMD64=v3`. Отдельный `GOMAXPROCS` не нужен:
+Gentoo eclass выводит его из числа заданий Make. Способ линковки зависит
+от конкретного Go-пакета.
 
-```text
-PYTHON_SINGLE_TARGET="python3_14"
-PYTHON_TARGETS="python3_14"
+Python targets выбирает профиль. Посмотреть их значения можно командой:
+
+```bash
+portageq envvar PYTHON_SINGLE_TARGET PYTHON_TARGETS
 ```
 
-`LLVM_TARGETS="X86"` намеренно не задан: Gentoo profile принудительно
-задаёт поддерживаемый набор LLVM targets. Cache/ccache/sccache policy
-для builder не принята.
+`LLVM_TARGETS="X86"` не задаётся: поддерживаемый набор LLVM targets определяет
+профиль Gentoo. Сборка не требует ccache или sccache.
 
-> **Важно:** GNU runtime ABI сохраняется; это не миграция libc/libgcc.
+> **Важно:** Clang и LLD используются как инструменты сборки. Системные
+> библиотеки и GNU runtime при этом не заменяются.
 
-## Repositories и совместимость package policy
+## Репозитории и совместимость пакетов
 
-По проверке builder 2026-10-10 Portage использовал и успешно синхронизировал `gentoo`, `guru`, `gentoo-zh`,
-`noctalia-overlay` и `zed-overlay`. Четыре overlay — git repositories;
-для них установлен `dev-vcs/git`.
+Репозиторий Gentoo синхронизируется через rsync. Дополнительные репозитории
+`guru`, `gentoo-zh`, `noctalia-overlay` и `zed-overlay` используют Git,
+поэтому на builder установлен `dev-vcs/git`. Список подключённых репозиториев
+хранится в `/etc/portage/repos.conf/`; при добавлении нового overlay на
+ноутбуке подключи его и на builder, если пакет должен собираться там.
 
-На дату проверки с workstation были согласованы global target USE policy, `VIDEO_CARDS`,
-`INPUT_DEVICES`, relevant `/etc/portage/package.use`,
-`/etc/portage/package.accept_keywords`, Waydroid mask, license policy,
-repositories и userspace package policy. `@world` workstation не копировался. Новые workstation overlays на builder повторно не проверялись.
+Для совместимости бинарных пакетов на двух машинах согласуются USE-флаги,
+`VIDEO_CARDS`, `INPUT_DEVICES`, правила `/etc/portage/package.use/`,
+`package.accept_keywords/`, маски пакетов и разрешённые лицензии.
+Список `@world` ноутбука целиком не копируется: builder имеет собственный
+набор установленных пакетов.
 
-Intentional GCC/BFD fallback для `sys-devel/binutils` и `x11-libs/pango`
-сохранён как текущая package/toolchain policy. Builder variant использует
-`-march=x86-64-v3` вместо workstation `-march=alderlake`.
+Для `sys-devel/binutils` и `x11-libs/pango` сохранены отдельные настройки
+сборки через GCC/BFD. Основная сборка использует Clang/LLD, а целевая
+архитектура builder — `x86-64-v3`.
 
-Workstation сохраняет Alder Lake optimization и локальную сборку ядра.
-На builder не перенесены P-core/taskset, workstation `MAKEOPTS`,
-tmpdir/cache paths, `kernel-llvm`, kernel build policy, Secure Boot private
-key/cert paths и Alder Lake CPU flags. Builder имеет собственный
-`MAKEOPTS` под ресурсы VM.
+Параллелизм, временные каталоги и кэши подбираются под ресурсы VM. Настройки
+ноутбука с привязкой к P-ядрам и `taskset` на builder не переносятся.
 
-Временные bootstrap overrides удалены. История перехода и dependency cycles —
-в [troubleshooting stage3 → Clang/ThinLTO](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/).
+Проблемы перехода со stage3 на Clang/ThinLTO и способы их решения описаны
+в [отдельном руководстве](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/).
 
-## Загрузка и runtime
+<span id="first-boot-и-guest-runtime--pass"></span>
 
-Builder загружается с целевого диска через SeaBIOS + GRUB `pc`, BIOS/GPT,
-target `i386-pc`, без Secure Boot. Установлены
-`sys-boot/grub-2.14-r5` и stable `sys-kernel/gentoo-kernel-bin-6.18.54`;
-running kernel — `6.18.54-gentoo-dist-bin`. Dracut initramfs существует
-и успешно загружается; переход к workstation kernel `7.2.9` не требуется.
+## Загрузка и службы
 
-Постоянные builder-specific overrides адаптируют global USE policy,
-содержащую `secureboot`, к этому boot path.
+Для самой VM используется BIOS-загрузка: SeaBIOS, GPT и GRUB с target
+`i386-pc`, без Secure Boot. Ядро устанавливается пакетом
+`sys-kernel/gentoo-kernel-bin`, initramfs создаёт Dracut. Эта схема загрузки
+отличается от systemd-boot и UKI на ноутбуке.
+
+Глобальный USE содержит `secureboot`, поэтому для BIOS-загрузки VM нужны
+отдельные настройки пакетов.
 Файл: `/etc/portage/package.use`:
 
 ```text
@@ -179,93 +179,76 @@ initrd_generator=dracut
 uki_generator=none
 ```
 
-Для helper preparation `gentoo-kernel-bin` действует package-specific
-no-LTO/BFD path; userspace сохраняет Clang + ThinLTO + LLD.
-Причина исключения — в
+Вспомогательные программы `gentoo-kernel-bin` собираются без LTO с линкером
+BFD: прямой вызов `ld.bfd` в этом пакете не может обработать ThinLTO-объекты.
+Остальные пакеты продолжают использовать Clang, ThinLTO и LLD. Настройка
+исключения описана в
 [troubleshooting kernel helpers](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/#6-gentoo-kernel-bin-thinlto-объекты-и-прямой-вызов-ldbfd).
 
-`findmnt --verify --verbose` показал 0 errors/warnings.
-Gateway не отвечает на прямой ICMP ping, при этом routing через него,
-external IPv4 и DNS работают; home-server firewall policy ведётся отдельно.
-`static` state QEMU Guest Agent при ACTIVE runtime и наблюдаемых `guest-ping`
-является штатным состоянием.
-Диагностика DHCP при невалидном machine-id — в
-[networkd troubleshooting](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
+Отсутствие ответа шлюза на ICMP ping не мешает работе маршрутизации:
+проверяй доступ к нужным адресам и разрешение DNS. Правила firewall шлюза
+ведутся в проекте home-server.
 
-## Путь binary packages
+Служба QEMU Guest Agent может отображаться как `static`: её запуск связан
+с устройством guest agent, поэтому отдельно включать её через `enable`
+не требуется. Работу службы проверяй через `systemctl is-active`.
+Если systemd-networkd не получает адрес из-за неверного machine-id,
+см. [разбор DHCP](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
 
-Builder `/var/cache/binpkgs` → internal HTTP `10.1.20.99:8080` →
-`proxy-01` / Caddy → `https://binhost.apps.home.9fans.uk` → workstation Portage.
+## Раздача бинарных пакетов
+
+Пакеты из `/var/cache/binpkgs` раздаются по HTTP с `10.1.20.99:8080`.
+Caddy на `proxy-01` принимает HTTPS-запросы к
+`https://binhost.apps.home.9fans.uk` и передаёт их на этот HTTP-сервер.
 
 | Параметр | Текущее состояние |
 |----------|-------------------|
-| Portage binpkg policy | `FEATURES` содержит `buildpkg`; `BINPKG_FORMAT=gpkg`; `PKGDIR=/var/cache/binpkgs` |
-| HTTP service | `/etc/systemd/system/gentoo-binhost.service`, enabled/active; Python 3 HTTP server раздаёт `/var/cache/binpkgs` и слушает `10.1.20.99:8080` |
-| Internal endpoints | `http://10.1.20.99:8080`, `http://gentoo-builder-01.home.9fans.uk:8080` |
-| Canonical endpoint | `https://binhost.apps.home.9fans.uk`; Caddy upstream — `http://gentoo-builder-01.home.9fans.uk:8080` |
-| TLS | Termination на `proxy-01` / Caddy; TLS на builder не поднимается |
-| Signing | Private repo unsigned; `verify-signature = false` — принятое текущее состояние |
+| Создание пакетов | `FEATURES` содержит `buildpkg`; `BINPKG_FORMAT=gpkg`; `PKGDIR=/var/cache/binpkgs` |
+| HTTP-служба | `/etc/systemd/system/gentoo-binhost.service`; Python HTTP server раздаёт `/var/cache/binpkgs` и слушает `10.1.20.99:8080`; служба включена в автозапуск |
+| Внутренние адреса | `http://10.1.20.99:8080`, `http://gentoo-builder-01.home.9fans.uk:8080` |
+| Адрес для клиента | `https://binhost.apps.home.9fans.uk`; Caddy upstream — `http://gentoo-builder-01.home.9fans.uk:8080` |
+| TLS | HTTPS обслуживает Caddy на `proxy-01`; на builder используется HTTP |
+| Подписи пакетов | Репозиторий без подписей; у клиента задано `verify-signature = false` |
 
-На builder успешно собраны GPKG для `app-arch/zstd-1.5.7-r1`,
-`dev-libs/openssl-3.5.8` и `media-libs/mesa-26.2.4`; индекс `Packages` существует.
-С workstation internal `Packages` по IP и FQDN возвращал HTTP 200
-(`SimpleHTTP/0.6 Python/3.14.7`), canonical endpoint — HTTP/2 200
-с `via: 1.0 Caddy`.
+Каталог `/var/cache/binpkgs` содержит пакеты GPKG и индекс `Packages`.
+Portage на ноутбуке использует репозиторий `gentoo-builder`; официальный
+бинарный репозиторий Gentoo отключён, но обычное дерево ebuild Gentoo
+остаётся источником пакетов для сборки.
 
-Workstation использует единственный active remote binrepo `gentoo-builder`;
-official Gentoo binary repo inactive, Gentoo ebuild repository остаётся
-source repository. Private zstd установлен как binary merge без локальной
-компиляции, обычный pretend без `-g` выбирает private binary package.
-Конфигурация и подробности automatic consumption, pretend/fetch/install —
-в [workstation Portage](../asus-b5402/system/boot-and-portage/#private-binrepo-на-workstation).
+`FEATURES=getbinpkg` позволяет обычному `emerge` выбирать совместимые бинарные
+пакеты без дополнительного `-g`. Если подходящего пакета нет, разрешена
+локальная сборка из исходников. Настройка клиента, просмотр плана обновления
+и диагностика скачивания описаны в
+[разделе Portage на ноутбуке](../asus-b5402/system/boot-and-portage/#private-binrepo-на-workstation).
 
-При недоступном binhost и отсутствии cached GPKG Portage после HTTP 502
-действительно перешёл в source build path: проверены manifests и подпись
-source archive, source распакован в `PORTAGE_TMPDIR`. Тест остановлен Ctrl+C
-после доказательства fallback path; **полный source rebuild/merge не подтверждён**.
-Подробности — на странице workstation Portage выше.
+## Порядок обновления
 
-## Routine operation
+Дерево `/var/db/repos/gentoo` синхронизируется через rsync с
+`FEATURES=usersync`. Его владелец — `portage:portage`. Если часть дерева
+принадлежит другому пользователю, rsync может завершаться ошибкой при очистке
+quarantine или применении обновления. Диагностика и исправление — в
+[руководстве по usersync](../../troubleshooting/portage-usersync-repository-ownership/).
 
-Gentoo repository `/var/db/repos/gentoo` синхронизируется через rsync с
-`FEATURES=usersync`; ownership всего дерева должен быть согласован с владельцем
-repository — `portage:portage`. Несогласованный ownership может ломать очистку
-quarantine и финальное применение обновления через rsync. Диагностика и
-исправление — в [usersync troubleshooting](../../troubleshooting/portage-usersync-repository-ownership/).
+Обновление выполняется вручную, сначала на builder:
 
-Обновление выполняется вручную: sync Gentoo repositories / overlays,
-resolve и update `@world` на builder; `buildpkg` создаёт новые GPKG.
-Только после успешного update builder выполняются sync и обычный update
-`@world` на workstation. Подходящие private GPKG используются автоматически,
-остальное собирается локально из source.
+1. Синхронизируй репозиторий Gentoo и нужные overlays.
+2. Просмотри план обновления `@world` и устрани конфликты.
+3. Обнови `@world`. С включённым `FEATURES=buildpkg` Portage создаёт GPKG
+   для собранных пакетов.
+4. После успешного обновления builder синхронизируй репозитории и обнови
+   `@world` на ноутбуке. Подходящие бинарные пакеты будут скачаны автоматически,
+   остальные соберутся из исходников.
 
-Если update builder завершился с ошибкой, routine update workstation
-не продолжается до разбора причины. Scheduled update не используется; exact repository snapshot pinning
-не реализован. Срочное независимое обновление workstation возможно через
-local source build. Подробная operational policy — в
-[workstation Portage](../asus-b5402/system/boot-and-portage/#ручной-update-builder-first--pass--workstation).
+Если сборка на builder завершилась ошибкой, сначала разбери причину и только
+затем продолжай обычное обновление ноутбука. Для срочного независимого
+обновления можно собрать нужный пакет локально. Обновление по расписанию
+не настроено; репозитории синхронизируются без фиксации на общем снимке.
+Команды и настройки клиента — в
+[описании обновления ноутбука](../asus-b5402/system/boot-and-portage/#ручной-update-builder-first--pass--workstation).
 
-## Known limitations
+## Проверка работы
 
-SSH public-key login и key-only access остаются pending verification.
-Успешный обычный SSH login не доказывает key-only configuration.
-
-## Verification
-
-Даты уже выполненных владельцем проверок:
-
-- 2026-10-08 — stage3/no-multilib и отдельные toolchain проверки;
-- 2026-10-09 — repository/package policy, полная пересборка и чистый resolver,
-  installation/first boot/runtime;
-- 2026-10-10 — local GPKG production, binhost и workstation integration,
-  automatic consumption и вход в source fallback path.
-- 2026-10-15 — `usersync` и успешный rsync sync Gentoo repository после
-  восстановления ownership; остальные подсистемы повторно не проверялись.
-
-Ниже — команды для сверки работающего guest. При этой правке документа
-они не запускались на живой VM; даты относятся к ранее выполненным проверкам.
-
-### Profile, ABI и effective flags
+### Профиль и параметры сборки
 
 ```bash
 eselect profile show
@@ -274,11 +257,12 @@ portageq envvar COMMON_FLAGS CFLAGS CXXFLAGS FCFLAGS FFLAGS
 emerge --pretend --verbose --update --deep --newuse --complete-graph @world
 ```
 
-Флаги должны соответствовать Build policy выше; C/C++ и Fortran различаются.
-Записанный итог resolver после полной пересборки — `Total: 0 packages, Size of downloads: 0 KiB`.
-Он сам по себе не подтверждает boot/runtime или binhost.
+Профиль должен быть no-multilib/hardened/systemd, `ABI_X86` — `64`, а флаги —
+соответствовать разделу настроек сборки. У Fortran нет `-flto=thin`.
+План Portage показывает доступные обновления и требуемые изменения USE.
+Если обновлений нет, в итоге будет `Total: 0 packages`.
 
-### Kernel, storage и runtime
+### Загрузка, диски и сеть
 
 ```bash
 uname -r
@@ -289,10 +273,11 @@ resolvectl status ens18
 systemctl is-active systemd-networkd systemd-resolved sshd qemu-guest-agent
 ```
 
-Ожидаются kernel/root/swap из разделов выше, networkd `routable (configured)` /
-`online`, работающие DNS и services. Эти проверки не подтверждают SSH key-only.
+Корень должен быть смонтирован с ext4-раздела, swap — включён.
+Для `ens18` ожидается полученный адрес и состояние `routable (configured)`;
+`resolvectl` показывает DNS-серверы, а службы должны отвечать `active`.
 
-### Binhost
+### Сервер пакетов
 
 На builder:
 
@@ -302,20 +287,22 @@ systemctl is-enabled gentoo-binhost.service
 portageq envvar FEATURES BINPKG_FORMAT PKGDIR
 ```
 
-Ожидаются active/enabled и binpkg policy из таблицы выше. С workstation:
+Для HTTP-службы ожидаются `active` и `enabled`, в `FEATURES` — `buildpkg`,
+формат пакетов — `gpkg`, каталог — `/var/cache/binpkgs`.
+С ноутбука проверь доступность индекса пакетов:
 
 ```bash
 curl -I http://10.1.20.99:8080/Packages
 curl -I https://binhost.apps.home.9fans.uk/Packages
 ```
 
-Ожидается HTTP 200. Проверка binary resolution и поведения Portage на workstation —
-в [private binrepo workflow](../asus-b5402/system/boot-and-portage/#private-binrepo-на-workstation).
+Оба адреса должны вернуть HTTP 200. Выбор бинарного пакета в плане Portage
+проверяется по [инструкции для ноутбука](../asus-b5402/system/boot-and-portage/#private-binrepo-на-workstation).
 
-## Related docs
+## Связанные документы
 
 - [Ручная установка Gentoo](../../installation/gentoo-installation/).
 - [Stage3 → Clang/ThinLTO troubleshooting](../../troubleshooting/gentoo-stage3-clang-thinlto-transition/).
 - [systemd-networkd и machine-id](../../troubleshooting/systemd-networkd-dhcp-machine-id/).
-- [Сравнение `-march=alderlake` и `-march=x86-64-v3`](../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/): в протестированных workload практически значимой регрессии V3 не обнаружено; подробности и ограничения — в отчёте.
-- [Workstation boot/Portage и production workflow](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--production).
+- [Сравнение `-march=alderlake` и `-march=x86-64-v3`](../../experiments/compiler-optimization/alderlake-vs-x86-64-v3/) — почему для общих бинарных пакетов выбран V3.
+- [Загрузка, Portage и обновление ноутбука](../asus-b5402/system/boot-and-portage/#gentoo-binary-build-host--production).

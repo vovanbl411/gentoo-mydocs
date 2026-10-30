@@ -13,14 +13,14 @@ the general instructions.
 
 ## Current state
 
-- Gentoo hardened/systemd (no-multilib); the main toolchain is
-  Clang/LLD 22, globally `-O2` + ThinLTO.
+- Gentoo hardened/systemd (no-multilib); builds use
+  Clang/LLD, globally `-O2` + ThinLTO.
 - Intel Core i7-1260P (Alder Lake, hybrid P/E cores).
 - Intel Iris Xe graphics — the i915 kernel driver, Mesa iris, Vulkan
   ANV.
 - Desktop — Umbriel + Noctalia; Niri remains a fallback; login via
   greetd/tuigreet.
-- Kernel `7.2.9-bdsm` — built with LLVM 23.1.1; boot chain: systemd-boot
+- Kernel — `sys-kernel/gentoo-kernel` with a custom configuration; boot chain: systemd-boot
   → UKI (Dracut) → LUKS2/TPM2 → Btrfs.
 - Storage — Btrfs + Snapper; second NVMe: state verified, the
   backup/data plan not applied (the old Arch/LUKS layout is still
@@ -32,29 +32,29 @@ the general instructions.
 
 ## Desktop
 
-- [Noctalia v5](desktop/noctalia/) — the installed version, the package
-  source and the local keyword policy.
+- [Noctalia](desktop/noctalia/) — shell and notification settings.
 - [Umbriel, Niri, portals and GTK](desktop/environment/) — the recorded state of
   the desktop environment and the polkit agent.
 
 ## Hardware
 
+- [ASUS NumberPad](hardware/numberpad/) — configuring the touchpad numeric keypad.
 - [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — kernel
   drivers, TLP and the battery.
 - [Headset microphone](hardware/headset-microphone/) — ALC294: a local quirk
-  activates the headset mic pin; functional acceptance is deferred until
-  testing with a compatible CTIA TRRS headset/adapter. State as of 2026-10-10.
-- [User-status indicator](hardware/user-status-indicator/) — kernel LED control
-  and the userspace `auto/busy/off` controller with Fn+1 integration are
-  live-verified; firmware evidence and Linux ABI choices are in the
+  enables the microphone input. Testing needs a compatible CTIA TRRS headset
+  or adapter.
+- [User-status indicator](hardware/user-status-indicator/) — controlling the external LED,
+  `auto/busy/off` modes and Fn+1 switching. Firmware behavior and the choice
+  of Linux interface are explained in the
   [research page](../../experiments/asus-user-status-indicator/).
 - [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — compilation
   flags, the scheduler, hardware security.
 - [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.
-- [Second NVMe and backups](hardware/second-disk/) — the disk state was
-  verified on 2026-09-22; the plan has not been applied.
-- [ELAN fingerprint reader](hardware/fingerprint/) — operation and local
-  integrations were verified on 2026-09-27.
+- [Second NVMe and backups](hardware/second-disk/) — a plan for using the disk;
+  inspect its contents before applying any partitioning.
+- [ELAN fingerprint reader](hardware/fingerprint/) — configuring login
+  and authorization prompts.
 
 ## Boot and Portage
 
@@ -83,13 +83,13 @@ the general instructions.
 
 ## General guides
 
-- [Noctalia v5 for Niri](../../desktop/noctalia-shell/)
+- [Installing Umbriel](../../desktop/umbriel/)
+- [Noctalia](../../desktop/noctalia-shell/)
 - [Niri](../../desktop/niri/)
 
-## On completeness of the records
+## Using this section
 
-This section is filled in step by step: a missing entry does not mean
-the component is not installed or configured. A partial cross-check
-against the system was done on 2026-09-22; exact dates live in the
-`last_verified` field of the individual documents. Fill in
-`last_verified` only after a new actual verification.
+General guides explain installation and setup; this section keeps the chosen
+settings for the laptop. Plans such as the second NVMe layout are marked
+separately from applied settings. Before working on disks, check device names
+and contents on your own machine.

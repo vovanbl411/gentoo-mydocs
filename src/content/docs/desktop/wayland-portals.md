@@ -7,64 +7,50 @@ last_verified: "2026-09-23"
 verified_on: [asus-b5402]
 ---
 
-Порталы — прослойка между приложениями и рабочим столом: захват экрана,
-скриншоты, выбор файлов, уведомления, настройки внешнего вида. Главный вопрос
-здесь: какие portal-бэкенды нужны Niri и кто за что отвечает. Эта схема относится к Niri; конфигурация Umbriel описана в [состоянии системы](../../systems/asus-b5402/desktop/environment/).
+Порталы дают приложениям доступ к возможностям рабочего стола: выбору
+файлов, демонстрации экрана, скриншотам и настройкам внешнего вида.
+Приложение обращается к `xdg-desktop-portal`, а тот передаёт запрос
+подходящему обработчику — backend. Backend выбирается для каждого интерфейса.
 
-```text
-xdg-desktop-portal       = frontend, с ним работают приложения
-xdg-desktop-portal-gtk   = common/fallback desktop portals
-xdg-desktop-portal-gnome = Niri screencast path; может обслуживать screenshot
-oo7-portal или gnome-keyring = Secret portal, если он нужен приложениям
-```
+Для Umbriel и Niri нужны разные backend захвата экрана. Выбери раздел
+своего композитора; GTK можно использовать для общих диалогов в обеих сессиях.
 
-Выбранная на эталонной системе ASUS B5402 связка записана в
-[системном разделе](../../systems/asus-b5402/desktop/environment/).
+## Umbriel
 
-## Required components
+Нужны пакеты:
 
-- `sys-apps/xdg-desktop-portal` — frontend: D-Bus-сервис, с которым работают
-  приложения; по конфигурации выбирает бэкенды.
-- `sys-apps/xdg-desktop-portal-gtk` — common/fallback portal backend.
-- `sys-apps/xdg-desktop-portal-gnome` — backend для screencasting: Niri
-  реализует mutter ScreenCast D-Bus API, и этот путь обслуживает
-  GNOME-бэкенд.
-- `oo7-portal` или `gnome-keyring` — Secret portal для приложений, которым он
-  нужен.
+- `sys-apps/xdg-desktop-portal` — принимает запросы приложений;
+- `gui-libs/xdg-desktop-portal-umbriel` — интеграция с композитором Umbriel;
+- `sys-apps/xdg-desktop-portal-gtk` — общие диалоги и запасной обработчик.
 
-`gui-libs/xdg-desktop-portal-wlr` для Niri не нужен: это бэкенд для
-композиторов на wlr-протоколах (wlr-screencopy), а Niri использует
-mutter-совместимый путь через GNOME-бэкенд.
+Портал Umbriel устанавливается вместе с композитором по
+[руководству Umbriel](../umbriel/). Для демонстрации экрана включи
+`screencast` у композитора и `picker` у портала, если нужен графический выбор
+источника захвата.
 
-## Upstream Niri baseline
-
-Кто какой интерфейс обслуживает, задаётся в `portals.conf`. Niri поставляет
-свой baseline `niri-portals.conf`:
+Файл: `~/.config/xdg-desktop-portal/umbriel-portals.conf`
 
 ```ini
 [preferred]
-default=gnome;gtk;
-org.freedesktop.impl.portal.Access=gtk;
-org.freedesktop.impl.portal.Notification=gtk;
-org.freedesktop.impl.portal.Secret=oo7-portal;gnome-keyring;
+default=umbriel;gtk
+org.freedesktop.impl.portal.Secret=gnome-keyring
 ```
 
-Отдельные строки важны: Notification и Secret — самостоятельные portal
-interfaces, а `Settings` отвечает за desktop/UI settings, например цветовую
-схему. `Settings` не маршрутизирует звук и не является Notification portal.
+`default=umbriel;gtk` задаёт порядок выбора: сначала backend Umbriel,
+затем GTK для интерфейсов, которых у первого нет. Строка `Secret` выбирает
+GNOME Keyring для запросов секрета через портал; для неё нужен установленный
+backend `gnome-keyring`.
 
-Если используется upstream baseline с `xdg-desktop-portal-gnome`, для file
-chooser может понадобиться Nautilus. Если не хочется зависеть от GNOME/Nautilus
-file chooser, можно явно направить FileChooser в GTK-бэкенд.
+## Niri
 
-## Local overrides
+Niri предоставляет совместимый с Mutter интерфейс захвата экрана, который
+обслуживает `sys-apps/xdg-desktop-portal-gnome`. Для общих диалогов используется
+`sys-apps/xdg-desktop-portal-gtk`.
 
-Локальная конфигурация может быть проще upstream baseline, если установленный
-набор backend'ов и нужные приложения это покрывают. Имя файла выбирается по
-`XDG_CURRENT_DESKTOP`: для Niri это `niri`, поэтому пользовательский файл
-обычно называется `~/.config/xdg-desktop-portal/niri-portals.conf`.
+`gui-libs/xdg-desktop-portal-wlr` для этой связки не нужен: его протокол
+захвата экрана отличается от используемого Niri.
 
-На ASUS B5402 допустим и сейчас используется такой override:
+Файл: `~/.config/xdg-desktop-portal/niri-portals.conf`
 
 ```ini
 [preferred]
@@ -77,75 +63,85 @@ org.freedesktop.impl.portal.Settings=gtk
 org.freedesktop.impl.portal.Secret=gnome-keyring
 ```
 
-- `default=gtk` — запасной вариант для интерфейсов, не перечисленных выше.
-- `ScreenCast`/`Screenshot` идут через GNOME-бэкенд.
-- `Settings` — портал настроек рабочего стола (тёмная тема, цветовая схема
-  и т.п.), который приложения читают; он не является маршрутизатором звука
-  или уведомлений.
-- `FileChooser=gtk` особенно уместен, если пользователь не хочет зависеть от
-  GNOME/Nautilus file chooser.
-- На ASUS B5402 уже используется `gnome-keyring` как Secret portal backend.
-  `oo7-portal` — современная альтернатива; одновременно мигрировать эту машину
-  на него в рамках текущего audit не требуется.
-- Portal-уведомления используют `org.freedesktop.portal.Notification`
-  и backend interface `org.freedesktop.impl.portal.Notification`. Выбор
-  Notification backend не определяет владельца обычного сервиса
-  `org.freedesktop.Notifications`; этот путь описан в
-  [руководстве по уведомлениям](../notifications/).
+Здесь GNOME отвечает за захват экрана и скриншоты, GTK — за выбор файлов,
+приложений и настройки внешнего вида, GNOME Keyring — за Secret portal.
 
-## Session integration
+В поставляемой Niri конфигурации порядок по умолчанию — `gnome;gtk`.
+Явный `FileChooser=gtk` позволяет использовать GTK-диалог без зависимости
+от GNOME/Nautilus file chooser. Для Secret portal Niri также допускает
+`oo7-portal`; переходить на него ради остальных порталов не требуется.
 
-При запуске через [`niri-session`](../niri/) вручную ничего делать не нужно:
-session environment (`WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP` и остальные)
-уже импортирован в systemd user manager и D-Bus activation environment, и
-порталы, запущенные systemd/D-Bus, видят сессию.
+## Как выбирается конфигурация
 
-Ручной `dbus-update-activation-environment` — не часть нормального пути
-запуска через `niri-session`; он нужен только при нестандартном способе
-запуска (см. Troubleshooting).
+Имя файла зависит от `XDG_CURRENT_DESKTOP`: для `umbriel` выбирается
+`umbriel-portals.conf`, для `niri` — `niri-portals.conf`. Оба файла можно
+сохранить, если используешь обе сессии.
 
-## Verification
+Запускай Niri через `niri-session`, а Umbriel — через его обычный запуск
+из greetd. Приложения и пользовательские службы должны получать окружение
+текущей сессии, включая `WAYLAND_DISPLAY` и `XDG_CURRENT_DESKTOP`.
 
-Проверки read-only, сервисы перезапускать не нужно.
+После изменения `portals.conf` выйди из рабочего стола и войди снова.
+Это позволяет запустить порталы с новой конфигурацией и окружением.
+
+## Проверка
+
+В терминале внутри нужной сессии:
 
 ```bash
-# Сессия представилась как niri — по этому имени выбран niri-portals.conf
 echo "$XDG_CURRENT_DESKTOP"
-
-# Frontend и бэкенды запущены как user-сервисы
 systemctl --user status xdg-desktop-portal.service \
-                      xdg-desktop-portal-gtk.service \
-                      xdg-desktop-portal-gnome.service
+                       xdg-desktop-portal-gtk.service
 ```
 
-Практическая проверка screencast: открыть выбор источника захвата в браузере
-или OBS — в списке должны быть отдельные окна Niri.
+Имя рабочего стола должно соответствовать выбранному файлу. После открытия
+диалога приложения frontend и используемые backend должны запускаться без ошибок.
+Сервисы могут активироваться по запросу, поэтому сначала вызови нужный диалог.
 
-## Troubleshooting
+Для Umbriel проверь его backend:
 
-- Порталы не видят сессию (пустой список экранов, порталы падают) при
-  нестандартном запуске Niri без `niri-session` (например, голый `niri` из
-  tty): импортируйте окружение вручную и перезапустите frontend:
+```bash
+systemctl --user status xdg-desktop-portal-umbriel.service
+```
 
-  ```bash
-  dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
-  systemctl --user restart xdg-desktop-portal.service
-  ```
+Для Niri проверь GNOME backend:
 
-- Изменённый `niri-portals.conf` применяется после перезапуска порталов или
-  перелогина.
+```bash
+systemctl --user status xdg-desktop-portal-gnome.service
+```
 
-## Related docs
+Затем открой выбор файла и попробуй поделиться экраном из браузера или OBS.
+Убедись, что выбранный экран или окно действительно видны получателю.
 
-- [Niri](../niri/) — запуск сессии.
+## Если диалог пустой или демонстрация экрана не работает
+
+Сначала сравни окружение терминала с окружением пользовательских служб:
+
+```bash
+systemctl --user show-environment
+journalctl --user -b -u xdg-desktop-portal.service
+```
+
+Если службы получили окружение другой сессии или не получили его вообще,
+проверь способ запуска композитора. Для нестандартного ручного запуска
+можно передать текущие значения и перезапустить frontend:
+
+```bash
+dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+systemctl --user restart xdg-desktop-portal.service
+```
+
+Перезапуск прерывает активные обращения к порталу; сначала заверши
+демонстрацию экрана. При обычном входе это не должно быть ежедневным шагом.
+
+`Settings` в portal-конфигурации отвечает за внешний вид, например тёмную
+тему. Он не управляет звуком. Выбор Notification backend также не выбирает
+обычный обработчик уведомлений — см. [уведомления](../notifications/).
+
+## Связанные материалы
+
+- [Umbriel](../umbriel/)
+- [Niri](../niri/)
 - [Рабочее окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/)
-  — фактическое состояние.
-
-## References
-
-- [Niri: `resources/niri-portals.conf`](https://github.com/niri-wm/niri/blob/main/resources/niri-portals.conf) —
-  upstream routing baseline.
-- [Niri: Important Software](https://github.com/niri-wm/niri/blob/main/docs/wiki/Important-Software.md) —
-  нужные portal backends и примечание про `FileChooser=gtk`.
-- [XDG Desktop Portal: `portals.conf`](https://flatpak.github.io/xdg-desktop-portal/docs/portals.conf.html) —
-  выбор backend для отдельных portal interfaces.
+- [portals.conf](https://flatpak.github.io/xdg-desktop-portal/docs/portals.conf.html)
+- [Конфигурация порталов Niri](https://github.com/niri-wm/niri/blob/main/resources/niri-portals.conf)

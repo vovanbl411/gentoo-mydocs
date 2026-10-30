@@ -1,5 +1,5 @@
 ---
-title: Noctalia v5 для Niri
+title: Noctalia — оболочка рабочего стола
 kind: guide
 scope: general
 status: current
@@ -7,111 +7,115 @@ last_verified: "2026-09-15"
 verified_on: [asus-b5402]
 ---
 
-Noctalia — нативная Wayland-оболочка для Niri и Umbriel: панель и dock, launcher,
-Control Center, уведомления, обои, экран блокировки, OSD и clipboard history.
-Серия v5 больше не использует Quickshell/QML: конфигурация хранится в TOML,
-а IPC вызывается через `noctalia msg`.
+Noctalia добавляет к Umbriel или Niri панель, dock, меню приложений,
+уведомления, обои, экран блокировки и историю буфера обмена. Настройки
+хранятся в TOML, а управление из командной строки доступно через `noctalia msg`.
+Эта инструкция относится к реализации с TOML; старые инструкции для
+Quickshell/QML к ней не подходят.
 
-```text
-Noctalia       = Wayland shell
-Package source = выбранный Gentoo-репозиторий
-Config         = ~/.config/noctalia/*.toml
-GUI overrides  = ~/.local/state/noctalia/settings.toml
-```
+## Установка
 
-Проверенная конфигурация эталонной системы ASUS B5402 описана отдельно в
-[системном журнале](../../systems/asus-b5402/desktop/noctalia/).
+Пакет `gui-apps/noctalia` доступен в дополнительных репозиториях Gentoo.
+На ASUS B5402 используется
+[noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay).
+Подключение репозитория описано в его README.
 
-Noctalia может обслуживать стандартный D-Bus service
-`org.freedesktop.Notifications`. Клиентские библиотеки, проверка доставки и
-интеграция с Portage описаны в [руководстве по уведомлениям](../notifications/).
-
-## Package source
-
-Noctalia распространяется через дополнительные репозитории Gentoo. Репозиторий
-может быть любым — workflow один и тот же:
-
-```text
-choose repository → sync it → inspect emerge plan → install/update Noctalia
-```
-
-1. Выбери репозиторий с ebuild'ом `gui-apps/noctalia` (например, GURU или
-   сторонний overlay) и подключи его через `/etc/portage/repos.conf/`.
-2. Синхронизируй:
-
-   ```bash
-   doas emaint sync -r <имя-репозитория>
-   ```
-
-3. Посмотри план Portage до установки:
-
-   ```bash
-   emerge --pretend --verbose gui-apps/noctalia
-   ```
-
-4. Установи или обнови пакет:
-
-   ```bash
-   doas emerge --ask --verbose --update --oneshot gui-apps/noctalia
-   ```
-
-`<имя-репозитория>` — имя из соответствующего файла в
-`/etc/portage/repos.conf/`.
-
-Если Portage сообщает, что пакет или его зависимость замаскированы по
-keyword, добавь только запрошенные правила в отдельный файл внутри
-`/etc/portage/package.accept_keywords/`. Не копируй список с другой системы
-без проверки текущего плана Portage.
-
-Для эталонной ASUS B5402 подготовлен публичный
-[noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay) —
-проверенный пример такого репозитория. Его подключение и сопровождение
-описаны в README оверлея, фактическое состояние машины — в
-[системной записи](../../systems/asus-b5402/desktop/noctalia/).
-
-## Configuration model
-
-Конфигурация двухслойная:
-
-1. Hand-written TOML в `~/.config/noctalia/`. Все `*.toml` в этом каталоге
-   объединяются; `config.toml` подходит для базовой конфигурации, которую
-   нужно хранить явно.
-2. GUI-managed overrides в `~/.local/state/noctalia/settings.toml`. Файл
-   загружается позже и перекрывает значения из hand-written TOML.
-
-Если значение из `config.toml` не применяется — сначала проверь
-`settings.toml`: скорее всего, его перекрывает GUI-настройка.
-
-## Updating
-
-Пользовательская TOML-конфигурация живёт в `$HOME` и при обновлении пакета не
-затрагивается. Обновление — это те же шаги 2 и 4 из Package source:
+После подключения синхронизируй оверлей и посмотри план установки:
 
 ```bash
-doas emaint sync -r <имя-репозитория>
-doas emerge --ask --verbose --update --oneshot gui-apps/noctalia
+doas emaint sync -r noctalia-overlay
+emerge --pretend --verbose gui-apps/noctalia
 ```
 
-## Verification
+Если используешь другой репозиторий, подставь его имя в команду sync.
+Keyword-правила для пакета и зависимостей добавляй по сообщению Portage
+в `/etc/portage/package.accept_keywords/`.
+
+После просмотра плана:
+
+```bash
+doas emerge --ask --verbose gui-apps/noctalia
+```
+
+## Запуск вместе с рабочим столом
+
+В Umbriel добавь Noctalia в существующую секцию `[general]` конфигурации:
+
+```toml
+[general]
+autostart = ["noctalia"]
+```
+
+Сохрани остальные элементы массива, если они есть. Пример разделённой
+конфигурации — в [руководстве Umbriel](../umbriel/#конфигурация-и-noctalia).
+
+В Niri используй автозапуск конфигурации KDL:
+
+```kdl
+spawn-at-startup "noctalia"
+```
+
+Выбери один способ запуска в каждой сессии. Если Noctalia уже запускается
+пользовательским сервисом или через XDG-autostart, второй запуск из
+конфигурации композитора не нужен.
+
+## Где хранятся настройки
+
+Noctalia читает два слоя конфигурации:
+
+| Где | Для чего |
+|-----|----------|
+| `~/.config/noctalia/*.toml` | Настройки, которые ты редактируешь вручную; их можно хранить в dotfiles |
+| `~/.local/state/noctalia/settings.toml` | Изменения, сделанные через интерфейс Noctalia |
+
+Все TOML-файлы в `~/.config/noctalia/` объединяются. Для начала достаточно
+`config.toml`; затем настройки можно разделить на несколько файлов.
+
+Файл `settings.toml` загружается позже и перекрывает ручные настройки.
+Если изменение в `config.toml` не действует, проверь соответствующее
+значение в `settings.toml`. Не удаляй весь файл ради одного параметра:
+в нём могут быть другие нужные настройки.
+
+Перед серьёзной правкой сохрани копии конфигурации и файла состояния.
+Для возврата восстанови оба: старый `config.toml` не поможет, если параметр
+по-прежнему перекрывается более поздней настройкой.
+
+## Проверка
+
+```bash
+noctalia config validate
+```
+
+Команда проверяет TOML. Исправь указанные ошибки в файлах перед следующим
+входом в рабочий стол. Работу панели и горячих клавиш проверь в самой сессии.
+
+Чтобы посмотреть установленную версию и источник пакета:
 
 ```bash
 noctalia --version
 cat /var/db/pkg/gui-apps/noctalia-*/repository
-noctalia config validate
 ```
 
-Первая команда выводит установленную версию, вторая — имя репозитория, из
-которого Portage установил пакет. `noctalia config validate` проверяет
-TOML-конфигурацию: выводит предупреждения по файлам и итоговую строку
-валидации (подтверждено на noctalia 5.1.0).
+Noctalia также показывает системные уведомления. Установка libnotify,
+интеграция с Portage и пробное сообщение описаны в
+[руководстве по уведомлениям](../notifications/).
 
-## Related docs
+## Обновление
 
-- [Noctalia v5 на ASUS B5402](../../systems/asus-b5402/desktop/noctalia/) —
-  фактическое состояние эталонной системы.
-- [Niri](../niri/) — композитор, вокруг которого построена оболочка.
-- [Официальный релиз Noctalia v5.1.0](https://github.com/noctalia-dev/noctalia/releases/tag/v5.1.0)
-- [Noctalia v5: установка для Gentoo](https://docs.noctalia.dev/noctalia/getting-started/installation/)
-- [Noctalia v5: модель конфигурации и проверка TOML](https://docs.noctalia.dev/noctalia/configuration/)
-- [Noctalia v5: palettes и перенос цветовой схемы v4](https://docs.noctalia.dev/noctalia/theming/palette/)
-- [Noctalia v5: исходный код](https://github.com/noctalia-dev/noctalia)
+```bash
+doas emaint sync -r noctalia-overlay
+emerge --pretend --verbose --update gui-apps/noctalia
+doas emerge --ask --verbose --update --oneshot gui-apps/noctalia
+```
+
+Сначала прочитай план, затем подтверди установку. Portage обновляет пакет,
+а пользовательские TOML-файлы остаются в домашнем каталоге.
+Порядок подготовки новых релизов сопровождается в README оверлея.
+
+## Связанные материалы
+
+- [Umbriel](../umbriel/) — запуск композитора и оболочки.
+- [Niri](../niri/) — запасная сессия и её автозапуск.
+- [Noctalia на ASUS B5402](../../systems/asus-b5402/desktop/noctalia/)
+- [Документация Noctalia](https://docs.noctalia.dev/noctalia/configuration/)
+- [Перенос палитры из старой реализации](https://docs.noctalia.dev/noctalia/theming/palette/)
