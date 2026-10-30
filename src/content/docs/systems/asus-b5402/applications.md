@@ -9,6 +9,10 @@ verified_on: [asus-b5402]
 
 ## Current state
 
+- Zed — редактор кода, пакет `app-editors/zed` из [zed-overlay](https://github.com/vovanbl411/zed-overlay).
+- spotatui — терминальный клиент Spotify, пакет `media-sound/spotatui` из
+  [spotatui-overlay](https://github.com/vovanbl411/spotatui-overlay). Включены
+  USE `cover`, `mpris`, `visualizer`, `local-files` и `youtube`.
 - Firefox — native Gentoo: сборка под Wayland (LLVM 22, PGO, аппаратное
   ускорение), профиль обслуживает profile-sync-daemon.
 - Steam и GUI-приложения — Flatpak (remote — flathub);
@@ -73,6 +77,8 @@ verified_on: [asus-b5402]
   upper-слой в `/run/user/1000/psd/` — ~168 MiB.
 
 ## Границы проверки
+
+Источники пакетов и включённые USE-флаги Zed и spotatui проверены 2026-10-30.
 
 Firefox, OBS, Perplexity и r2modman проверены 2026-09-22; даты backup, sync,
 Thunderbird и Flatpak указаны выше. 2026-10-18 проверялись ChatGPT Desktop и

@@ -8,7 +8,7 @@ verified_on: []
 ---
 
 Practical documentation on setting up and running Gentoo Linux: systemd
-and the hardened profile, an LLVM toolchain, Pure Wayland on Niri,
+and the hardened profile, an LLVM toolchain, Pure Wayland on Umbriel (Niri as a fallback),
 systemd-boot + UKI, Btrfs + Snapper, Secure Boot and TPM 2.0. The
 examples are based on a real reference system, an ASUS ExpertBook B5402.
 

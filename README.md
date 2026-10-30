@@ -9,7 +9,7 @@ verified_on: []
 # Gentoo Linux Documentation
 
 Практические руководства по Gentoo Linux: hardened-профиль с systemd, LLVM
-toolchain, Pure Wayland на Niri и Noctalia, systemd-boot и UKI через Dracut,
+toolchain, Pure Wayland на Umbriel и Noctalia (Niri — fallback), systemd-boot и UKI через Dracut,
 Btrfs и Snapper, Secure Boot, TPM 2.0 и LUKS2. Отдельные материалы посвящены
 сканеру отпечатков ELAN и KeePassXC: резервным копиям и синхронизации
 live-базы с Android через Syncthing и KeePassDX.
@@ -39,7 +39,7 @@ live-базы с Android через Syncthing и KeePassDX.
 ### Рабочий стол
 
 - [Niri](src/content/docs/desktop/niri.md) — Wayland-композитор.
-- [Noctalia Shell](src/content/docs/desktop/noctalia-shell.md) — оболочка для Niri.
+- [Noctalia Shell](src/content/docs/desktop/noctalia-shell.md) — оболочка для Umbriel и Niri.
 - [Уведомления](src/content/docs/desktop/notifications.md) — Freedesktop/Noctalia/libnotify stack.
 - [Wayland portals](src/content/docs/desktop/wayland-portals.md) — скринкастинг и системные диалоги.
 - [Приложения по умолчанию](src/content/docs/desktop/default-applications.md) — MIME-типы и URI-схемы.

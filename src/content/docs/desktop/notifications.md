@@ -12,9 +12,8 @@ verified_on: [asus-b5402]
 выполняются от обычного пользователя в активной desktop-сессии; нужны
 `gdbus` и, для теста libnotify, `notify-send`.
 
-Дата 2026-10-07 относится к явно обозначенным ниже результатам ASUS B5402,
-предоставленным пользователем. Финальная проверка Portage migration пока
-не подтверждена.
+На ASUS B5402 уведомления показывает Noctalia. Проверка их доставки в Niri
+описана ниже; работу в Umbriel отдельно не проверяли.
 
 ## 1. Desktop notification stack
 
@@ -85,9 +84,19 @@ notification path. Ebuild предлагает его как optional feature, �
 Это пример работающего стека, а не требование использовать Noctalia на всех
 системах. Подробности машины — в [системной записи Noctalia](../../systems/asus-b5402/desktop/noctalia/).
 
-## 6. Portage integration
+## 6. Интеграция с Portage
 
-Package dependency chain для интеграции с Noctalia:
+Приложения могут отправлять уведомления через библиотеку `x11-libs/libnotify`;
+Noctalia показывает их на рабочем столе. Чтобы Portage учитывал Noctalia как
+программу для показа уведомлений, в noctalia-overlay добавлен виртуальный пакет
+`virtual/notification-daemon`.
+
+Виртуальный пакет сам ничего не запускает: он описывает зависимость от
+программы, которая выполняет нужную функцию. При `-gnome -kde` пакет из
+noctalia-overlay включает Noctalia в список допустимых обработчиков. Это
+позволяет удовлетворить зависимость с помощью Noctalia без дополнительного
+обработчика и его зависимостей X11. Подробности подключения — в
+[README noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay/blob/main/README.md).
 
 ```text
 x11-libs/libnotify
@@ -97,27 +106,10 @@ virtual/notification-daemon
 gui-apps/noctalia
 ```
 
-По проверке 2026-10-07 libnotify имеет
-`PDEPEND="virtual/notification-daemon"`, но `virtual/notification-daemon-0::gentoo`
-не распознаёт Noctalia как provider. Resolver пытался добавить
-`x11-misc/notification-daemon`, `libXcursor`, `gtk+[X]` и `cairo[X]` —
-неподходящий fallback для принятой pure-Wayland конфигурации.
-
-В noctalia-overlay подготовлен `virtual/notification-daemon-0-r1`: он
-сохраняет upstream semantics и добавляет `gui-apps/noctalia` в fallback
-provider OR-group при `-gnome -kde`. Реализация и порядок подключения
-сопровождаются в [README noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay/blob/main/README.md).
-
-**Pending migration:** финальный live resolver PASS после удаления temporary
-`package.provided` не предоставлен. Local virtual пока не записан как принятая
-интеграция эталонной машины. Временная запись в
-`/etc/portage/profile/package.provided` — диагностический workaround,
-который подменяет удовлетворение dependency; это не рекомендуемое конечное
-состояние. После перехода на local virtual она не должна использоваться.
-
-На reference workstation `x11-libs/libnotify` установлен как explicit world
-package: текущий Thunderbird ebuild не имеет обязательного `RDEPEND` на него,
-а лишь сообщает `optfeature "desktop notifications" x11-libs/libnotify`.
+На ASUS B5402 виртуальный пакет из noctalia-overlay установлен; файла
+`/etc/portage/profile/package.provided` нет. Библиотека libnotify также
+установлена явно: ebuild Thunderbird предлагает её как необязательную
+возможность и сам не требует её установки.
 
 ## 7. Verification
 
@@ -131,8 +123,9 @@ gdbus call \
   --method org.freedesktop.Notifications.GetServerInformation
 ```
 
-На проверенной ASUS B5402 ожидается tuple из раздела 5. На другой системе имя
-и версия могут отличаться. Затем проверь клиентский путь libnotify:
+Ответ содержит имя, разработчика, версию сервера и версию спецификации. Если
+уведомления показывает Noctalia, имя сервера — `noctalia`. Результат проверки
+ASUS B5402 в Niri приведён в разделе 5; версия может отличаться. Затем проверь клиентский путь libnotify:
 
 ```bash
 notify-send "Notification test" "libnotify → desktop daemon"
@@ -141,6 +134,9 @@ notify-send "Notification test" "libnotify → desktop daemon"
 При выключенном DND должно появиться визуальное уведомление. Этот тест
 не проверяет policy уведомлений почтовых аккаунтов.
 
+Установка виртуального пакета и отсутствие указанного файла подтверждены
+2026-10-30; новый план зависимостей Portage после перехода не проверен.
+
 План Portage, без установки пакетов:
 
 ```bash
@@ -148,11 +144,9 @@ emerge -pv virtual/notification-daemon
 emerge -pv --tree x11-libs/libnotify
 ```
 
-Для принятия local virtual нужны оба resolver output после удаления временной
-записи и подтверждение, что `/etc/portage/profile/package.provided` больше
-не используется:
+В плане проверь следующее:
 
-- Выбран `virtual/notification-daemon-0-r1::noctalia-overlay`.
+- Выбран `virtual/notification-daemon::noctalia-overlay`.
 - Установленная `gui-apps/noctalia` удовлетворяет provider dependency.
 - Не требуются `x11-misc/notification-daemon` и `libXcursor`.
 - Нет требований включить `USE=X` для `gtk+` или `cairo`.

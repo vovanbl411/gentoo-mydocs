@@ -31,7 +31,7 @@
 Это контекст для навигации, а не актуальный аудит. Перед изменением
 пользовательской документации факты нужно подтвердить заново.
 
-- **Pure Wayland** — Niri, без X11.
+- **Pure Wayland** — Umbriel, Niri сохранён как fallback.
 - **LLVM/LTO** — Clang 22 (основной), глобально `-O2` + Thin LTO. Установлены слоты 22 (основной) и 23 (им намеренно собирается ядро, env `kernel-llvm`); слоты 21/24 удалены. BOLT отключён; возврат возможен только как отдельный controlled experiment с новым профилированием.
 - **Hardened/systemd** — профиль `default/linux/amd64/23.0/no-multilib/hardened/systemd`.
 - **Безопасность** — Secure Boot + TPM 2.0 + LUKS2 + AppArmor + Auditd + USBGuard + doas.

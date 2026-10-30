@@ -7,13 +7,13 @@ last_verified: "2026-09-15"
 verified_on: [asus-b5402]
 ---
 
-Noctalia — нативная Wayland-оболочка вокруг Niri: панель и dock, launcher,
+Noctalia — нативная Wayland-оболочка для Niri и Umbriel: панель и dock, launcher,
 Control Center, уведомления, обои, экран блокировки, OSD и clipboard history.
 Серия v5 больше не использует Quickshell/QML: конфигурация хранится в TOML,
 а IPC вызывается через `noctalia msg`.
 
 ```text
-Noctalia       = shell for Niri
+Noctalia       = Wayland shell
 Package source = выбранный Gentoo-репозиторий
 Config         = ~/.config/noctalia/*.toml
 GUI overrides  = ~/.local/state/noctalia/settings.toml

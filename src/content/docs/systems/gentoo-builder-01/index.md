@@ -132,14 +132,14 @@ PYTHON_TARGETS="python3_14"
 
 ## Repositories и совместимость package policy
 
-Portage использует и успешно синхронизирует `gentoo`, `guru`, `gentoo-zh`,
+По проверке builder 2026-10-10 Portage использовал и успешно синхронизировал `gentoo`, `guru`, `gentoo-zh`,
 `noctalia-overlay` и `zed-overlay`. Четыре overlay — git repositories;
 для них установлен `dev-vcs/git`.
 
-С workstation согласованы global target USE policy, `VIDEO_CARDS`,
+На дату проверки с workstation были согласованы global target USE policy, `VIDEO_CARDS`,
 `INPUT_DEVICES`, relevant `/etc/portage/package.use`,
 `/etc/portage/package.accept_keywords`, Waydroid mask, license policy,
-repositories и userspace package policy. `@world` workstation не копировался.
+repositories и userspace package policy. `@world` workstation не копировался. Новые workstation overlays на builder повторно не проверялись.
 
 Intentional GCC/BFD fallback для `sys-devel/binutils` и `x11-libs/pango`
 сохранён как текущая package/toolchain policy. Builder variant использует

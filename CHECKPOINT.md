@@ -48,8 +48,8 @@
   Проверка отложена до совместимой CTIA TRRS-гарнитуры/адаптера; причина
   отсутствия сигнала не установлена. Quirk B5402 пока локальный.
   [Конфигурация и проверка](src/content/docs/systems/asus-b5402/hardware/headset-microphone.md).
-- **Desktop**: pure Wayland, Niri + Noctalia, PipeWire;
-  вход через greetd/tuigreet, polkit-агент один.
+- **Desktop**: Umbriel + Noctalia, Niri — fallback; вход через greetd/tuigreet.
+  PipeWire и один polkit-агент подтверждены ранее в сессии Niri.
   [Рабочее окружение](src/content/docs/systems/asus-b5402/desktop/environment.md).
 - **Memory**: zram `RAM/2`, `zstd`, priority `100`;
   `vm.swappiness=100`, zswap отключён.

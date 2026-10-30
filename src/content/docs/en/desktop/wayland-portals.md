@@ -10,7 +10,7 @@ verified_on: [asus-b5402]
 Portals are a layer between applications and the desktop: screen capture,
 screenshots, the file chooser, notifications, appearance settings. The main
 question here is which portal backends Niri needs and who is responsible
-for what.
+for what. This setup is specific to Niri; the Umbriel configuration is recorded in [the system section](../../systems/asus-b5402/desktop/environment/).
 
 ```text
 xdg-desktop-portal       = frontend applications talk to

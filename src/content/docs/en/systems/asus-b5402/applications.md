@@ -9,6 +9,10 @@ verified_on: [asus-b5402]
 
 ## Current state
 
+- Zed is a code editor, installed as `app-editors/zed` from [zed-overlay](https://github.com/vovanbl411/zed-overlay).
+- spotatui is a terminal Spotify client, installed as `media-sound/spotatui`
+  from [spotatui-overlay](https://github.com/vovanbl411/spotatui-overlay). USE
+  flags `cover`, `mpris`, `visualizer`, `local-files` and `youtube` are enabled.
 - Firefox — native Gentoo: built for Wayland (LLVM 22, PGO, hardware
   acceleration); the profile is managed by profile-sync-daemon.
 - Steam and GUI applications — Flatpak (remote — flathub);
@@ -74,6 +78,8 @@ are described in the [Flatpak guide](../../../settings/flatpak/).
   ~653 MiB, and the upper layer in `/run/user/1000/psd/` is ~168 MiB.
 
 ## Verification boundaries
+
+Zed and spotatui package sources and enabled USE flags were checked on 2026-10-30.
 
 Firefox, OBS, Perplexity and r2modman were checked on 2026-09-22; the dates
 for backup, sync, Thunderbird and Flatpak are recorded above. ChatGPT Desktop

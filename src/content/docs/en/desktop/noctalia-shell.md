@@ -7,13 +7,13 @@ last_verified: "2026-09-15"
 verified_on: [asus-b5402]
 ---
 
-Noctalia is a native Wayland shell built around Niri: a panel and dock,
+Noctalia is a native Wayland shell for Niri and Umbriel: a panel and dock,
 launcher, Control Center, notifications, wallpapers, lock screen, OSD and
 clipboard history. The v5 series no longer uses Quickshell/QML: the
 configuration lives in TOML, and IPC is invoked via `noctalia msg`.
 
 ```text
-Noctalia       = shell for Niri
+Noctalia       = Wayland shell
 Package source = the chosen Gentoo repository
 Config         = ~/.config/noctalia/*.toml
 GUI overrides  = ~/.local/state/noctalia/settings.toml

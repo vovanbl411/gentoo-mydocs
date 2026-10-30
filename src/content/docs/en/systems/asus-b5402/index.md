@@ -18,7 +18,7 @@ the general instructions.
 - Intel Core i7-1260P (Alder Lake, hybrid P/E cores).
 - Intel Iris Xe graphics — the i915 kernel driver, Mesa iris, Vulkan
   ANV.
-- Desktop — Niri (pure Wayland) + Noctalia v5; login via
+- Desktop — Umbriel + Noctalia; Niri remains a fallback; login via
   greetd/tuigreet.
 - Kernel `7.2.9-bdsm` — built with LLVM 23.1.1; boot chain: systemd-boot
   → UKI (Dracut) → LUKS2/TPM2 → Btrfs.
@@ -34,7 +34,7 @@ the general instructions.
 
 - [Noctalia v5](desktop/noctalia/) — the installed version, the package
   source and the local keyword policy.
-- [Niri, portals and GTK](desktop/environment/) — the recorded state of
+- [Umbriel, Niri, portals and GTK](desktop/environment/) — the recorded state of
   the desktop environment and the polkit agent.
 
 ## Hardware

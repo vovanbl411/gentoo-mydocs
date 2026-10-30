@@ -13,36 +13,21 @@ verified_on: [asus-b5402]
 
 ## Current state
 
-- Работающая Noctalia сообщает версию `5.2.1` (2026-10-07).
-- `GetServerInformation` возвращает `noctalia / noctalia-dev / 5.2.1 / 1.2`:
-  Noctalia владеет `org.freedesktop.Notifications`.
-- DND выключен; внешнее D-Bus уведомление отображается — PASS.
-- Переход на `virtual/notification-daemon-0-r1::noctalia-overlay` — pending
-  migration: финальный resolver PASS без temporary `package.provided`
-  не предоставлен. Критерии — в [notification guide](../../../../desktop/notifications/).
+Noctalia — оболочка рабочего стола и обработчик уведомлений. Приложения могут
+отправлять ей уведомления через библиотеку `x11-libs/libnotify`.
+`gui-apps/noctalia` установлен из [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay)
+с USE `jemalloc`.
 
-Следующие сведения сохраняют прежние даты проверки; 2026-10-07 они повторно
-не проверялись:
-
-- USE включает `jemalloc` — осознанная runtime memory-allocation policy для
-  long-running shell.
-- Файл `~/.config/noctalia/config.toml` существует.
-- Файл `~/.local/state/noctalia/settings.toml` существует.
-- Содержимое обоих TOML-файлов в этом audit не проверялось.
+Установленный виртуальный пакет `virtual/notification-daemon::noctalia-overlay`
+сообщает Portage, что Noctalia может выполнять роль обработчика уведомлений;
+сам виртуальный пакет ничего не запускает. Подробности и проверка доставки —
+в [руководстве по уведомлениям](../../../../desktop/notifications/).
 
 ## Package source
 
 Публичный [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay)
 подключён к Portage. Структура, подключение и политика обновлений описаны в
 README `noctalia-overlay`. Оверлей отслеживает только стабильные релизы.
-Release automation проверяет новый релиз, готовит candidate ebuild и Manifest,
-обновляет rotation версий и открывает Draft PR. Merge выполняется вручную
-после review и runtime validation; автоматической установки пакета на
-workstation нет.
-
-Проверка 2026-09-30 подтверждала пакет 5.2.0 из `noctalia-overlay` и
-`USE=jemalloc`; 2026-10-07 подтверждена версия работающего сервиса 5.2.1,
-без новой сверки package metadata.
 
 ## Configuration
 
@@ -53,7 +38,7 @@ workstation нет.
 
 ## Keyword-политика
 
-Файл: `/etc/portage/package.accept_keywords/noctalia`
+Исторический файл на дату прежней проверки: `/etc/portage/package.accept_keywords/noctalia`
 
 ```text
 gui-apps/noctalia                ~amd64
@@ -70,7 +55,9 @@ noctalia --version
 cat /var/db/pkg/gui-apps/noctalia-*/repository
 ```
 
-Версия сервиса проверяется в текущей desktop-сессии:
+Первая команда показывает версию Noctalia, вторая — репозиторий установленного
+пакета (`noctalia-overlay`). Чтобы узнать, кто показывает уведомления в
+текущей сессии, вызови:
 
 ```bash
 gdbus call \
@@ -80,7 +67,8 @@ gdbus call \
   --method org.freedesktop.Notifications.GetServerInformation
 ```
 
-Подтверждённый результат 2026-10-07:
+Если уведомления показывает Noctalia, в ответе имя сервера — `noctalia`.
+Результат проверки в Niri:
 
 ```text
 ('noctalia', 'noctalia-dev', '5.2.1', '1.2')
@@ -91,6 +79,10 @@ gdbus call \
 наличие `config.toml` и `settings.toml`.
 
 ## History
+
+Проверка 2026-09-30 подтверждала пакет 5.2.0 из `noctalia-overlay` и
+`USE=jemalloc`; 2026-10-07 подтверждена версия работающего сервиса 5.2.1,
+без новой сверки package metadata.
 
 Версия `5.0.1` заменила Noctalia Shell `4.7.7`. После перехода на пакет из
 GURU прежний локальный overlay `/var/db/repos/noctalia-local` и его запись в

@@ -8,7 +8,7 @@ verified_on: []
 ---
 
 Практическая документация по настройке и эксплуатации Gentoo Linux:
-systemd и hardened-профиль, LLVM toolchain, Pure Wayland на Niri,
+systemd и hardened-профиль, LLVM toolchain, Pure Wayland на Umbriel (Niri — fallback),
 systemd-boot + UKI, Btrfs + Snapper, Secure Boot и TPM 2.0. Примеры
 основаны на эталонной системе ASUS ExpertBook B5402.
 
