@@ -2,84 +2,72 @@
 title: Сеть ASUS ExpertBook B5402
 kind: system
 scope: system
-status: draft
-last_verified: "2026-09-22"
+status: current
+last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
 
 ## Current state
 
-- Wi-Fi: NetworkManager + iwd, адаптер Intel AX201 — работает штатно.
-- Firewall: nftables.
-- Docker: 29.8.1, storage driver `overlay2` (iptables-nft).
-- Libvirt: 12.6.0, запускается по требованию.
-- Mesh VPN: NetBird активен, интерфейс `wt0`.
-- Tailscale: установлен, `tailscaled` неактивен.
+- **Wi-Fi:** NetworkManager + iwd, Intel AX201 (`wlan0`); подключение
+  управляется NetworkManager.
+- **Firewall:** nftables активен; правила включают NAT/forwarding для сетей
+  виртуальных машин и статический NAT для Tailscale.
+- **Docker и Libvirt:** оба пакета установлены. `docker.service`, сервисы
+  `libvirtd`/`virtqemud` и их сокеты отключены и неактивны.
+- **Mesh VPN:** NetBird активен на `wt0`. Tailscale установлен,
+  `tailscaled` отключён и неактивен.
 
 ## Wi-Fi
 
-NetworkManager использует iwd как Wi-Fi backend. Wi-Fi работает штатно.
+NetworkManager использует iwd как Wi-Fi backend. Intel AX201 (`wlan0`)
+подключён через NetworkManager. Эффективная конфигурация включает MAC
+randomization при сканировании и задаёт `stable` cloned MAC для Wi-Fi и
+Ethernet-подключений.
 
-- Адаптер Intel AX201; включены случайный MAC при сканировании и
-  стабильный MAC для подключений.
-- Локальный `31-mac-addr-change.conf` маскирует одноимённый системный файл.
-- Локальный drop-in `iwd.service.d/override.conf` заменяет
-  `ProtectKernelTunables=yes` на `ProtectKernelTunables=no` (effective
-  подтверждён `systemctl show iwd -p ProtectKernelTunables`). Причина:
-  `yes` запрещал iwd запись в sysctl `arp_evict_nocarrier` и
-  `ndisc_evict_nocarrier` (`journalctl -u iwd`: `Unable to write ...`),
-  которыми iwd управляет для корректного Wi-Fi roaming. Остальной hardening
-  drop-in'а сохранён (CapabilityBoundingSet, RestrictAddressFamilies,
-  ProtectSystem/ProtectHome и др.).
-- Первичные источники — [руководство NetworkManager + iwd](../../../../networking/networkmanager-iwd/).
+Локальное переопределение `iwd.service` задаёт
+`ProtectKernelTunables=no`. Причину и совместимые ограничения systemd для iwd
+см. в [руководстве NetworkManager + iwd](../../../../networking/networkmanager-iwd/).
 
-## Docker and Libvirt
+## Docker, Libvirt и nftables
 
-- Docker 29.8.1: storage driver `overlay2`, iptables-nft.
-- Libvirt 12.6.0: юниты libvirtd/virtqemud системно неактивны —
-  виртуализация запускается по мере надобности.
-- Для обхода Docker `FORWARD policy drop` применена отдельная таблица
-  `ip gentoo_bridge_libvirt` (priority −10) и NAT-маскарадинг:
-  `/etc/nftables/rules/main.nft` подключает `libvirt_fix.nft` и
-  `tailscale.nft`. В runtime загружены таблицы `ip nat`,
-  `ip gentoo_bridge_libvirt`, `ip tailscale_nat`.
+`docker.service` отключён и неактивен. Пакет Libvirt установлен, но
+`libvirtd.service`, `virtqemud.service`, `libvirtd.socket` и
+`virtqemud.socket` отключены и неактивны.
+Символическая ссылка в `/etc/systemd/system/multi-user.target.wants/` ведёт
+на отсутствующий `libvirt-docker-forward-fix.service`; systemd сообщает
+`LoadState=not-found`.
 
-Разбор конфликта Docker/Libvirt в nftables и ход диагностики — в
-[troubleshooting](../../../../troubleshooting/docker-libvirt-nftables/).
+Основной файл nftables — `/etc/nftables/rules/main.nft`; он подключает
+`libvirt_fix.nft` и `tailscale.nft`. Сейчас загружены таблицы `ip nat`,
+`ip gentoo_bridge_libvirt` и `ip tailscale_nat`.
+
+`libvirt_fix.nft` задаёт masquerade для сетей `192.168.122.0/24` и
+`10.0.0.0/24`, а также цепочку `bypass_docker` таблицы
+`ip gentoo_bridge_libvirt` на hook `forward` с priority `filter - 10`.
+Правила цепочки принимают трафик с адресом источника или назначения из этих
+сетей.
+
+`tailscale.nft` задаёт masquerade для сети `100.64.0.0/10` при выходе через
+`eno2`. Таблица `ip tailscale_nat` загружена, хотя служба `tailscaled`
+неактивна.
+
+Диагностика маршрутизации Docker и Libvirt описана в
+[отдельном руководстве](../../../../troubleshooting/docker-libvirt-nftables/).
 
 ## Mesh VPN
 
-NetBird — основной mesh-VPN. Tailscale установлен, но выключен.
+Сейчас активен NetBird: служба `netbird@main.service` работает, интерфейс
+`wt0` поднят. NetworkManager показывает `wt0` как внешнее WireGuard-
+подключение. Служба Tailscale неактивна и отключена; её статические правила
+nftables перечислены выше.
 
-- NetBird (`net-vpn/netbird`): интерфейс `wt0` (WireGuard, NM-профиль
-  `wt0`, external); процесс поднимает шаблонный юнит
-  `netbird@main.service` (активен с загрузки, сам юнит disabled).
-- Tailscale (`net-vpn/tailscale`): `tailscaled` disabled+inactive; таблица
-  `ip tailscale_nat` загружается include'ом из
-  `/etc/nftables/rules/main.nft`.
+## Known observation
 
-## Known observations
-
-### Startup race NetworkManager/iwd
-
-На работу Wi-Fi не влияет и исправления не требует.
-
-Подробности: при инициализации iwd на короткое время создаётся Wi-Fi P2P
-device `/net/connman/iwd/0`. NetworkManager в этот момент логирует
-`error setting IPv4 forwarding to '0': Resource temporarily unavailable`
-и `IWD device named wlan0 is not a Wifi device`, после чего создаёт
-обычный `wlan0`; iwd подключается, DHCP проходит, дальше ошибок нет.
-
-## Verification
-
-- Wi-Fi и drop-in iwd проверены 2026-09-21 (включая effective
-  `ProtectKernelTunables`).
-- Startup-гонка наблюдалась 2026-09-21: `wlan0` connected,
-  `/net/connman/iwd/0` (wifi-p2p) disconnected, оба сервиса active.
-- Docker, Libvirt и runtime-таблицы nftables (`nft list tables`) проверены
-  2026-09-22.
-- NetBird и Tailscale проверены 2026-09-22; `netbird@main.service` активен
-  с загрузки 2026-09-21.
+В журналах текущей и предыдущей загрузки при появлении Wi-Fi P2P-устройства
+`/net/connman/iwd/0` NetworkManager сообщает `error setting IPv4 forwarding to
+'0': Resource temporarily unavailable` и `IWD device named wlan0 is not a
+Wifi device`. Сейчас Wi-Fi подключён через NetworkManager.
 
 ## Related docs
 
