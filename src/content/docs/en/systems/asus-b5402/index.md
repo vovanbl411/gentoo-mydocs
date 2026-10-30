@@ -2,84 +2,85 @@
 title: ASUS ExpertBook B5402
 kind: system
 scope: system
-status: draft
-last_verified: "2026-09-22"
+status: current
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-The primary Gentoo system and the reference for this repository's
-guides. This section records the machine's actual state separately from
-the general instructions.
+This is the primary Gentoo workstation. This section records its documented
+state and decisions; reusable guides are in the site's topic sections.
 
 ## Current state
 
-- Gentoo hardened/systemd (no-multilib); builds use
-  Clang/LLD, globally `-O2` + ThinLTO.
-- Intel Core i7-1260P (Alder Lake, hybrid P/E cores).
-- Intel Iris Xe graphics — the i915 kernel driver, Mesa iris, Vulkan
-  ANV.
-- Desktop — Umbriel + Noctalia; Niri remains a fallback; login via
+- Gentoo hardened/systemd without multilib; userspace builds use Clang/LLD,
+  with global `-O2` and ThinLTO.
+- `sys-kernel/gentoo-kernel` is built as a GPKG on `gentoo-builder-01` and
+  delivered to the workstation through a private binrepo. Boot flow:
+  systemd-boot → a Dracut-generated UKI → LUKS2/TPM2 → Btrfs.
+- Desktop: Umbriel + Noctalia; Niri remains a fallback session. Login uses
   greetd/tuigreet.
-- Kernel — `sys-kernel/gentoo-kernel` with a custom configuration; boot chain: systemd-boot
-  → UKI (Dracut) → LUKS2/TPM2 → Btrfs.
-- Storage — Btrfs + Snapper; second NVMe: state verified, the
-  backup/data plan not applied (the old Arch/LUKS layout is still
-  there).
-- Power — TLP, battery charge limited to 80%.
-- Network — NetworkManager + iwd (Intel AX201), nftables, NetBird
-  mesh-VPN.
-- Security — Secure Boot, TPM 2.0, AppArmor, doas.
+- Intel Iris Xe; the current kernel driver is `i915`. The graphics stack
+  includes Mesa and Vulkan.
+- Btrfs + Snapper; build directories and caches are kept outside root
+  snapshots. Second NVMe: **PLAN — NOT APPLIED**.
+- Networking: NetworkManager + iwd, nftables, and NetBird as the primary mesh
+  VPN.
+- Security: Secure Boot, TPM2/LUKS2 integration, AppArmor, and doas.
+- Native applications are installed through Portage, including from local
+  overlays; selected programs use Flatpak or AppImage. The working KeePassXC
+  database is stored locally; Android sync and backups are handled separately.
 
 ## Desktop
 
-- [Noctalia](desktop/noctalia/) — shell and notification settings.
-- [Umbriel, Niri, portals and GTK](desktop/environment/) — the recorded state of
-  the desktop environment and the polkit agent.
+- [Noctalia](desktop/noctalia/) — desktop shell and notifications.
+- [Umbriel, Niri, portals, and GTK](desktop/environment/) — compositor, login,
+  portals, and the Niri fallback session.
 
 ## Hardware
 
-- [ASUS NumberPad](hardware/numberpad/) — configuring the touchpad numeric keypad.
-- [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — kernel
-  drivers, TLP and the battery.
-- [Headset microphone](hardware/headset-microphone/) — ALC294: a local quirk
-  enables the microphone input. Testing needs a compatible CTIA TRRS headset
-  or adapter.
-- [User-status indicator](hardware/user-status-indicator/) — controlling the external LED,
-  `auto/busy/off` modes and Fn+1 switching. Firmware behavior and the choice
-  of Linux interface are explained in the
-  [research page](../../experiments/asus-user-status-indicator/).
-- [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — compilation
-  flags, the scheduler, hardware security.
-- [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.
-- [Second NVMe and backups](hardware/second-disk/) — a plan for using the disk;
-  inspect its contents before applying any partitioning.
-- [ELAN fingerprint reader](hardware/fingerprint/) — configuring login
-  and authorization prompts.
+- [ASUS NumberPad](hardware/numberpad/) — configuring the touchpad number pad.
+- [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — TLP, battery, and
+  ASUS WMI integration.
+- [Headset microphone](hardware/headset-microphone/) — ALC294 and a local
+  quirk; input topology is confirmed, but recording with a compatible CTIA
+  headset is not yet confirmed.
+- [User-status indicator](hardware/user-status-indicator/) — kernel and
+  userspace integration, `auto`/`busy`/`off` modes, and Fn+1.
+- [Intel Alder Lake CPU optimization](hardware/cpu-optimization/) — local
+  userspace optimization policy, power management, and scheduler details.
+- [Graphics stack](hardware/graphics/) — current `i915` driver, Mesa, and
+  Vulkan; the Xe experiment is documented on this page.
+- [Second NVMe](hardware/second-disk/) — **PLAN — NOT APPLIED**.
+- [ELAN fingerprint reader](hardware/fingerprint/) — fprintd/libfprint
+  integration and authentication.
 
 ## Boot and Portage
 
-- [Boot and Portage](system/boot-and-portage/) — the toolchain,
-  optimization, package.env, kernel and UKI.
-- [BIOS/UEFI updates](system/bios-update/) — a verified procedure for
-  Secure Boot, `sbctl`, LUKS2 and TPM2.
+- [Boot and Portage](system/boot-and-portage/) — toolchain and package policy,
+  kernel GPKG builds on the builder, private binrepo delivery, and the
+  UKI/Secure Boot flow.
+- [BIOS/UEFI update](system/bios-update/) — the verified procedure, including
+  Secure Boot and TPM2 considerations.
 
 ## Storage
 
-- [Btrfs and Snapper](filesystem/layout-and-snapshots/) — subvolumes,
-  mount options, snapshot limits.
+- [Btrfs and Snapper](filesystem/layout-and-snapshots/) — Btrfs layout, build
+  and cache storage, and snapshot policy.
 
 ## Networking
 
-- [NetworkManager, Docker and Libvirt](networking/networkmanager-and-libvirt/)
-  — Wi-Fi, nftables, mesh-VPN.
+- [NetworkManager and Libvirt](networking/networkmanager-and-libvirt/) — Wi-Fi
+  with NetworkManager/iwd, nftables, virtual machine networking, and mesh VPN.
 
 ## Security
 
-- [doas policy](security/doas/)
+- [doas policy](security/doas/) — the current privilege escalation policy.
 
 ## Applications
 
-- [Applications](applications/) — Firefox, Flatpak, OBS, AppImage.
+- [Applications](applications/) — Portage applications, including local
+  overlays, selected Flatpak/AppImage integrations, and KeePassXC sync and
+  backups.
 
 ## General guides
 
@@ -89,7 +90,6 @@ the general instructions.
 
 ## Using this section
 
-General guides explain installation and setup; this section keeps the chosen
-settings for the laptop. Plans such as the second NVMe layout are marked
-separately from applied settings. Before working on disks, check device names
-and contents on your own machine.
+`systems/asus-b5402/` records the state and decisions for this workstation.
+Reusable procedures are in the general guides. Plans are marked separately
+from applied settings; recheck the system before destructive actions.

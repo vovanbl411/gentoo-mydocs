@@ -2,80 +2,86 @@
 title: ASUS ExpertBook B5402
 kind: system
 scope: system
-status: draft
-last_verified: "2026-09-22"
+status: current
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-Основная Gentoo-система и эталон для руководств этого репозитория. Каталог
-хранит записанное состояние машины отдельно от общих инструкций.
+Это основная рабочая станция Gentoo. Здесь описаны состояние ASUS B5402 и
+принятые для неё решения; общие руководства собраны в тематических разделах
+сайта.
 
-## Сейчас
+## Текущее состояние
 
-- Gentoo hardened/systemd (no-multilib); сборка через Clang/LLD,
-  глобально `-O2` + ThinLTO.
-- Intel Core i7-1260P (Alder Lake, гибридные P/E-ядра).
-- Графика Intel Iris Xe — драйвер ядра i915, Mesa iris, Vulkan ANV.
-- Рабочий стол — Umbriel + Noctalia; Niri сохранён как fallback; вход через
-  greetd/tuigreet.
-- Ядро — `sys-kernel/gentoo-kernel` с собственной конфигурацией; загрузка systemd-boot → UKI
-  (Dracut) → LUKS2/TPM2 → Btrfs.
-- Хранилище — Btrfs + Snapper; второй NVMe: состояние проверено, план
-  backup/data не применён (осталась старая разметка Arch/LUKS).
-- Питание — TLP, заряд батареи ограничен 80%.
-- Сеть — NetworkManager + iwd (Intel AX201), nftables, mesh-VPN NetBird.
-- Безопасность — Secure Boot, TPM 2.0, AppArmor, doas.
+- Gentoo hardened/systemd без multilib; основная цепочка сборки пользовательских
+  пакетов — Clang/LLD, глобальные флаги оптимизации — `-O2` и ThinLTO.
+- `sys-kernel/gentoo-kernel` собирается на `gentoo-builder-01` в GPKG и
+  устанавливается на ноутбуке из private binrepo. Загрузка: systemd-boot → UKI,
+  собранный Dracut → LUKS2/TPM2 → Btrfs.
+- Рабочий стол — Umbriel + Noctalia; Niri остаётся запасной сессией. Вход —
+  через greetd/tuigreet.
+- Intel Iris Xe; текущий драйвер ядра — `i915`. Графический стек включает
+  Mesa и Vulkan.
+- Btrfs + Snapper; сборочные каталоги и кэши отделены от снимков корня.
+  Второй NVMe: **PLAN — NOT APPLIED**.
+- Сеть: NetworkManager + iwd, nftables и NetBird как основной mesh VPN.
+- Защита: Secure Boot, интеграция TPM2/LUKS2, AppArmor и doas.
+- Нативные приложения устанавливаются через Portage, в том числе из локальных
+  оверлеев; для отдельных программ используются Flatpak и AppImage. Рабочая
+  база KeePassXC хранится локально; синхронизация с Android и резервные копии
+  организованы отдельно.
 
-## Desktop
+## Рабочий стол
 
-- [Noctalia](desktop/noctalia/) — настройки оболочки и уведомлений.
-- [Umbriel, Niri, порталы и GTK](desktop/environment/) — записанное состояние
-  рабочего окружения и polkit-агент.
+- [Noctalia](desktop/noctalia/) — оболочка рабочего стола и уведомления.
+- [Umbriel, Niri, порталы и GTK](desktop/environment/) — композитор, вход,
+  порталы и запасная сессия Niri.
 
-## Hardware
+## Оборудование
 
-- [ASUS NumberPad](hardware/numberpad/) — настройка цифровой клавиатуры тачпада.
-- [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — драйверы ядра,
-  TLP и батарея.
-- [Микрофон гарнитуры](hardware/headset-microphone/) — ALC294: локальный quirk
-  активирует вход микрофона. Для проверки нужна совместимая CTIA TRRS-гарнитура
-  или адаптер.
-- [User-status indicator](hardware/user-status-indicator/) — управление внешним индикатором,
-  режимы `auto/busy/off` и переключение через Fn+1. Устройство прошивки
-  и выбор интерфейса Linux описаны в
-  [исследовании](../../experiments/asus-user-status-indicator/).
-- [Intel Alder Lake i7-1260P](hardware/cpu-optimization/) — флаги
-  компиляции, планировщик, аппаратная безопасность.
-- [Intel Graphics](hardware/graphics/) — i915/xe, Mesa, Vulkan.
-- [Второй NVMe и резервные копии](hardware/second-disk/) — план использования диска;
-  не применяй разметку без проверки содержимого.
-- [Сканер отпечатков ELAN](hardware/fingerprint/) — настройка входа
-  и подтверждения привилегированных действий.
+- [ASUS NumberPad](hardware/numberpad/) — настройка цифровой клавиатуры
+  тачпада.
+- [ASUS ExpertBook B5402CBA](hardware/asus-expertbook/) — TLP, батарея и
+  интеграция с ASUS WMI.
+- [Микрофон гарнитуры](hardware/headset-microphone/) — ALC294 и локальный
+  quirk; схема входа подтверждена, запись с совместимой CTIA-гарнитурой пока
+  не подтверждена.
+- [Индикатор статуса](hardware/user-status-indicator/) — интеграция ядра и
+  пользовательской части, режимы `auto`/`busy`/`off` и Fn+1.
+- [Оптимизация CPU: Intel Alder Lake](hardware/cpu-optimization/) — локальная
+  политика оптимизации пользовательских программ, питание и планировщик.
+- [Графический стек](hardware/graphics/) — текущий драйвер `i915`, Mesa и
+  Vulkan; эксперимент с Xe описан на этой странице.
+- [Второй NVMe](hardware/second-disk/) — **PLAN — NOT APPLIED**.
+- [Сканер отпечатков ELAN](hardware/fingerprint/) — интеграция
+  fprintd/libfprint и аутентификация.
 
-## Boot и Portage
+## Загрузка и Portage
 
-- [Загрузка и Portage](system/boot-and-portage/) — toolchain,
-  оптимизация, package.env, ядро и UKI.
-- [Обновление BIOS/UEFI](system/bios-update/) — проверенная процедура для
-  Secure Boot, `sbctl`, LUKS2 и TPM2.
+- [Загрузка и Portage](system/boot-and-portage/) — политика toolchain и
+  пакетов, сборка GPKG ядра на builder, приватный binrepo и загрузка UKI с
+  Secure Boot.
+- [Обновление BIOS/UEFI](system/bios-update/) — проверенная процедура с
+  учётом Secure Boot и TPM2.
 
 ## Хранилище
 
-- [Btrfs и Snapper](filesystem/layout-and-snapshots/) — субволюмы, опции
-  монтирования, лимиты снимков.
+- [Btrfs и Snapper](filesystem/layout-and-snapshots/) — схема Btrfs, место
+  для сборок и кэшей, политика снимков.
 
 ## Сеть
 
-- [NetworkManager, Docker и Libvirt](networking/networkmanager-and-libvirt/)
-  — Wi-Fi, nftables, mesh-VPN.
+- [NetworkManager и Libvirt](networking/networkmanager-and-libvirt/) — Wi-Fi
+  через NetworkManager/iwd, nftables, сети виртуальных машин и mesh VPN.
 
 ## Безопасность
 
-- [Политика doas](security/doas/)
+- [Политика doas](security/doas/) — действующая политика повышения привилегий.
 
 ## Приложения
 
-- [Приложения](applications/) — Firefox, Flatpak, OBS, AppImage.
+- [Приложения](applications/) — нативные программы и оверлеи Portage,
+  отдельные Flatpak/AppImage, синхронизация и резервные копии KeePassXC.
 
 ## Общие руководства
 
@@ -85,7 +91,7 @@ verified_on: [asus-b5402]
 
 ## Как пользоваться разделом
 
-Общие руководства объясняют установку и настройку, а этот раздел хранит
-выбранные параметры ноутбука. Планы, например использование второго NVMe,
-отмечены отдельно от применённых настроек. Перед действиями с дисками
-сверяй устройства и содержимое с собственной системой.
+Каталог `systems/asus-b5402/` описывает состояние и решения для этого ноутбука.
+Повторяемые процедуры вынесены в общие руководства. Планы явно отделены от
+применённых настроек; перед разрушительными действиями заново проверь состояние
+системы.
