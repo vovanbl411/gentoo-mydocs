@@ -9,11 +9,11 @@ verified_on: [asus-b5402]
 
 ## Текущее состояние
 
-На ASUS B5402 правила `doas` заданы в `/etc/doas.conf`: правило для `:wheel`
-задаёт `persist`, для локального пользователя отдельно задан `keepenv`, а для
-`snapper` есть отдельное command-specific правило с `persist`. Fingerprint
-authentication подключена в `/etc/pam.d/doas`; общий `system-auth` не содержит
-вызова `pam_fprintd.so`.
+В `/etc/doas.conf` для `:wheel` задано одно правило с `persist` и `keepenv`.
+Отдельного правила для конкретного пользователя и отдельного правила для
+`snapper` нет; `snapper` использует общую policy `:wheel`. Fingerprint
+authentication подключена локально в `/etc/pam.d/doas`; общий `system-auth` не
+содержит вызова `pam_fprintd.so`.
 
 ## Конфигурация
 
@@ -22,15 +22,12 @@ authentication подключена в `/etc/pam.d/doas`; общий `system-aut
 Фактические правила без имени пользователя:
 
 ```text
-permit persist :wheel
-permit keepenv <username>
-permit persist :wheel as root cmd snapper
+permit persist keepenv :wheel
 ```
 
-Правило `snapper` не использует `nopass`; в конфигурации оно указывает команду
-как `snapper`, установленную в `/usr/bin/snapper`. Значение `persist`,
-`keepenv`, `nopass` и семантика последнего совпавшего правила описаны в
-[общем руководстве по doas](../../../../security/doas-configuration/).
+Оба параметра находятся в одном правиле, потому что `doas` применяет последнее
+совпавшее правило и не объединяет параметры разных правил. Подробности описаны
+в [общем руководстве по doas](../../../../security/doas-configuration/).
 
 ## Fingerprint authentication
 
