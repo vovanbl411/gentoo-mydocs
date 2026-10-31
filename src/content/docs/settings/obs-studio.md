@@ -1,38 +1,38 @@
 ---
-title: OBS Studio на Gentoo и Niri
+title: OBS Studio на Gentoo
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-11-01"
+verified_on: [asus-b5402]
 ---
 
-Цель — получить рабочий OBS Studio, захватывать экран Wayland через portals и
-PipeWire и проверить, какие encoders действительно доступны. Есть две
-независимые модели установки:
+В Wayland-сеансе OBS получает изображение экрана через ScreenCast portal и
+PipeWire. Для этого OBS обращается к интерфейсу
+`org.freedesktop.portal.ScreenCast`, который предоставляет
+`xdg-desktop-portal`; тот направляет запрос backend'у текущей сессии.
 
 ```text
-Option A: Flatpak OBS
-OBS runtime + bundled dependencies
-→ Wayland
-→ XDG Desktop Portal
-→ PipeWire capture
-
-Option B: native Gentoo OBS
-Portage package + system FFmpeg/libraries
-→ USE policy
-→ Wayland / screencast support
+OBS
+→ org.freedesktop.portal.ScreenCast
+  (через org.freedesktop.portal.Desktop)
+→ xdg-desktop-portal
+→ ScreenCast backend текущей сессии
+→ PipeWire stream
 ```
 
-На ASUS B5402 используется OBS Flatpak. Это состояние конкретной машины, а не
-универсальная рекомендация; подробности записаны в
-[системном разделе](../../systems/asus-b5402/applications/).
+ScreenCast backend должен подходить текущей графической сессии. Его выбор и
+маршрутизация описаны в руководстве [XDG Desktop Portals](../../desktop/wayland-portals/).
 
-## Installation models
+## Модели установки
 
-### Option A: Flatpak OBS
+Flatpak и native Gentoo OBS — самостоятельные варианты. Выбирай по требованиям
+к sandbox, системным библиотекам и обслуживанию; универсального предпочтения
+для всех систем нет.
 
-Установи OBS из Flathub и сначала посмотри permissions, уже выданные пакету:
+### Flatpak OBS
+
+Установи OBS из Flathub и проверь выданные приложению permissions:
 
 ```bash
 flatpak install flathub com.obsproject.Studio
@@ -40,27 +40,32 @@ flatpak info com.obsproject.Studio
 flatpak info --show-permissions com.obsproject.Studio
 ```
 
-OBS работает с portal frontend. Не добавляй Flatpak overrides для внутренних
-D-Bus-интерфейсов backend'а без конкретного диагностированного симптома.
+OBS использует portal frontend. Не добавляй Flatpak overrides до появления
+конкретной проблемы и её диагностики.
 
-### Option B: native Gentoo OBS
+### Native Gentoo OBS
 
-У `media-video/obs-studio-32.2.2` доступны следующие возможности:
+Пакет `media-video/obs-studio` собирается с USE-флагами. Эти флаги относятся к
+основным возможностям OBS, а не составляют полный список ebuild:
 
-| USE-флаг | Что добавляет |
-|----------|---------------|
-| `wayland` | Wayland support. |
-| `screencast` | Screen/video capture через PipeWire. |
-| `qsv` | Intel Quick Sync Video. |
-| `nvenc` | NVIDIA hardware encoding. |
+| USE-флаг | Что включает |
+|----------|--------------|
+| `wayland` | Поддержку Wayland platform. |
+| `screencast` | PipeWire plugin для захвата экрана и зависимость на `media-video/pipewire`. |
+| `qsv` | Intel Quick Sync Video; ebuild добавляет `media-libs/libvpl`. |
+| `nvenc` | Поддержку аппаратного кодирования NVIDIA. |
 | `browser` | Browser source. |
-| `fdk` | LibFDK AAC support. |
-| `pulseaudio` | PulseAudio audio support. |
-| `v4l` | Video4Linux support. |
+| `fdk` | Поддержку LibFDK AAC. |
+| `alsa` | Audio capture через ALSA. |
+| `pulseaudio` | Audio capture через PulseAudio-compatible API. |
+| `v4l` | Поддержку Video4Linux. |
 | `websocket` | WebSocket API. |
 
-У текущего ebuild нет USE-флага `pipewire`. Минимальный пример для захвата
-Wayland:
+Проверь USE-флаги текущего ebuild перед установкой. В текущем Gentoo ebuild
+`wayland` управляет Wayland platform support через
+`-DENABLE_WAYLAND=$(usex wayland)`, а `screencast` — PipeWire screen/video
+capture через `-DENABLE_PIPEWIRE=$(usex screencast)`. У пакета OBS нет
+отдельного `pipewire` USE-флага для захвата экрана.
 
 Файл: `/etc/portage/package.use/obs-studio`
 
@@ -68,194 +73,160 @@ Wayland:
 media-video/obs-studio wayland screencast
 ```
 
-`qsv`, `nvenc`, `browser`, `fdk`, `pulseaudio`, `v4l`, `websocket` и другие
-возможности добавляй по потребности после проверки текущего ebuild.
-
-QSV и VA-API — разные механизмы. Для аппаратного кодирования через VA-API
-ebuild отдельно указывает optional dependency:
-
-```text
-media-video/ffmpeg[vaapi]
-```
-
-## Wayland capture on Niri
-
-Для Niri рабочая цепочка захвата выглядит так:
-
-```text
-OBS
-→ xdg-desktop-portal
-→ GNOME ScreenCast backend
-→ Niri ScreenCast API
-→ PipeWire stream
-```
-
-- `xdg-desktop-portal` — frontend, к которому обращается OBS;
-- GNOME backend обслуживает ScreenCast и Screenshot через совместимый API
-  Niri;
-- GTK backend обслуживает общие диалоги и настройки;
-- WLR backend для этой конфигурации Niri не нужен.
-
-Маршрутизация backend'ов описана в
-[XDG Desktop Portals](../../desktop/wayland-portals/).
-
-В OBS добавь источник:
-
-```text
-Screen Capture (PipeWire)
-```
-
-Portal chooser должен предложить monitor, window или другой доступный source.
-Старый XScreenCapture не является решением для native Wayland capture.
-
-## PipeWire services
-
-Не включай user services по универсальному шаблону: способ активации зависит
-от конфигурации системы. Для read-only проверки используй:
+Затем установи пакет:
 
 ```bash
-systemctl --user status pipewire.service
-systemctl --user status wireplumber.service
-wpctl status
+doas emerge --ask media-video/obs-studio
 ```
 
-`pipewire-pulse.service` проверяй отдельно, только если фактический audio
-runtime использует PulseAudio-compatible interface. Захват экрана через
-PipeWire и совместимость аудио с PulseAudio — разные функции.
+QSV и VA-API — разные механизмы. Для QSV ebuild использует `media-libs/libvpl`.
+Для VA-API ebuild отдельно указывает дополнительную возможность через
+`media-video/ffmpeg[vaapi]`; у `media-video/obs-studio` нет USE-флага `vaapi`.
 
-## Encoders
+## Захват экрана в Wayland
 
-| Encoder family | Что это |
-|----------------|---------|
-| x264 | Software H.264. |
-| QSV | Intel hardware encoding. |
-| VA-API | Linux hardware video API. |
-| NVENC | NVIDIA hardware encoding. |
-| HEVC / AV1 | Доступность зависит от GPU, driver, build и target platform. |
+В OBS добавь источник `Screen Capture (PipeWire)`. OBS создаёт ScreenCast
+portal session, chooser предлагает доступные источники, а после выбора OBS
+подключается к полученному PipeWire stream. Набор источников и поведение
+chooser зависят от реализации ScreenCast backend.
 
-### Как выбирать
+`Screen Capture (XSHM)` относится к X11 и не является native Wayland path для
+захвата экрана.
 
-1. Посмотри, какие encoders показывает установленный OBS.
-2. Учти требования streaming platform или player.
-3. Сделай короткую test recording.
-4. Проверь quality, dropped frames и нагрузку GPU/CPU в OBS Stats и log.
+## Проверка portal и PipeWire
 
-Универсального ranking или набора bitrate/CQ/CRF для всех GPU и сценариев нет.
-
-### Encoder verification
-
-Для native Portage OBS полезны проверки host stack:
-
-```bash
-vainfo
-ffmpeg -encoders
-```
-
-`vainfo` показывает capabilities VA-API driver, а `ffmpeg -encoders` —
-capabilities системного FFmpeg. Ни одна команда сама по себе не доказывает,
-что encoder доступен в OBS Flatpak.
-
-Для Flatpak основная проверка — список encoders внутри OBS, OBS log и короткая
-test recording.
-
-## Audio
-
-OBS audio capture зависит от выбранной installation model и runtime. PipeWire
-может предоставлять PulseAudio-compatible interface. Native Gentoo ebuild имеет
-отдельные audio USE capabilities, а Flatpak приносит собственную runtime
-integration. Выбирай доступный encoder по требованиям output platform и
-проверяй его тестовой записью; `libfdk_aac` не следует выбирать без учёта
-доступного runtime и требований к output.
-
-## Backup and restore
-
-Сначала определи тип установки, затем копируй соответствующий каталог
-конфигурации:
-
-```text
-Native OBS:  ~/.config/obs-studio/
-Flatpak OBS: ~/.var/app/com.obsproject.Studio/config/obs-studio/
-```
-
-Пример резервной копии одного выбранного каталога:
-
-```bash
-cp -a <obs-config-directory> <backup-directory>/
-```
-
-Перед восстановлением закрой OBS и сохрани текущий каталог отдельно. Резервная
-копия всего `/etc/portage/` не относится к этому руководству.
-
-## Verification
-
-### Flatpak
-
-```bash
-flatpak info com.obsproject.Studio
-flatpak info --show-permissions com.obsproject.Studio
-```
-
-### Session
+Проверь переменные текущей сессии, portal frontend, запущенные backend-службы
+и PipeWire:
 
 ```bash
 echo "$XDG_SESSION_TYPE"
 echo "$XDG_CURRENT_DESKTOP"
 
 systemctl --user status xdg-desktop-portal.service
-systemctl --user status xdg-desktop-portal-gnome.service
+systemctl --user --type=service --state=running \
+  | grep 'xdg-desktop-portal' || true
 systemctl --user status pipewire.service
 systemctl --user status wireplumber.service
+wpctl status
 ```
 
-### Functional gate
+Не включай user services по универсальному шаблону: способ активации зависит
+от системы. `pipewire-pulse.service` проверяй отдельно, если audio runtime
+использует PulseAudio-compatible interface. Для Wayland screen capture он не
+требуется.
 
-1. OBS запускается.
-2. `Screen Capture (PipeWire)` доступен.
-3. Portal chooser открывается.
-4. Выбранный screen или window появляется в preview.
-5. Test recording создаётся и воспроизводится.
-6. Encoder list соответствует фактическому hardware и runtime.
+## Захват звука
 
-Это команды и проверки для пользователя; они не выполнялись автоматически при
-редактировании документа.
-
-## Troubleshooting
-
-### Нет `Screen Capture (PipeWire)`
-
-Проверь Wayland session, portal frontend, GNOME backend для Niri, PipeWire и
-OBS log. Для native OBS дополнительно проверь `USE=screencast`.
-
-### Portal chooser не появляется
-
-Проверь routing и user services по инструкции
-[XDG Desktop Portals](../../desktop/wayland-portals/). Не добавляй случайные
-Flatpak D-Bus overrides до установления причины.
-
-### Hardware encoder отсутствует
-
-Проверяй уровни отдельно:
+Захват экрана и звука — разные возможности:
 
 ```text
-hardware capability
-→ driver/runtime
-→ native package build flags или Flatpak runtime
-→ OBS encoder support
+Захват экрана Wayland → ScreenCast portal / PipeWire video stream
+Сборка Gentoo OBS     → USE=screencast включает screen/video plugin
+Захват звука          → OBS audio backend / optional PipeWire audio plugin
 ```
 
-`vainfo` — часть диагностики VA-API, но не единственное доказательство
-доступности encoder в OBS.
+`USE=screencast` включает захват экрана и видео, но не PipeWire-аудиозахват OBS.
+Для встроенного захвата звука включи хотя бы один из флагов `alsa` или
+`pulseaudio`; если оба выключены, текущий ebuild выводит сообщение после
+установки. Для native PipeWire audio capture ebuild предлагает отдельно
+установить `media-plugins/obs-pipewire-audio-capture`.
+Для других способов захвата звука учитывай доступные в сборке OBS `alsa` и
+`pulseaudio`. PipeWire может предоставлять интерфейс, совместимый с PulseAudio,
+через `pipewire-pulse`; это отдельный путь аудиозахвата, не условие ScreenCast.
 
-### Recording fails or overloads
+## Аппаратные encoders
 
-Открой OBS Stats и log, проверь dropped frames, encoder errors и загрузку
-системы. Не переключайся на другой encoder только на основании универсальной
-рекомендации: сначала сравни результат короткой тестовой записи.
+Доступность encoder зависит от нескольких уровней:
 
-## Related docs
+```text
+возможности hardware
+→ driver и runtime
+→ FFmpeg и необходимые библиотеки
+→ сборка или runtime OBS
+→ encoder отображается в OBS
+```
 
-- [Flatpak](../flatpak/) — модель permissions и overrides.
-- [Niri](../../desktop/niri/) — запуск Wayland session.
-- [XDG Desktop Portals](../../desktop/wayland-portals/) — portal routing для Niri.
-- [Приложения ASUS B5402](../../systems/asus-b5402/applications/) — проверенное состояние машины.
-- [OBS Studio в Gentoo Packages](https://packages.gentoo.org/packages/media-video/obs-studio) — актуальные версии и USE-флаги.
+Универсального рейтинга encoder'ов и общих настроек bitrate/CQ/CRF нет. В OBS
+могут быть доступны программное кодирование через x264 и аппаратное кодирование
+через QSV, VA-API или NVENC. Поддержка HEVC и AV1 зависит от оборудования,
+драйвера, сборки и требований целевой платформы.
+Для native OBS полезны две проверки host stack:
+
+```bash
+vainfo
+ffmpeg -encoders
+```
+
+`vainfo` показывает возможности VA-API-драйвера, а `ffmpeg -encoders` — список
+encoder'ов системного FFmpeg. Эти проверки не доказывают, что encoder доступен
+внутри OBS, особенно в Flatpak с отдельным runtime. Итоговую доступность проверь
+в списке encoder'ов OBS и журнале, затем сделай короткую тестовую запись.
+
+## Резервная копия
+
+Скопируй каталог настроек выбранной установки:
+
+```text
+Native OBS:  ~/.config/obs-studio/
+Flatpak OBS: ~/.var/app/com.obsproject.Studio/config/obs-studio/
+```
+
+Перед копированием или восстановлением закрой OBS. Коллекции сцен могут
+ссылаться на медиафайлы вне каталога конфигурации — их нужно сохранить отдельно.
+
+Пример копирования выбранного каталога:
+
+```bash
+cp -a <obs-config-directory> <backup-directory>/
+```
+
+## Проверка результата
+
+1. OBS запускается.
+2. Сессия определяется как Wayland.
+3. В списке источников есть `Screen Capture (PipeWire)`.
+4. Открывается portal chooser.
+5. Выбранный источник виден в preview.
+6. Короткая test recording создаётся и воспроизводится.
+7. В журнале OBS нет ошибок кодировщика, а OBS Stats не показывает неожиданных
+   dropped frames.
+8. Выбранный encoder присутствует в списке OBS.
+
+## Устранение проблем
+
+Если `Screen Capture (PipeWire)` отсутствует в native Gentoo OBS, сначала
+проверь `USE=screencast`: этот флаг включает PipeWire source. `USE=wayland`
+отдельно отвечает за native Wayland platform самого OBS. Для Flatpak проверь,
+что source есть в установленной сборке.
+
+Если chooser не открывается или источник не появляется, проверяй цепочку по
+слоям:
+
+```text
+источник OBS
+→ xdg-desktop-portal frontend
+→ ScreenCast backend текущей session
+→ переменные окружения и маршрутизация сессии
+→ PipeWire
+→ OBS log
+```
+
+Настройку конкретного backend ищи в руководстве
+[XDG Desktop Portals](../../desktop/wayland-portals/). Не меняй desktop session
+и не устанавливай другой backend до установления причины. Открой текущий
+журнал OBS через интерфейс приложения; если нужен файл, используй фактический
+путь для своей модели установки.
+
+Если encoder отсутствует, отдельно проверь оборудование, драйвер и runtime,
+FFmpeg, библиотеки, сборку и runtime OBS. При сбоях записи проверь в OBS Stats
+и журнале ошибки кодировщика, dropped frames и нагрузку системы, затем сделай
+короткую тестовую запись.
+
+## Связанные материалы
+
+- [Flatpak](../flatpak/) — permissions и overrides.
+- [XDG Desktop Portals](../../desktop/wayland-portals/) — настройка portal routing для текущей session.
+- [Приложения ASUS B5402](../../systems/asus-b5402/applications/) — фактическое состояние системы.
+- [OBS Studio в Gentoo Packages](https://packages.gentoo.org/packages/media-video/obs-studio) — версии и USE-флаги ebuild.
+- [Интерфейс XDG Desktop Portal ScreenCast](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.ScreenCast.html).
+- [PipeWire ScreenCast implementation в OBS](https://github.com/obsproject/obs-studio/blob/master/plugins/linux-pipewire/screencast-portal.c).
