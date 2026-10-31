@@ -3,30 +3,32 @@ title: XDG Desktop Portals
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-23"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-Portals give applications access to desktop features: file selection, screen
-sharing, screenshots and appearance settings. The application talks to
-`xdg-desktop-portal`, which passes the request to a suitable handler, or backend.
-A backend is selected for each interface.
+## How portals work
 
-Umbriel and Niri need different screen capture backends. Choose your compositor's
-section; GTK can handle common dialogs in both sessions.
+An application sends a request through `xdg-desktop-portal`, which forwards it
+to a suitable handler, or backend. A backend is selected for each interface,
+such as file selection or screen sharing. In `portals.conf`, `default` sets the
+order for interfaces without a specific entry; `org.freedesktop.impl.portal.<Interface>`
+selects a backend for one interface.
+
+Values are separated by semicolons and checked in order. For example,
+`default=umbriel;gtk` means Umbriel handles interfaces it implements; for other
+interfaces, `xdg-desktop-portal` can try GTK if GTK implements them.
 
 ## Umbriel
 
-Required packages:
-
-- `sys-apps/xdg-desktop-portal` receives application requests;
-- `gui-libs/xdg-desktop-portal-umbriel` integrates with the Umbriel compositor;
-- `sys-apps/xdg-desktop-portal-gtk` handles common dialogs and acts as a fallback.
-
 Install the Umbriel portal with the compositor using the
-[Umbriel guide](../umbriel/). For screen sharing, enable the compositor's
-`screencast` flag and the portal's `picker` flag if you want a graphical
-capture-source chooser.
+[Umbriel guide](../umbriel/). GTK can handle common dialogs and act as a
+fallback handler. The Umbriel portal implements `ScreenCast` and `Screenshot`,
+as well as `InputCapture` version 2. It does not handle every portal interface.
+
+For screen sharing, enable the compositor's `screencast` USE flag. The portal's
+`picker` USE flag adds a graphical chooser for screens and windows; it is enabled
+by default in the current Gentoo ebuild.
 
 File: `~/.config/xdg-desktop-portal/umbriel-portals.conf`
 
@@ -36,52 +38,56 @@ default=umbriel;gtk
 org.freedesktop.impl.portal.Secret=gnome-keyring
 ```
 
-`default=umbriel;gtk` sets the selection order: Umbriel first, then GTK for
-interfaces the former does not provide. The `Secret` line selects GNOME Keyring
-for portal secret requests; it requires the installed `gnome-keyring` backend.
+This example matches the current ASUS B5402 configuration. Its Secret portal
+provider choice is described below.
 
 ## Niri
 
-Niri provides a Mutter-compatible screen capture interface served by
-`sys-apps/xdg-desktop-portal-gnome`. Common dialogs use
-`sys-apps/xdg-desktop-portal-gtk`.
+Niri needs PipeWire and `sys-apps/xdg-desktop-portal-gnome` for screen sharing.
+Niri's configuration tries GNOME first, then GTK for interfaces without a
+specific backend selection.
 
-`gui-libs/xdg-desktop-portal-wlr` is not needed for this setup: its screen
-capture protocol differs from Niri's.
+Niri ships a configuration with `default=gnome;gtk;`, GTK for Access and
+Notification. The example below keeps those settings and adds only a GTK
+FileChooser override. This is useful if you do not install Nautilus, which the
+GNOME portal uses as its default file chooser.
 
 File: `~/.config/xdg-desktop-portal/niri-portals.conf`
 
 ```ini
 [preferred]
-default=gtk
-org.freedesktop.impl.portal.Screenshot=gnome
-org.freedesktop.impl.portal.ScreenCast=gnome
-org.freedesktop.impl.portal.FileChooser=gtk
-org.freedesktop.impl.portal.AppChooser=gtk
-org.freedesktop.impl.portal.Settings=gtk
-org.freedesktop.impl.portal.Secret=gnome-keyring
+default=gnome;gtk;
+org.freedesktop.impl.portal.Access=gtk;
+org.freedesktop.impl.portal.Notification=gtk;
+org.freedesktop.impl.portal.FileChooser=gtk;
+org.freedesktop.impl.portal.Secret=oo7-portal;gnome-keyring;
 ```
 
-Here GNOME handles screen capture and screenshots; GTK handles file and
-application selection and appearance settings; GNOME Keyring handles Secret.
+The `gnome;gtk` order sends ScreenCast to the GNOME portal Niri needs for screen
+sharing, with GTK as a fallback. `FileChooser=gtk` changes only file selection.
 
-Niri's supplied configuration uses `gnome;gtk` as the default order. Explicit
-`FileChooser=gtk` uses the GTK dialog without depending on the GNOME/Nautilus
-file chooser. Niri also allows `oo7-portal` for Secret; you do not need to
-switch to it to configure the other portals.
+## Secret portal
+
+The Secret portal lets applications access stored secrets through the selected
+handler. Niri's portal configuration lists `oo7-portal` and `gnome-keyring`
+for the Secret portal; keep them in upstream order or explicitly select the
+installed provider. ASUS B5402 uses GNOME Keyring; this is a system-specific
+choice documented on the
+[system page](../../systems/asus-b5402/desktop/environment/).
 
 ## How configuration is selected
 
-The file name depends on `XDG_CURRENT_DESKTOP`: `umbriel` selects
-`umbriel-portals.conf`, and `niri` selects `niri-portals.conf`. You can keep
-both files if you use both sessions.
+`xdg-desktop-portal` looks up the file using `XDG_CURRENT_DESKTOP`: `umbriel`
+selects `umbriel-portals.conf`, and `niri` selects `niri-portals.conf`. If the
+variable contains several names separated by `:`, they are checked in order.
+You can keep both files if you use both sessions.
 
-Start Niri through `niri-session` and Umbriel through its normal greetd startup.
-Applications and user services must receive the current session's environment,
-including `WAYLAND_DISPLAY` and `XDG_CURRENT_DESKTOP`.
+Start Niri through `niri-session`; the Umbriel startup path for this system is
+documented in the [Umbriel guide](../umbriel/). Portal services need the current
+graphical session's `WAYLAND_DISPLAY` and `XDG_CURRENT_DESKTOP` variables.
 
-After changing `portals.conf`, log out of the desktop and log in again.
-This starts the portals with the new configuration and environment.
+After changing `portals.conf`, log out and back in so the portal services start
+with the new configuration.
 
 ## Checking the setup
 
@@ -89,13 +95,11 @@ In a terminal inside the desired session:
 
 ```bash
 echo "$XDG_CURRENT_DESKTOP"
-systemctl --user status xdg-desktop-portal.service \
-                       xdg-desktop-portal-gtk.service
+systemctl --user status xdg-desktop-portal.service
 ```
 
-The desktop name should match the selected file. After opening an application
-dialog, the frontend and required backends should start without errors. Services
-can activate on request, so open the relevant dialog first.
+The desktop name should match the intended file. The GTK backend may start on
+demand, so open the relevant dialog first.
 
 For Umbriel, check its backend:
 
@@ -109,12 +113,14 @@ For Niri, check the GNOME backend:
 systemctl --user status xdg-desktop-portal-gnome.service
 ```
 
-Then open the file chooser and try screen sharing from a browser or OBS.
-Make sure the recipient can actually see the selected screen or window.
+Then open FileChooser and try screen sharing from a browser or OBS. Confirm with
+the recipient that the selected screen or window is being shared.
 
-## If dialogs are empty or screen sharing fails
+## Troubleshooting
 
-First compare the terminal's environment with the user services' environment:
+### A dialog is empty or screen sharing fails
+
+Compare the user services' environment with the session and check the journal:
 
 ```bash
 systemctl --user show-environment
@@ -122,20 +128,33 @@ journalctl --user -b -u xdg-desktop-portal.service
 ```
 
 If services received another session's environment or no environment at all,
-check how the compositor starts. For a non-standard manual startup, you can
-pass the current values and restart the frontend:
+check how the compositor starts. Only for a non-standard manual startup, you
+can import the current values into D-Bus and the systemd user manager:
 
 ```bash
-dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+dbus-update-activation-environment --systemd \
+  WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+```
+
+If the portal is already running with the old environment, restart the main
+service:
+
+```bash
 systemctl --user restart xdg-desktop-portal.service
 ```
 
-Restarting interrupts active portal requests; end screen sharing first.
-This should not be a daily step for normal login.
+Restarting interrupts active portal requests. End screen sharing first. A
+normal login should not require a manual environment import.
 
-`Settings` in the portal configuration handles appearance, such as dark mode.
-It does not manage audio. Choosing a Notification backend also does not select
-the ordinary notification handler; see [notifications](../notifications/).
+### Notifications
+
+`org.freedesktop.portal.Notification` is a portal interface, while
+`org.freedesktop.Notifications` is the ordinary desktop notification service.
+Choosing a Notification backend does not start Noctalia as the notification
+daemon; see the [notifications guide](../notifications/).
+
+`Settings` controls application settings such as a dark appearance preference,
+not audio.
 
 ## Related material
 
@@ -144,3 +163,6 @@ the ordinary notification handler; see [notifications](../notifications/).
 - [ASUS B5402 desktop environment](../../systems/asus-b5402/desktop/environment/)
 - [portals.conf](https://flatpak.github.io/xdg-desktop-portal/docs/portals.conf.html)
 - [Niri portal configuration](https://github.com/niri-wm/niri/blob/main/resources/niri-portals.conf)
+- [Niri: Important Software](https://github.com/niri-wm/niri/wiki/Important-Software)
+- [Niri: Screencasting](https://github.com/niri-wm/niri/wiki/Screencasting)
+- [XDG Desktop Portal for Umbriel](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel)
