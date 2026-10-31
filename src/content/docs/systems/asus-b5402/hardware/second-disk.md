@@ -1,716 +1,420 @@
 ---
-title: "Второй диск: бэкапы и дополнительное хранилище"
+title: "Второй NVMe: план хранения данных и резервных копий"
 kind: system
 scope: system
 status: draft
-last_verified: "2026-09-22"
+last_verified: "2026-11-01"
 verified_on: [asus-b5402]
 ---
 
-## Status
+## Текущее состояние
 
-**PLAN — NOT APPLIED** (проверено аудитом 2026-09-22; дизайн скорректирован
-без live-проверок).
+План не применён. Сейчас Gentoo загружен с основного NVMe; второй NVMe Micron
+2450 (476,9G в выводе `lsblk`) всё ещё содержит один раздел GPT типа `8304`
+с `LUKS2` старого Arch; раздел не смонтирован. UUID совпадает с
+`rd.luks.name` в старых Arch UKI; в заголовке LUKS2 два keyslot: один связан с
+`systemd-tpm2` token, другой — нет. Текущая запись загрузки — Gentoo, но
+default entry — `arch-linux-cachyos.efi`, который ссылается на этот второй
+диск. ESP находится на основном NVMe. Записей для второго диска в
+`/etc/crypttab` и `/etc/fstab` нет; пакеты `btrbk` и `Borg` не установлены,
+отдельного backup service или timer для них нет.
 
-Текущее состояние машины:
+Дата в метаданных относится к проверке этого состояния и применимости плана,
+а не к реализации целевой схемы.
 
-- `nvme0n1` — единый LUKS-раздел со старым Arch Linux, не открыт;
-- новая backup/data схема на втором диске не создана;
-- `/etc/crypttab` для неё отсутствует;
-- таймеры btrbk/borg не настроены;
-- Arch UKI остаются в ESP.
-
-Цель плана — подключить второй NVMe (`nvme0n1`, ранее — Arch Linux) как
-зашифрованное хранилище для **бэкапов системы и конфигов** и
-**дополнительного места под данные**. Без RAID, без вмешательства в
-критический путь загрузки.
-
-Это дизайн будущей реализации, а не изменение live-системы. Перед реальным
-выполнением hardware/device state проверяется заново; `last_verified`
-относится к состоянию машины на 2026-09-22, а не к этой схеме.
-
-## Applicability
-
-На машине уже работает Gentoo на `nvme1n1` (LUKS2 + TPM2 + UKI + Btrfs), есть
-второй физический диск `nvme0n1`, который хочется задействовать под бэкапы и
-данные.
-
-Контекст: подробности загрузочного стека — [installation/systemd-uki-setup](../../../../installation/systemd-uki-setup/) и [installation/secure-boot-tpm](../../../../installation/secure-boot-tpm/). Btrfs-соглашения — [filesystem/btrfs-setup](../../../../filesystem/btrfs-setup/).
-
-## 1. Target design
-
-Всё в этом разделе описывает состояние **после применения плана**, а не
-текущую машину (текущее состояние — в Status выше).
-
-### Ключевые принципы
-
-- **Второй диск НЕ в initramfs.** Открывается через systemd `/etc/crypttab`
-  уже после загрузки rootfs. Dracut/UKI/`rd.luks.*`/sbctl — не трогаем.
-- **Один LUKS2 + TPM2 (PCR 7) + независимый passphrase keyslot.** Тот же TPM
-  и тот же набор PCR, что у первого диска (PCR 7 — выбранная policy первого
-  диска; эпизод 2026-09-14 — в §7). Авторасшифровка при загрузке.
-- **Boot-независимость.** Отказ, отсутствие или TPM unlock failure второго
-  NVMe не должен ломать загрузку Gentoo и не должен требовать интерактивный
-  пароль второго диска. Обеспечивается `nofail` + `headless` (§9) и
-  root-owned mountpoint (§10).
-- **Soft-cold для бэкапов.** `@backup` монтируется `noauto`; orchestration
-  service монтирует его только на время бэкапа и отмонтирует после (§13).
-  Вне окна бэкапа обычный userspace без root не видит `/mnt/backup`.
-- **`@data` горячий** — всегда смонтирован в `/home/<username>/data`, это
-  дополнительное рабочее хранилище.
-- **btrbk для системы** (снапшоты корня Gentoo), **borg для `/home` и
-  `/etc`** (точечный restore, дедупликация, шифрование, exclude-паттерны).
-
-### Целевая схема
+## Целевая схема
 
 ```text
-nvme0n1 (второй NVMe, подтверждённый по /dev/disk/by-id — §3)
-└─ один GPT-раздел, тип 8309 (Linux LUKS)
-   └─ LUKS2 + TPM2 PCR 7 + независимый passphrase keyslot
-      │  (открывается через /etc/crypttab → /dev/mapper/cryptdata)
-      └─ Btrfs, label "backup", compress=zstd:3
-         ├─ @data
-         │  └─ /home/<username>/data
-         │     hot, не boot dependency
-         │     дополнительное/воспроизводимое хранилище
-         │
-         └─ @backup
-            └─ /mnt/backup
-               noauto / soft-cold
-               ├─ gentoo/    ← btrbk: снапшоты корня Gentoo
-               ├─ home.borg  ← borg: /home/<username>
-               └─ etc.borg   ← borg: /etc
+второй NVMe
+└─ GPT: один раздел Linux LUKS
+   └─ LUKS2
+      ├─ TPM2 unlock, PCR 7
+      ├─ passphrase keyslot для recovery
+      └─ расшифрованный payload: Btrfs
+         ├─ @data   → /home/<username>/data
+         └─ @backup → /mnt/backup
 ```
 
-### Принятая threat model
+- Второй диск не входит в `initramfs` и не является boot dependency. Отсутствие
+  диска или ошибка TPM unlock не должны останавливать загрузку или вызывать
+  интерактивный запрос пароля.
+- `@data` обычно смонтирован как дополнительное хранилище.
+- `@backup` имеет `noauto` и монтируется только на время backup job.
+- RAID не используется. `@data` не считается источником уникальных данных;
+  критичным данным нужна отдельная копия вне этого ноутбука.
+- `@backup` — `soft-cold`: обычный userspace не видит его вне backup window,
+  но root может открыть контейнер и смонтировать subvolume. Это не защита от
+  root compromise.
 
-- **Защищаемся от отказа первого системного NVMe**: система теряется,
-  локальные бэкапы остаются на втором диске.
-- **Versioned/file-level recovery**: снапшоты корня (btrbk) + архивы
-  `/home` и `/etc` (borg).
-- **`@backup` обычно не mounted** — меньше exposure для обычного userspace.
-- **Не обещаем защиту от root compromise** — см. границу ниже.
-- **`@data` не содержит уникальных данных** и не входит в обязательный
-  backup contract: это дополнительное/воспроизводимое пространство.
-- **Отказ второго NVMe** означает потерю `@data` и локального backup tier —
-  это принятый риск.
-- **Критичные данные** всё равно требуют отдельной external/cloud copy вне
-  этого диска.
+## Что сохраняется
 
-> ⚠️ **Граница soft-cold**: soft-cold не защищает от root. Root может открыть
-> LUKS-контейнер и смонтировать `@backup` в любой момент; TPM-enrolled
-> второй LUKS сам по себе не делает бэкап устойчивым к root-компрометации.
-> Настоящая root-resistant модель потребовала бы независимого секрета,
-> физической/off-device изоляции или другой архитектуры — это сознательно
-> **out of scope** текущего design.
+| Источник | Назначение | Инструмент | Примечание |
+|---|---|---|---|
+| Корневой subvolume `@` (`/`) | `@backup/gentoo` | `btrbk` | Отдельные subvolume (`/home`, `/var/log`, кэши, `/.snapshots`) не входят |
+| `/home/<username>` | `@backup/home.borg` | `Borg 1.x` | Шифрованный архив и согласованный exclude-файл |
+| `/etc` | `@backup/etc.borg` | `Borg 1.x` | Отдельный архив для восстановления файлов |
 
-### Что бэкапим, а что нет
+Архив `/home` включает чувствительные файлы, например `~/.ssh` и `~/.gnupg`,
+поэтому `Borg` остаётся зашифрованным. Локальная копия не заменяет
+external/off-device backup; passphrase и экспортированные ключи репозиториев
+хранятся вне второго NVMe.
 
-| Источник | Куда | Инструмент | Что исключаем |
-|----------|------|-----------|---------------|
-| `@` (корень Gentoo: ОС + `/etc`) | `/mnt/backup/gentoo/` | btrbk (send/receive) | кэши в отдельных subvols не входят в `@`; `/.snapshots` не копируется |
-| `/home/<username>` | `/mnt/backup/home.borg` | borg | `data` (второй NVMe — §12.3), `.cache`, `llvm-project`, `llvm-for-bolt-perf`, `Downloads`, `.steam`, `*.venv`, `__pycache__` |
-| `/etc` | `/mnt/backup/etc.borg` | borg | `—` (точечный restore) |
-| `~/.ssh`, `~/.gnupg`, токены | внутри `home.borg` | borg (зашифрован) | — |
+## Подготовка и реализация
 
-**Не бэкапим** (воспроизводимое или вне контракта): `@var_cache`,
-`@distfiles`, `@var_log` (по желанию), `@portage_tree` (`emerge --sync`),
-`@portage_tmp`, `@ccache`, `/.snapshots` (локальная защита, не бэкап),
-`/home/<username>/data` (на втором диске, additional/reproducible).
+### 1. Подтвердить диск и ESP
 
----
-
-## 2. Prerequisites
-
-```bash
-# Снимок системы для отката (на всякий)
-doas snapper -c root create -d "before second disk setup"
-
-# Инструменты бэкапа
-doas emerge -av app-backup/btrbk app-backup/borgbackup
-
-# Проверка: пароль от старого LUKS Arch известен (для спасения данных)
-# Проверка: составлен список данных Arch, которые нужно спасти (§4)
-# Проверка: ESP общий, лежит на диске Gentoo (nvme1n1p1 → /boot)
-lsblk -o NAME,FSTYPE,MOUNTPOINTS,PARTTYPENAME /dev/nvme1n1
-```
-
----
-
-## 3. Identity gate: подтверждение физического диска
-
-> ⚠️ **STOP.** До любых `wipefs`, `sgdisk`, `cryptsetup luksFormat` нужно
-> подтвердить, что выбранный узел устройств указывает именно на физический
-> второй NVMe. `/dev/nvme0n1` — не идентичность: имя может измениться после
-> замены дисков, прошивок или порядка инициализации. Уничтожение не того
-> диска — потеря рабочей системы.
-
-Снять идентичность обоих NVMe:
+Имена `/dev/nvme0n1` и `/dev/nvme1n1` показывают текущий порядок устройств,
+но не определяют диск для destructive-команд. Выбери второй NVMe по
+`/dev/disk/by-id/` и каждый раз сверь модель, serial, размер, WWN, symlink и
+разметку:
 
 ```bash
 lsblk -d -o NAME,MODEL,SERIAL,SIZE,WWN
 ls -l /dev/disk/by-id/ | grep nvme
+readlink -f "/dev/disk/by-id/<SECOND-NVME>"
+doas sgdisk -p "/dev/disk/by-id/<SECOND-NVME>"
 ```
 
-Выбрать стабильный symlink конкретного второго NVMe из `/dev/disk/by-id/`
-(вид `nvme-<MODEL>_<SERIAL>`) и проверить, куда он ведёт и что на нём:
+До любой команды `wipefs`, `sgdisk`, `cryptsetup luksFormat` или `mkfs`
+подтверди, что это именно второй диск, что на нём ожидается старый Arch LUKS
+и что неизвестных разделов или данных нет. `/dev/nvme0n1` сам по себе не
+является идентичностью; используй выбранный путь из `/dev/disk/by-id/`.
+
+Отдельно подтверди расположение ESP и её содержимое:
 
 ```bash
-readlink -f /dev/disk/by-id/<SECOND-NVME>
-doas sgdisk -p /dev/disk/by-id/<SECOND-NVME>
+doas bootctl status --no-pager
+doas bootctl list --no-pager
+doas find /boot/EFI -type f -printf '%p\n'
 ```
 
-Перед любой destructive-операцией зафиксируй вручную и сверь:
-
-- **model** и **serial** — из `lsblk` и из имени by-id;
-- **size** — совпадает с ожидаемым вторым диском;
-- **текущую разметку** (`sgdisk -p`) — один раздел со старым Arch LUKS;
-- **WWN** — перекрёстная проверка.
-
-Дальше по тексту `<SECOND-NVME>` — этот подтверждённый by-id путь,
-partition-узел — `<SECOND-NVME>-part1`. В destructive-шагах удобно
-использовать переменную:
+ESP должна оставаться на основном NVMe, а не на диске, который будет стёрт.
+До стирания подтверди, что Gentoo выбран записью загрузки по умолчанию.
+Сейчас default указывает на старый Arch UKI, поэтому сначала отдельно
+переключи default на Gentoo по ID из `bootctl list` и проверь загрузку:
 
 ```bash
-DISK=/dev/disk/by-id/<CONFIRMED-SECOND-NVME>
+doas bootctl set-default "<CONFIRMED-GENTOO-UKI-ID>"
+doas bootctl status --no-pager
 ```
 
----
+Если Gentoo не загружается, не стирай диск; сначала восстанови прежний default
+и устрани проблему загрузки.
+Если ESP находится не на основном NVMe или разметка отличается от ожидаемой,
+остановись и пересмотри план до любых изменений.
 
-## 4. Спасение данных Arch
+### 2. Спасти данные старого Arch
 
-На старом разделе сейчас LUKS с Arch (UUID `<arch-luks-uuid>`). Перед
-стиранием — открыть read-only и забрать нужное.
-
-Временное хранилище — root-only каталог на уже зашифрованном первом диске,
-не пользовательский `~/arch-rescue`: rescued-данные включают root-owned
-секреты, и держать их в user-writable домашней директории не нужно.
+Сначала выбери нужные файлы старой системы. Например: `/etc`, `~/.ssh`,
+`~/.gnupg`, проекты и другие уникальные данные. Копию держи в `root-only`
+каталоге на уже зашифрованном системном диске:
 
 ```bash
 doas install -d -m 0700 -o root -g root /root/arch-rescue
-```
-
-Открыть старый LUKS только для чтения:
-
-```bash
-doas cryptsetup open --type luks --readonly /dev/disk/by-id/<SECOND-NVME>-part1 cryptarch-ro
-
+doas cryptsetup open --type luks --readonly \
+  "/dev/disk/by-id/<SECOND-NVME>-part1" cryptarch-ro
 doas mkdir -p /mnt/arch
-# Корень Arch — сабвольюм @ (см. rd.luks...rootflags=subvol=@ в bootctl)
-doas mount -o ro,subvol=/@ /dev/mapper/cryptarch-ro /mnt/arch
+doas mount -o ro,subvol=@ /dev/mapper/cryptarch-ro /mnt/arch
 
-# Посмотреть, что там есть
-ls -la /mnt/arch
-ls -la /mnt/arch/home   # пользователь Arch
+ls -la /mnt/arch/home
+doas cp -a /mnt/arch/etc /root/arch-rescue/
+doas cp -a "/mnt/arch/home/<arch-user>/.ssh" /root/arch-rescue/
 ```
 
-Скопировать ценное с root privileges. Ошибки копирования не подавляем:
-пустой результат из-за проглоченной ошибки — это молчаливая потеря данных.
-
-```bash
-# Секреты
-doas cp -a /mnt/arch/etc/ssh /root/arch-rescue/etc-ssh
-# Найди домашнюю директорию пользователя Arch и забери ~/.ssh, ~/.gnupg, dotfiles, проекты:
-# doas cp -a /mnt/arch/home/<arch-user>/.ssh   /root/arch-rescue/
-# doas cp -a /mnt/arch/home/<arch-user>/.gnupg /root/arch-rescue/
-# doas cp -a /mnt/arch/etc                     /root/arch-rescue/etc-arch
-```
-
-Закрыть:
+Добавь только нужные данные; проверь наличие, владельцев и чтение каждого
+важного файла. Затем закрой rescue mount и mapping:
 
 ```bash
 doas umount /mnt/arch
 doas cryptsetup close cryptarch-ro
 ```
 
-### Verification gate перед уничтожением диска
+**Destructive gate:** не стирай диск, пока rescue-копия не проверена и ты
+отдельно не подтвердил уничтожение старого Arch.
 
-Никаких destructive-шагов (§6 и далее), пока не подтверждено:
+Не удаляй `/root/arch-rescue` после настройки диска. Удали её вручную только
+после успешного restore test новой схемы и отдельного решения, что старые
+данные больше не нужны.
 
-- [ ] составлен список данных, которые необходимо было спасти;
-- [ ] каждый пункт списка физически присутствует в `/root/arch-rescue`
-      (`doas ls -laR /root/arch-rescue`);
-- [ ] permissions/ownership приемлемы (`doas stat`);
-- [ ] важные файлы реально открываются и читаются (ключи, конфиги, проекты);
-- [ ] ты явно подтвердил решение уничтожить старый Arch disk.
+### 3. Очистить ESP отдельно (необязательно)
 
-### Жизненный цикл rescue-копии
-
-После успешной миграции (бэкапы настроены и проверены, §12–14) временная
-копия больше не нужна:
+Удаление старых Arch UKI — отдельный cleanup gate; оно не требуется для
+переразметки второго NVMe. Сначала сверь записи загрузчика и полный список
+файлов. Удаляй только конкретные файлы, принадлежность которых Arch
+подтверждена:
 
 ```bash
-doas rm -rf /root/arch-rescue
+doas bootctl list --no-pager
+doas find /boot/EFI -type f -printf '%p\n'
+doas rm -v "/boot/EFI/Linux/<CONFIRMED-ARCH-UKI>"
 ```
 
-Это обычное удаление, а не physical secure erase. Утилиты «затирания»
-одиночных файлов рассчитаны на in-place overwrite; Btrfs (CoW) и SSD/NVMe
-(wear levelling) такую гарантию не дают. Настоящая security boundary —
-encryption at rest: оба диска под LUKS, `/root` лежит на зашифрованном
-первом диске.
+Не используй wildcard для удаления UKI.
 
----
+### 4. Создать GPT и `LUKS2`
 
-## 5. Очистка ESP от Arch UKI
-
-Arch-загрузчики (`arch-linux-cachyos.efi`, `arch-linux.efi`) лежат в **общем ESP** `/boot/EFI/Linux/`. systemd-boot детектит их по BLS Type #2 автоматически — отдельной NVRAM-записи нет, чистить `efibootmgr` не нужно.
+Перед продолжением повтори identity gate из шага 1 и проверь, что rescue gate
+пройден. После этого подставь подтверждённый by-id путь:
 
 ```bash
-# Посмотреть Arch UKI в ESP
-ls -l /boot/EFI/Linux/arch-linux*.efi
+DISK="/dev/disk/by-id/<CONFIRMED-SECOND-NVME>"
 
-# Удалить
-doas rm -v /boot/EFI/Linux/arch-linux*.efi
-
-# Проверить, что systemd-boot больше не видит Arch
-doas bootctl list | grep -i arch   # должно быть пусто
-```
-
----
-
-## 6. Переразметка второго диска
-
-> ⚠️ **Деструктивно**: стирает всё на втором NVMe. Перед этим должны быть
-> пройдены identity gate (§3) и rescue verification gate (§4).
-
-```bash
-DISK=/dev/disk/by-id/<CONFIRMED-SECOND-NVME>
-
-# Убедиться, что старый LUKS закрыт
-doas cryptsetup status cryptarch-ro   # ожидается "is inactive"
-doas cryptsetup status cryptarch      # если когда-либо открывался — тоже закрыт
-
-# Очистить подписи диска
 doas wipefs -a "$DISK"
-
-# Новая GPT с одним разделом
-doas sgdisk -Z "$DISK"
-doas sgdisk -n 1:0:0 -t 1:8309 "$DISK"
-
-# Проверить
+doas sgdisk --zap-all "$DISK"
+doas sgdisk --new=1:0:0 --typecode=1:8309 "$DISK"
+doas udevadm settle
 doas sgdisk -p "$DISK"
+test -b "$DISK-part1"
 ```
 
-Тип раздела — `8309` (**Linux LUKS**), а не generic `8300`: назначение
-раздела уже известно, и разметка должна это отражать. Новый partition-узел:
-`<SECOND-NVME>-part1`.
-
----
-
-## 7. LUKS2 + TPM2
-
-Workstation policy прежняя: LUKS2, TPM2, PCR 7 — как у первого диска. PCR 7 —
-уже принятое решение текущего boot design; второй диск пока не enrolled, и
-перед реальной реализацией актуальный TPM/systemd state проверяется заново.
+Создай `LUKS2`. Passphrase, заданный при `luksFormat`, остаётся независимым
+recovery-путём; сохрани его вне этого диска. Затем добавь `TPM2` enrollment
+по принятой политике `PCR 7`. TPM enrollment зависит от выбранной PCR policy;
+сохраняй passphrase на случай, если автоматический unlock станет недоступен
+после изменения состояния firmware или Secure Boot.
 
 ```bash
-# Создать LUKS2; passphrase — независимый recovery-путь, не привязанный к TPM
-doas cryptsetup luksFormat --type luks2 --pbkdf argon2id /dev/disk/by-id/<SECOND-NVME>-part1
-
-# Открыть
-doas cryptsetup open --type luks /dev/disk/by-id/<SECOND-NVME>-part1 cryptdata
-
-# Привязать к TPM2 — PCR 7, тот же набор, что у первого диска
-doas systemd-cryptenroll --wipe-slot=tpm2 --tpm2-device=auto --tpm2-pcrs=7 /dev/disk/by-id/<SECOND-NVME>-part1
+doas cryptsetup luksFormat --type luks2 --pbkdf argon2id "$DISK-part1"
+doas systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 "$DISK-part1"
 ```
 
-Проверить результат через `luksDump` (инспекция; не путай номера keyslots и
-номера токенов — это разные сущности):
+До продолжения проверь LUKS metadata локально, не публикуя token blobs.
+Определи keyslot с passphrase, не связанный с TPM token, и проверь именно его:
 
 ```bash
-doas cryptsetup luksDump /dev/disk/by-id/<SECOND-NVME>-part1
+doas cryptsetup luksDump "$DISK-part1"
+doas cryptsetup open --test-passphrase --key-slot "<PASSPHRASE-SLOT>" \
+  "$DISK-part1"
 ```
 
-Требования к результату:
+Passphrase test должен завершиться успешно без открытия mapping. Если он не
+проходит — остановись; TPM token не заменяет recovery keyslot.
 
-- существует **минимум один passphrase keyslot** (секция `Keyslots`);
-- существует **TPM2 token** (секция `Tokens`);
-- passphrase реально открывает LUKS независимо от TPM:
+### 5. Создать `Btrfs` и subvolumes
 
-```bash
-doas cryptsetup open --test-passphrase /dev/disk/by-id/<SECOND-NVME>-part1
-```
-
-«Парольный слот 0» — не универсальный факт: нумерация слотов — деталь
-конкретного enrollment, проверяй фактическое состояние, а не предполагаемый
-номер.
-
-Зафиксировать UUID LUKS для `/etc/crypttab`:
+Открой контейнер, создай `Btrfs` без RAID и ровно два subvolume:
 
 ```bash
-doas blkid -s UUID -o value /dev/disk/by-id/<SECOND-NVME>-part1
-```
-
-> ⚠️ **Важно**: обязательно оставь passphrase keyslot. Если TPM умрёт или PCR изменятся (обновление firmware, перемонтаж Secure Boot) — без пароля диск не открыть никогда. Сравни с первым диском: `doas cryptsetup luksDump /dev/nvme1n1p2` — там тоже должен быть passphrase keyslot рядом с TPM.
-
-> ⚠️ **Важный нюанс**: именно PCR 7, а не расширенный набор вроде `0+7` — на этой машине даже с минимальным набором смена cmdline (2026-09-14) совпадала с PCR-mismatch и потерей анлока, повторное зачисление восстановило работу; точный measurement path прошивки не подтверждён (прямого before/after-замера PCR 7 не было). Хронология и процедура перезачисления — [troubleshooting: TPM2-анлок после пересборки UKI](../../../../troubleshooting/luks-tpm2-unlock-after-uki-rebuild/). Возьмёшь другой набор — синхронизируй `tpm2-pcrs=` в `/etc/crypttab` (§9).
-
----
-
-## 8. Btrfs + субвольмы
-
-```bash
-# Создать ФС (single profile — без RAID, это дефолт для одного устройства)
+doas cryptsetup open --type luks "$DISK-part1" cryptdata
 doas mkfs.btrfs -L backup /dev/mapper/cryptdata
-
-# Временно смонтировать корень ФС для создания subvols
 doas mkdir -p /mnt/cryptdata-root
 doas mount /dev/mapper/cryptdata /mnt/cryptdata-root
-
-# Создать subvols (flat-layout, как на первом диске)
-doas btrfs subvolume create /mnt/cryptdata-root/@backup
 doas btrfs subvolume create /mnt/cryptdata-root/@data
-
-# Зафиксировать UUID Btrfs для /etc/fstab
+doas btrfs subvolume create /mnt/cryptdata-root/@backup
 doas blkid -s UUID -o value /dev/mapper/cryptdata
-
-# Отмонтировать временный mount
 doas umount /mnt/cryptdata-root
 ```
 
-Один Btrfs, ровно два сабвольюма: `@data` + `@backup`. Дополнительные
-субвольюмы не добавляются без необходимости.
+### 6. Настроить `/etc/crypttab` и `/etc/fstab`
 
----
-
-## 9. /etc/crypttab и /etc/fstab: boot-независимость
-
-Архитектурное требование:
-
-> Отказ, отсутствие или TPM unlock failure второго NVMe не должен ломать
-> boot Gentoo и не должен требовать интерактивный пароль второго диска во
-> время обычной загрузки. Recovery passphrase используется вручную, при
-> диагностике/восстановлении.
-
-Файл: `/etc/crypttab` (создать, если отсутствует):
+Файл: `/etc/crypttab`
 
 ```text
-# <name>      <device>          <password>   <options>
-cryptdata      UUID=<LUKS-UUID>  none         luks,tpm2-device=auto,tpm2-pcrs=7,nofail,headless
+cryptdata UUID=<LUKS-UUID> none luks,tpm2-device=auto,nofail,headless=yes
 ```
 
-- `nofail` — зашифрованное устройство не является hard boot dependency:
-  система грузится, даже если второй диск отсутствует или не открылся;
-- `headless` — при неудаче TPM boot не превращается в интерактивный password
-  prompt: устройство просто остаётся закрытым;
-- `tpm2-pcrs=7` указан явно и совпадает с набором из `systemd-cryptenroll`
-  (§7) — разблокировка не зависит от дефолтов crypttab.
+`headless=yes` запрещает интерактивный запрос пароля, а `nofail` делает
+разблокировку нефатальной для загрузки. `PCR 7` задан при
+`systemd-cryptenroll` и хранится в `LUKS2` token metadata.
 
-Ручной recovery при проблемах с TPM:
-
-```bash
-doas cryptsetup open --type luks /dev/disk/by-id/<SECOND-NVME>-part1 cryptdata
-```
-
-Файл: `/etc/fstab` — добавить строки (в стиле существующих Btrfs-записей):
+Файл: `/etc/fstab`
 
 ```text
-# Second disk — data (hot, не boot dependency)
-UUID=<BTRFS-UUID>  /home/<username>/data  btrfs  rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2,subvol=/@data,nofail  0 0
-
-# Second disk — backup target (soft-cold)
-UUID=<BTRFS-UUID>  /mnt/backup  btrfs  rw,noatime,compress=zstd:3,ssd,discard=async,space_cache=v2,subvol=/@backup,noauto,nofail  0 0
+UUID=<BTRFS-UUID> /home/<username>/data btrfs rw,noatime,compress=zstd:3,ssd,space_cache=v2,subvol=@data,nofail 0 0
+UUID=<BTRFS-UUID> /mnt/backup btrfs rw,noatime,compress=zstd:3,ssd,space_cache=v2,subvol=@backup,noauto,nofail 0 0
 ```
 
-- `@data`: `nofail` — отсутствие или отказ второго диска не вешает загрузку;
-- `@backup`: `noauto,nofail` — обычно не смонтирован (soft-cold) и не
-  участвует в boot.
+`nofail` нужен и на mount, который зависит от cryptdata: одного `nofail` в
+crypttab недостаточно. `@data` будет монтироваться при обычной загрузке;
+`@backup` останется unmounted до запуска backup service.
+TRIM через LUKS не включён; добавление `discard` в crypttab — отдельное
+решение с последствиями для конфиденциальности.
 
-> Где `<LUKS-UUID>` — из §7, `<BTRFS-UUID>` — из §8. Произвольный
-> `x-systemd.device-timeout=` не добавляем: без live-замера необходимости и
-> подбора значения он только маскирует проблему.
-
-Второй диск не входит в initramfs: Dracut/UKI/kernel cmdline/sbctl не
-меняются.
-
----
-
-## 10. Точки монтирования и ownership
-
-`/mnt/backup` остаётся root-controlled. Для `@data` порядок критичен:
-ownership меняется **после** успешного mount, не до.
-
-Почему: если сделать `chown <username>` до mount и второй диск не
-смонтируется (отсутствует, LUKS не открылся), приложения получат
-user-writable каталог на первом NVMe и начнут незаметно писать данные туда.
-Root-owned non-writable mountpoint даёт обратную семантику: без диска запись
-падает с ошибкой, а не молча уходит на первый диск.
+Создай root-owned точки монтирования. Для `@data` меняй владельца только
+после успешного mount, чтобы при недоступном диске запись не уходила
+незаметно в каталог на системном диске:
 
 ```bash
-# 1. Mountpoint — root-owned и non-user-writable (до mount)
-doas install -d -m 0755 -o root -g root /home/<username>/data
-doas install -d -m 0755 -o root -g root /mnt/backup
-
-# 2. Активировать конфигурацию: открыть второй LUKS через TPM
+doas install -d -m 0755 -o root -g root "/home/<username>/data" /mnt/backup
 doas systemctl daemon-reload
 doas systemctl start systemd-cryptsetup@cryptdata
-
-# 3. Смонтировать горячие данные (backup НЕ монтируем — noauto)
-doas mount /home/<username>/data
-
-# 4. Проверить, что смонтирован именно @data с ожидаемым UUID/subvol
-findmnt --mountpoint /home/<username>/data
-
-# 5. Только после успешного mount — ownership корня смонтированного @data
-doas chown <username>:<username> /home/<username>/data
-
-# Контроль
-lsblk -o NAME,FSTYPE,MOUNTPOINTS /dev/disk/by-id/<SECOND-NVME>
+doas mount "/home/<username>/data"
+findmnt --mountpoint "/home/<username>/data"
+doas chown "<username>:<username>" "/home/<username>/data"
 ```
 
-`chown` в шаге 5 меняет владельца корня смонтированного сабвольюма `@data`
-(на втором диске), а не каталога-точки монтирования на первом диске.
+### 7. Установить инструменты и настроить `btrbk`
 
----
+Пакеты в Gentoo сейчас не установлены. Установи их перед настройкой backup:
 
-## 11. btrbk: бэкап корня Gentoo
+```bash
+doas emerge -av app-backup/btrbk app-backup/borgbackup
+```
 
-btrbk делает снапшоты корня Gentoo и инкрементальный `btrfs send/receive` на
-второй диск. Источник — первый диск, target — `/mnt/backup/gentoo`.
-
-Источник в конфигурации — `/` как absolute path: `/` уже является
-смонтированным сабвольюмом `@`, и отдельный top-level mount (subvolid=5)
-ради btrbk не нужен. Прежняя форма конфига предполагала, что `@` доступен
-как вложенный путь внутри корня — это не соответствует фактическому layout
-рабочей станции.
-
-Файл: `/etc/btrbk/btrbk.conf`:
+Файл: `/etc/btrbk/btrbk.conf`
 
 ```text
-# Retention
 snapshot_preserve_min   latest
 snapshot_preserve       14d 4w 6m
 target_preserve_min     latest
 target_preserve         14d 4w 6m
-
-# Логирование
 loglevel                info
-lockfile                /var/lock/btrbk.lock
-
-# Снапшоты корня — в отдельном каталоге внутри /.snapshots
 snapshot_dir            /.snapshots/btrbk
 
-# Источник: / (смонтированный сабвольюм @ корня Gentoo)
 subvolume /
   snapshot_name root
   target send-receive /mnt/backup/gentoo
 ```
 
-До первого run создать каталог снапшотов:
+/ — уже смонтированный root subvolume Gentoo. Подготовь snapshot directory,
+смонтируй `@backup` и подтверди правильную точку монтирования:
 
 ```bash
 doas mkdir -p /.snapshots/btrbk
-```
-
-Каталог target создаётся **только после успешного mount** `/mnt/backup`:
-
-```bash
 doas mount /mnt/backup
-findmnt --mountpoint /mnt/backup   # убедиться: subvol=/@backup, ожидаемый UUID
-doas mkdir -p /mnt/backup/gentoo
+findmnt --mountpoint /mnt/backup
 ```
 
-Не создавай target в пустом `/mnt/backup`: если сабвольюм не смонтирован,
-каталог окажется на корневой ФС первого диска, и бэкап пойдёт туда же.
-
-Проверка конфигурации (без записи):
+Убедись, что смонтирован Btrfs subvolume `@backup` второго диска. Иначе
+остановись: нельзя создавать target в обычном каталоге `/mnt/backup` на root.
+После проверки создай target directory и проверь конфигурацию/dry-run:
 
 ```bash
+doas mkdir -p /mnt/backup/gentoo
 doas btrbk config print
 doas btrbk run -n
+doas umount /mnt/backup
 ```
 
-`btrbk run -n` — документированная dry-run форма. Реальный send в рамках
-этого плана не выполняется.
+Backup service ниже запускает `btrbk` run. После первого run проверь наличие
+полученного subvolume в `@backup/gentoo`, прочитай из него выбранный файл и
+проверь, что путь восстановления понятен.
 
----
+### 8. Настроить `Borg 1.x`
 
-## 12. Borg: репозитории, секреты, exclude policy
-
-Два репозитория: `/mnt/backup/home.borg` и `/mnt/backup/etc.borg`. `/etc`
-сохраняется отдельно для удобного file-level restore, даже несмотря на то,
-что root также попадает в btrbk.
-
-### 12.1. Инициализация и экспорт ключа
+Смонтируй `@backup` и проверь, что `findmnt` показывает Btrfs subvolume
+`@backup` второго диска. Если это не так, остановись: репозитории нельзя
+создавать в обычном каталоге `/mnt/backup` на системном диске.
 
 ```bash
 doas mount /mnt/backup
-findmnt --mountpoint /mnt/backup   # subvol=/@backup
+findmnt --mountpoint /mnt/backup
+```
 
-doas mkdir -p /mnt/backup/home.borg /mnt/backup/etc.borg
+После этой проверки создай два зашифрованных репозитория. Экспортируй ключи
+за пределы второго NVMe; passphrase сохрани в password manager и в
+`root-only` файле для automation:
+
+```bash
 doas borg init --encryption=repokey /mnt/backup/home.borg
 doas borg init --encryption=repokey /mnt/backup/etc.borg
-```
+doas borg key export /mnt/backup/home.borg "<OFF-DEVICE-PATH>/home.borg.key"
+doas borg key export /mnt/backup/etc.borg "<OFF-DEVICE-PATH>/etc.borg.key"
 
-Сразу после init — экспорт ключа каждого репозитория:
-
-```bash
-doas borg key export /mnt/backup/home.borg <OFF-DEVICE-PATH>/home.borg.key
-doas borg key export /mnt/backup/etc.borg  <OFF-DEVICE-PATH>/etc.borg.key
-```
-
-- при `repokey` основной ключ хранится внутри репозитория: export — не
-  единственная копия, но защищает от corruption/loss ключа внутри репо;
-- для recovery всё равно нужен passphrase;
-- экспортированный ключ хранится **вне второго NVMe** и точно не на
-  `@backup`;
-- passphrase дополнительно сохраняется в password manager (off-device
-  recovery context).
-
-### 12.2. Passphrase для automation
-
-Passphrase не должен появляться в systemd unit, command line или
-example history — только в root-only файле:
-
-```bash
 doas install -d -m 0700 -o root -g root /etc/borg
-doas nano /etc/borg/passphrase   # записать passphrase
-doas chmod 0600 /etc/borg/passphrase
-doas stat -c '%a %U:%G' /etc/borg/passphrase   # ожидается: 600 root:root
+doas install -m 0600 -o root -g root /dev/null /etc/borg/passphrase
+doas umount /mnt/backup
 ```
 
-Borg-automation читает его через passcommand:
+Запиши `Borg` passphrase в `/etc/borg/passphrase`; файл должен иметь режим
+0600 и владельца root:root.
 
-```bash
-export BORG_PASSCOMMAND='cat /etc/borg/passphrase'
+Файл: `/etc/borg/home.exclude`
+
+```text
+home/<username>/data/
+home/<username>/.cache/
+home/<username>/llvm-project/
+home/<username>/llvm-for-bolt-perf/
+home/<username>/Downloads/
+home/<username>/.steam/
+home/<username>/.local/share/Trash/
+*/.venv
+*/__pycache__
+*/node_modules
+*.pyc
 ```
 
-### 12.3. Exclude policy и dry-run проверка
-
-Критичное правило: `/home/<username>/data` находится на том же втором NVMe,
-что и target бэкапа. Borg `/home` **обязан исключать этот путь** — иначе
-получится копия данных второго диска на тот же физический диск.
-
-Exclude-паттерны — в нормализованной форме: Borg 1.2+ нормализует discovered
-paths без leading slash, надёжная привязка — по пути без ведущего `/`:
-
-- `home/<username>/data/` — критично, см. выше;
-- `home/<username>/.cache/`;
-- `home/<username>/llvm-project/`;
-- `home/<username>/llvm-for-bolt-perf/`;
-- `home/<username>/Downloads/`;
-- `home/<username>/.steam/`;
-- `home/<username>/.local/share/Trash/`;
-- `*/.venv`, `*/__pycache__`, `*/node_modules`, `*.pyc`, `--exclude-caches`.
-
-Перед первым реальным бэкапом — dry-run/list verification семантики
-исключений (документированные возможности Borg):
+Это принятые исключения для /home; data/ обязателен, потому что находится
+на том же физическом диске, что и репозитории. `--exclude-caches` остаётся
+отдельной опцией `Borg`. Перед первым backup проверь этот же exclude-файл
+через `borg create --dry-run --list --filter x` и подтверди, что
+`home/<username>/data/` показан как исключённый.
 
 ```bash
 doas mount /mnt/backup
-
-doas borg create --dry-run --list \
-  --exclude 'home/<username>/data/' \
-  --exclude 'home/<username>/.cache/' \
-  --exclude 'home/<username>/llvm-project/' \
-  --exclude 'home/<username>/llvm-for-bolt-perf/' \
-  --exclude 'home/<username>/Downloads/' \
-  --exclude 'home/<username>/.steam/' \
-  --exclude 'home/<username>/.local/share/Trash/' \
-  --exclude '*/.venv' \
-  --exclude '*/__pycache__' \
-  --exclude '*/node_modules' \
-  --exclude-caches \
-  --exclude '*.pyc' \
-  /mnt/backup/home.borg::dryrun \
-  /home/<username> | tee /tmp/borg-dryrun.txt
-
-# Все строки с data должны иметь статус 'x' (excluded)
-grep 'home/<username>/data' /tmp/borg-dryrun.txt
+findmnt --mountpoint /mnt/backup
 ```
 
-> ⚠️ **Секреты**: `~/.ssh`, `~/.gnupg`, `~/.ansible_vault_pass`, `~/.mcp-auth`, `~/.codex`, `.claude.json`, `~/.mozilla` попадают в `home.borg`. Репозиторий зашифрован и лежит на зашифрованном диске — это допустимо. Но никогда не копируй их в открытый git/облако.
+Убедись, что `findmnt` показывает Btrfs subvolume `@backup` второго диска;
+если mount не подтвердился, остановись. Затем проверь исключения и отключи
+mount:
 
----
+```bash
+doas env BORG_PASSCOMMAND='cat /etc/borg/passphrase' borg create --dry-run --list \
+  --filter x \
+  --exclude-from /etc/borg/home.exclude --exclude-caches \
+  /mnt/backup/home.borg::dryrun "/home/<username>"
+doas umount /mnt/backup
+```
 
-## 13. Автоматизация: один orchestration service + один timer
+### 9. Настроить один backup service и timer
 
-Вместо двух независимых таймеров, которые по отдельности mount/unmount один
-и тот же `/mnt/backup`, — **один backup orchestration service и один
-timer**. Один mount lifecycle, нет race между btrbk и Borg, один systemd
-статус, одна точка failure reporting, простые soft-cold semantics.
-
-Файл: `/usr/local/bin/second-disk-backup.sh`:
+Файл: `/usr/local/bin/second-disk-backup.sh`
 
 ```bash
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 BACKUP_TARGET=/mnt/backup
 REPO_HOME=$BACKUP_TARGET/home.borg
 REPO_ETC=$BACKUP_TARGET/etc.borg
 export BORG_PASSCOMMAND='cat /etc/borg/passphrase'
-
-MOUNTED_BY_US=0
+mounted_by_us=0
 
 cleanup() {
   local rc=$?
-  # Unmount гарантирован и при success, и при failure — но только свой mount
-  if [[ $MOUNTED_BY_US -eq 1 ]] && findmnt --mountpoint "$BACKUP_TARGET" >/dev/null; then
+  trap - EXIT INT TERM
+  if (( mounted_by_us )) && findmnt --mountpoint "$BACKUP_TARGET" >/dev/null; then
     umount "$BACKUP_TARGET" || rc=1
   fi
   exit "$rc"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-# 1. Чужой mount — явный fail, молча отмонтировать нельзя.
-#    Именно --mountpoint: --target вернул бы ФС, содержащую путь
-#    (корень первого диска), и блокировал бы каждый запуск
 if findmnt --mountpoint "$BACKUP_TARGET" >/dev/null; then
-  echo "ERROR: $BACKUP_TARGET is already mounted; unmount it manually and investigate" >&2
+  echo "ERROR: $BACKUP_TARGET is already mounted; investigate first" >&2
   exit 1
 fi
 
-# 2. Mount: без '|| true' — после failed mount бэкап не продолжается,
-#    иначе запись пойдёт в пустой mountpoint на первом диске
 mount "$BACKUP_TARGET"
-MOUNTED_BY_US=1
-
-# 3. btrbk: снапшоты корня + send/receive
+mounted_by_us=1
 btrbk run
 
-# 4–5. Borg: /home и /etc
-STAMP=$(date +%Y-%m-%d_%H:%M)
+STAMP=$(date +%Y-%m-%d_%H-%M-%S)
+borg create --stats --exclude-from /etc/borg/home.exclude --exclude-caches \
+  "$REPO_HOME::home-$STAMP" "/home/<username>"
+borg create --stats --exclude-caches \
+  "$REPO_ETC::etc-$STAMP" /etc
 
-borg create --stats \
-  --exclude 'home/<username>/data/' \
-  --exclude 'home/<username>/.cache/' \
-  --exclude 'home/<username>/llvm-project/' \
-  --exclude 'home/<username>/llvm-for-bolt-perf/' \
-  --exclude 'home/<username>/Downloads/' \
-  --exclude 'home/<username>/.steam/' \
-  --exclude 'home/<username>/.local/share/Trash/' \
-  --exclude '*/.venv' \
-  --exclude '*/__pycache__' \
-  --exclude '*/node_modules' \
-  --exclude-caches \
-  --exclude '*.pyc' \
-  "${REPO_HOME}::home-${STAMP}" \
-  /home/<username>
-
-borg create --stats \
-  --exclude-caches \
-  "${REPO_ETC}::etc-${STAMP}" \
-  /etc
-
-# 6. Retention + компактификация
 for repo in "$REPO_HOME" "$REPO_ETC"; do
   borg prune --keep-daily 14 --keep-weekly 4 --keep-monthly 6 "$repo"
   borg compact "$repo"
 done
-
-# 7. Unmount — в trap (cleanup), и при success, и при failure
 ```
 
-```bash
-doas chmod +x /usr/local/bin/second-disk-backup.sh
-```
+set -e сохраняет ошибку `btrbk`/`Borg`, а EXIT trap пытается отмонтировать
+`@backup` при успехе, ошибке команды и обработанных SIGINT/SIGTERM. Ошибка
+umount также даёт ненулевой exit status; systemd покажет service как failed.
+Не добавляй || true к backup-командам.
 
-Файл: `/etc/systemd/system/second-disk-backup.service`:
+Файл: `/etc/systemd/system/second-disk-backup.service`
 
 ```ini
 [Unit]
-Description=Second-disk backup orchestration (btrbk + borg)
+Description=Second-disk backup orchestration (btrbk + Borg)
 
 [Service]
 Type=oneshot
@@ -719,11 +423,11 @@ IOSchedulingClass=idle
 Nice=10
 ```
 
-Файл: `/etc/systemd/system/second-disk-backup.timer`:
+Файл: `/etc/systemd/system/second-disk-backup.timer`
 
 ```ini
 [Unit]
-Description=Daily second-disk backup (btrbk + borg)
+Description=Daily second-disk backup (btrbk + Borg)
 
 [Timer]
 OnCalendar=*-*-* 03:00:00
@@ -733,164 +437,85 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-Активация:
+Один `Type=oneshot` service не запускает параллельную копию, пока предыдущая
+ещё активна; timer использует этот же unit. Включай timer только после
+ручной проверки первого backup и restore:
 
 ```bash
+doas chmod 0755 /usr/local/bin/second-disk-backup.sh
 doas systemctl daemon-reload
 doas systemctl enable --now second-disk-backup.timer
 systemctl list-timers second-disk-backup.timer
 ```
 
----
+## Проверка готовности
 
-## 14. Verification / acceptance
+Схему можно считать принятой только после этих проверок:
 
-### 14.1. Design-time (этот документ)
+- passphrase проверен отдельно на его LUKS keyslot; `TPM2` unlock прошёл;
+- Gentoo выбран по умолчанию и normal boot успешен: `@data` смонтирован,
+  `@backup` вне backup job не смонтирован;
+- отдельно проверено, что отсутствие диска или TPM unlock failure не ломает
+  загрузку и не вызывает интерактивный prompt; `@data` при этом не принимает
+  запись в root-owned mountpoint на системном диске;
+- `btrbk config print` и `btrbk run -n` успешны; полученный snapshot читается,
+  а restore path проверен;
+- `borg list` показывает архивы, `borg extract --dry-run` может прочитать
+  выбранный архив, exclude проверен, ключи сохранены вне второго диска;
+- выполнен небольшой реальный restore `Borg` в пустой временный каталог;
+- после успешного и неуспешного backup `@backup` unmounted либо service
+  завершился с видимой ошибкой.
 
-Ничего из перечисленного ниже **live не проверялось**: схема — план.
-`btrbk config print`, `btrbk run -n`, Borg dry-run здесь — будущие шаги
-реализации, а не выполненные проверки. Отдельные concurrent-таймеры не
-добавляются.
+Не проверяй отказ диска удалением ключей или другими destructive-тестами.
+Failure-case boot проверяется отдельно по безопасному плану реализации.
 
-### 14.2. Будущий implementation acceptance
-
-Минимальный набор проверок при реализации.
-
-Диски и загрузка:
-
-- [ ] identity выбранного диска подтверждена (§3: model/serial/size/WWN,
-      зафиксирован by-id);
-- [ ] LUKS passphrase unlock работает
-      (`cryptsetup open --test-passphrase`);
-- [ ] TPM unlock работает;
-- [ ] reboot с исправным вторым диском — PASS: Gentoo грузится, `@data`
-      смонтирован;
-- [ ] второй диск не boot-critical — negative test: при отсутствии или
-      неуспешном unlock второго диска boot Gentoo не ломается и не требует
-      интерактивного passphrase (`nofail` + `headless`);
-- [ ] после такого boot `/home/<username>/data` не принимает данные молча
-      на первый диск — mountpoint root-owned, запись падает с ошибкой:
-
-```bash
-findmnt --mountpoint /home/<username>/data   # ожидается: не смонтирован
-touch /home/<username>/data/test         # ожидается: Permission denied
-```
-
-Btrfs:
-
-- [ ] существуют ровно ожидаемые `@data` и `@backup`;
-- [ ] `findmnt` показывает правильные UUID/subvol для обеих точек;
-- [ ] `@backup` после backup job снова unmounted.
-
-btrbk:
-
-- [ ] `btrbk config print` без ошибок;
-- [ ] `btrbk run -n` показывает ожидаемые действия;
-- [ ] выполнен manual first real backup;
-- [ ] received subvolume существует в `/mnt/backup/gentoo`;
-- [ ] бэкап открывается и читается;
-- [ ] full disaster restore не заявляется как PASS без реального restore
-      drill.
-
-Borg:
-
-- [ ] dry-run/list подтверждает exclude-семантику (§12.3);
-- [ ] `home`-бэкап не содержит `home/<username>/data`;
-- [ ] archives list/info доступны;
-- [ ] `borg check` выполняется по принятой policy;
-- [ ] passphrase recovery path проверен (passcommand и ручной ввод);
-- [ ] exported repokey существует вне второго NVMe.
-
-File restore test — безопасный restore в отдельный временном каталоге,
-не `borg extract` в `/`:
+Для проверки `Borg` после backup смонтируй `@backup` и подтверди, что
+`findmnt` показывает этот subvolume второго диска:
 
 ```bash
 doas mount /mnt/backup
-mkdir /tmp/borg-restore-test
+findmnt --mountpoint /mnt/backup
+doas env BORG_PASSCOMMAND='cat /etc/borg/passphrase' borg list /mnt/backup/etc.borg
+doas env BORG_PASSCOMMAND='cat /etc/borg/passphrase' \
+  borg extract --dry-run "/mnt/backup/etc.borg::etc-<STAMP>" etc/fstab
+doas install -d -m 0755 -o root -g root /tmp/borg-restore-test
 cd /tmp/borg-restore-test
-doas borg extract /mnt/backup/etc.borg::etc-<DATE> etc/fstab
-cat etc/fstab   # проверить содержимое
+doas env BORG_PASSCOMMAND='cat /etc/borg/passphrase' \
+  borg extract "/mnt/backup/etc.borg::etc-<STAMP>" etc/fstab
+doas cat etc/fstab
 cd /
-doas rm -rf /tmp/borg-restore-test
 doas umount /mnt/backup
 ```
 
----
+Проверь восстановленный файл и затем вручную удали временный каталог.
 
-## 15. Rollback
+## Откат и восстановление
 
-**Отключить второй диск от загрузки** (если что-то не так):
-
-```bash
-# Убрать cryptdata и second-disk записи из fstab и crypttab
-doas nano /etc/crypttab   # убрать cryptdata
-doas nano /etc/fstab      # убрать @data и @backup
-doas systemctl daemon-reload
-
-# Отключить автоматизацию
-doas systemctl disable --now second-disk-backup.timer
-
-# Перезагрузка — Gentoo грузится независимо от второго NVMe
-doas reboot
-```
-
-> Arch восстановить **нельзя** — диск затёрт (§6). Если dual-boot всё же нужен — это решение принимается до §5.
+Чтобы отключить схему, останови и отключи timer, убери только добавленные
+cryptdata/`Btrfs` строки из `/etc/crypttab` и `/etc/fstab`, затем выполни
+systemctl daemon-reload. Перед закрытием mapping убедись, что оба subvolume
+unmounted. После стирания диска старый Arch с него восстановить нельзя;
+до destructive gate данные должны быть проверены в `/root/arch-rescue`.
 
 ---
 
-## 16. Risks
+Источники: [systemd crypttab(5)](https://www.freedesktop.org/software/systemd/man/latest/crypttab.html),
+[systemd-cryptenroll(1)](https://www.freedesktop.org/software/systemd/man/latest/systemd-cryptenroll.html),
+[cryptsetup open(8)](https://man7.org/linux/man-pages/man8/cryptsetup-open.8.html),
+[fstab(5)](https://man7.org/linux/man-pages/man5/fstab.5.html),
+[systemd.mount(5)](https://www.freedesktop.org/software/systemd/man/latest/systemd.mount.html),
+[systemd.service(5)](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html),
+[systemd.timer(5)](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html),
+[bootctl(1)](https://www.freedesktop.org/software/systemd/man/latest/bootctl.html),
+[Btrfs subvolumes](https://btrfs.readthedocs.io/en/latest/Subvolumes.html),
+[btrbk(1)](https://digint.ch/btrbk/doc/btrbk.1.html),
+[btrbk.conf(5)](https://digint.ch/btrbk/doc/btrbk.conf.5.html),
+[Borg 1.4 create](https://borgbackup.readthedocs.io/en/stable/usage/create.html),
+[extract](https://borgbackup.readthedocs.io/en/stable/usage/extract.html) и
+[prune](https://borgbackup.readthedocs.io/en/stable/usage/prune.html),
+[Gentoo app-backup/btrbk](https://packages.gentoo.org/packages/app-backup/btrbk) и
+[app-backup/borgbackup](https://packages.gentoo.org/packages/app-backup/borgbackup).
 
-| Риск | Последствие | Митигация |
-|------|-------------|-----------|
-| Отказ первого (системного) NVMe | Система потеряна; локальные бэкапы остаются на втором диске | Восстановление `@` через btrbk/`btrfs receive` на новый диск + переустановка bootloader; критичное — дополнительно внешняя копия |
-| Отказ второго NVMe | Локальный backup tier и `@data` потеряны; Gentoo работает | Принятый риск: `@data` — дополнительное/воспроизводимое хранилище; уникальные критичные данные — external/cloud copy |
-| Потеря/кража ноутбука целиком | Оба локальных диска потеряны | External/cloud copy критичных данных вне ноутбука |
-| TPM failure / изменение PCR | Автоанлок второго диска не работает | Независимый passphrase keyslot: ручной unlock + re-enroll TPM |
-| Root compromise | Soft-cold не защищает: root может открыть LUKS и смонтировать `@backup` | Out of scope текущего design (граница — в §1); root-resistant модель требует другой архитектуры |
-| Повреждение бэкапов | Часть архивов/снапшотов недоступна | Периодический `borg check`, restore drills |
-| Утерян passphrase Borg / ключ репозитория | Зашифрованный Borg-бэкап недоступен | Passphrase в password manager; `borg key export` вне второго NVMe |
-| Смена имён NVMe при замене дисков | fstab/crypttab не найдут устройство | UUID в fstab/crypttab; при setup — подтверждённый `/dev/disk/by-id/` |
-
----
-
-## 17. Шпаргалка
-
-```bash
-# Открыть backup-target вручную (для проверки/restore)
-doas mount /mnt/backup
-findmnt --mountpoint /mnt/backup        # убедиться: subvol=/@backup
-
-# Статус btrbk
-doas btrbk list snapshots
-doas btrfs subvolume list /mnt/backup/gentoo
-
-# Статус borg (интерактивно спросит passphrase)
-doas borg list /mnt/backup/home.borg
-doas borg info /mnt/backup/home.borg::home-<DATE>
-doas borg check --verify-data /mnt/backup/home.borg
-
-# borg без ручного ввода passphrase
-doas env BORG_PASSCOMMAND='cat /etc/borg/passphrase' borg list /mnt/backup/home.borg
-
-# Восстановить файл/директорию — только в отдельный временный каталог
-mkdir /tmp/borg-restore-test && cd /tmp/borg-restore-test
-doas borg extract /mnt/backup/home.borg::home-<DATE> home/<username>/<path>
-
-# Закрыть backup-target
-doas umount /mnt/backup
-
-# TPM/token статус обоих дисков
-doas cryptsetup luksDump /dev/disk/by-id/<SECOND-NVME>-part1
-doas cryptsetup luksDump /dev/nvme1n1p2
-```
-
----
-
-## 18. Ссылки
-
-- [btrbk documentation](https://digint.ch/btrbk/) — конфигурация, retention, send/receive
-- [borgbackup documentation](https://borgbackup.readthedocs.io/) — exclude-паттерны, restore, automation
-- [systemd-cryptenroll](https://www.freedesktop.org/software/systemd/man/systemd-cryptenroll.html) — TPM2-привязка
-- [crypttab](https://www.freedesktop.org/software/systemd/man/crypttab.html) — опции LUKS через systemd (`nofail`, `headless`)
-- [filesystem/btrfs-setup](../../../../filesystem/btrfs-setup/) — соглашения по subvols/опциям
-- [installation/secure-boot-tpm](../../../../installation/secure-boot-tpm/) — модель TPM/LUKS первого диска
+Общие правила Btrfs, загрузки и TPM: [Btrfs setup](../../../../filesystem/btrfs-setup/),
+[systemd UKI setup](../../../../installation/systemd-uki-setup/) и
+[Secure Boot и TPM](../../../../installation/secure-boot-tpm/).
