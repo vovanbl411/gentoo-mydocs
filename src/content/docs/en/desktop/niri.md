@@ -3,148 +3,127 @@ title: "Niri: a scrollable tiling compositor"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-22"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-Niri is a Wayland compositor that arranges windows in a horizontal strip
-instead of a classic grid. The result of this guide is a working
-session:
-
-```text
-Niri
-→ native Wayland session
-→ niri-session
-→ systemd user session
-→ XDG autostart
-→ portals / polkit / shell as desktop components
-```
-
-The recorded state of the reference ASUS B5402 lives in
+Niri is a Wayland compositor that arranges windows in a horizontal strip. This
+guide covers installation on Gentoo, starting a systemd session, and the main
+configuration options. The recorded ASUS B5402 state is in
 [the system section](../../systems/asus-b5402/desktop/environment/).
 
-## Launch
+## Installation and launch
 
-### Installation
+Gentoo provides Niri as `gui-wm/niri` in
+[GURU](https://github.com/gentoo/guru/tree/master/gui-wm/niri). If the overlay
+is not enabled yet, enable and sync it:
 
-On Gentoo, Niri is usually available from overlays (guru, for example)
-or a custom ebuild. Screen capture and system dialogs are provided by
-portal backends — see [XDG Desktop Portals](../wayland-portals/).
+```bash
+doas eselect repository enable guru
+doas emaint sync -r guru
+```
 
-### niri-session
+For systemd, enable the `dbus` and `systemd` USE flags.
 
-On a systemd system, the primary way to start it is `niri-session`. It:
+File: `/etc/portage/package.use/niri`
 
-- starts Niri as the user unit `niri.service`;
-- handles session environment integration with the user systemd manager
-  and D-Bus on its own: `XDG_SESSION_TYPE=wayland`,
-  `XDG_CURRENT_DESKTOP=niri` and the other session variables are created
-  and imported automatically;
-- brings up `graphical-session.target` and, along with it,
-  `xdg-desktop-autostart.target`.
+```text
+gui-wm/niri dbus systemd
+```
 
-That is why, when starting via `niri-session`, there is no need to set
-`XDG_*` variables by hand or to call
-`dbus-update-activation-environment`.
+For screen sharing, add the `screencast` USE flag to this line. It requires
+`dbus` and adds `media-video/pipewire` and
+`sys-apps/xdg-desktop-portal-gnome`.
 
-### Display manager: greetd + tuigreet
+```bash
+emerge --pretend --verbose gui-wm/niri::guru
+doas emerge --ask --verbose gui-wm/niri::guru
+```
 
-An example `/etc/greetd/config.toml` with tuigreet as the greeter:
+On systemd, start Niri with `niri-session`. It prepares the user environment
+for D-Bus and systemd, then starts the compositor through `niri.service`. The
+unit runs `niri --session` and is tied to `graphical-session.target` and
+`xdg-desktop-autostart.target`. When the session exits, `niri-session` clears
+the session environment variables. With a normal `niri-session` launch, do not
+manually call `dbus-update-activation-environment`.
+
+Example for greetd and tuigreet:
+
+File: `/etc/greetd/config.toml`
 
 ```toml
-[terminal]
-vt = 1
-
 [default_session]
 command = "tuigreet --time --remember --asterisks --cmd niri-session"
 user = "greetd"
 ```
 
-It is enough for the greeter to pass `niri-session` as the session
-command. Niri also works with other display managers — what matters is
-launching `niri-session` rather than the bare `niri` binary if you need
-systemd integration.
-
 ## Configuration
 
-The configuration file is `~/.config/niri/config.kdl` (KDL format). The
-main categories:
-
-- `input` — keyboard, touchpad, gestures, pointer acceleration
-  (libinput);
-- `outputs` — monitors, scale, position;
-- `layout` — column width, gaps, presets;
-- `window-rule` — floating windows, decorations, rules for individual
-  applications;
-- `binds` — keyboard shortcuts;
-- `spawn-at-startup` — programs launched at startup (see Autostart).
-
-The full reference is
-[Niri wiki: Configuration](https://github.com/YaLTeR/niri/wiki/Configuration:-Overview).
-A base `environment {}` block with session variables is not needed:
-`niri-session` already sets them.
+The main file is `~/.config/niri/config.kdl`. Niri uses KDL blocks: `input`
+for input devices, `output` for displays, `layout` for columns, `window-rule`
+for window rules, `binds` for key bindings, and `spawn-at-startup` for starting
+programs. See the full
+[Niri configuration reference](https://niri-wm.github.io/niri/Configuration:-Introduction.html).
 
 ## Autostart
 
-`niri-session` brings up `graphical-session.target` and, along with it,
-`xdg-desktop-autostart.target`. Applications with an XDG autostart entry
-(`/etc/xdg/autostart/*.desktop`, `~/.config/autostart/*.desktop`) start
-on their own.
+XDG autostart entries run through the normal graphical session integration.
+Use one startup method for each component. Enabling the same app through both
+XDG autostart and `spawn-at-startup` can start two instances, such as two
+polkit agents.
 
-Do not duplicate such an application via
-`spawn-at-startup`/`spawn-sh-at-startup` — you would get two instances.
-The typical example is the polkit authentication agent, of which exactly
-one is allowed per user session: a second instance fails to register
-(`An authentication agent already exists for the given subject`).
+To start the Noctalia shell from Niri, add:
 
-- [Niri wiki — Integrating niri (Autostart)](https://github.com/YaLTeR/niri/wiki/Integrating-niri)
-- [Niri wiki — Configuration: Miscellaneous (`spawn-at-startup`)](https://github.com/YaLTeR/niri/wiki/Configuration:-Miscellaneous)
+```kdl
+spawn-at-startup "noctalia"
+```
 
-## Optional environment for processes spawned by Niri
+See the [Noctalia guide](../noctalia-shell/) for its configuration.
 
-`environment {}` sets variables for processes that Niri launches
-directly. It is not a mechanism for configuring individual applications,
-and these values do not automatically reach the systemd --user
-environment.
+## Environment
 
-If a variable is needed by one application only, use a wrapper/launcher
-or the corresponding systemd unit.
+The `environment {}` block sets variables only for processes started directly
+by Niri; it does not replace the session environment prepared by
+`niri-session`. Do not set `GDK_BACKEND` globally: it breaks the screencast
+portal.
 
-Setting toolkit backends globally (`GDK_BACKEND=wayland`,
-`QT_QPA_PLATFORM=wayland`, `SDL_VIDEODRIVER=wayland`,
-`EGL_PLATFORM=wayland`) is unnecessary: in a Wayland session the
-toolkits choose Wayland on their own. Upstream Niri warns that a global
-`GDK_BACKEND=wayland` breaks the screencast portal.
-## Xwayland (optional)
+## Portals
 
-Xwayland is optional. If you need X11 applications, install
-`xwayland-satellite >= 0.7`: Niri integrates it automatically. Manually
-exporting `$DISPLAY` and manually launching the satellite are not needed
-as part of the baseline. See the [Niri wiki](https://github.com/YaLTeR/niri/wiki)
-for details.
+Portals require Niri to run as a full graphical session. In the systemd setup
+described here, this is done with `niri-session`. GTK provides general portal
+interfaces; `xdg-desktop-portal-gnome` is needed for screen sharing. See the
+[Wayland portals guide](../wayland-portals/) for details.
+
+## Xwayland
+
+If you need X11 applications, install `gui-apps/xwayland-satellite`. Niri
+creates the X11 sockets, sets `DISPLAY`, and starts the satellite on demand. If
+it crashes, Niri restarts it. You do not need to export `DISPLAY` or start the
+satellite manually.
 
 ## Verification
 
-Inside a running session:
+After entering a Niri session, check its environment and unit:
 
 ```bash
-# Сессия представилась как niri
 echo "$XDG_CURRENT_DESKTOP"
-
-# Niri и session targets подняты как user-юниты
-systemctl --user is-active niri.service \
-                     graphical-session.target \
-                     xdg-desktop-autostart.target
+systemctl --user is-active niri.service
 ```
 
-The expected result is `niri` and `active` for each unit. After that you
-can check the session components: [portals](../wayland-portals/) and,
-if you use it, [Noctalia](../noctalia-shell/).
+Expected output:
 
-## Related docs
+```text
+niri
+active
+```
 
-- [XDG Desktop Portals](../wayland-portals/) — screencast and dialogs.
-- [Noctalia v5 for Niri](../noctalia-shell/) — the shell.
-- [ASUS B5402 desktop environment](../../systems/asus-b5402/desktop/environment/)
-  — the recorded state.
-- [Niri wiki](https://github.com/YaLTeR/niri/wiki) — the full reference.
+These commands check an already running Niri session.
+
+## Related material
+
+- [Wayland portals](../wayland-portals/) — backend selection and checks.
+- [Noctalia](../noctalia-shell/) — shell installation and configuration.
+- [ASUS B5402 desktop environment](../../systems/asus-b5402/desktop/environment/) — recorded system state.
+- [Niri systemd integration and autostart](https://niri-wm.github.io/niri/Integrating-niri.html).
+- [Niri important software and portals](https://niri-wm.github.io/niri/Important-Software.html).
+- [Niri Xwayland](https://niri-wm.github.io/niri/Xwayland.html).

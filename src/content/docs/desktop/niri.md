@@ -3,137 +3,130 @@ title: "Niri: тайловый композитор со скроллингом"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-22"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-Niri — Wayland-композитор, который вместо классической сетки использует
-горизонтальную ленту окон. Результат этого руководства — рабочая сессия:
-
-```text
-Niri
-→ native Wayland session
-→ niri-session
-→ systemd user session
-→ XDG autostart
-→ portals / polkit / shell as desktop components
-```
-
-Записанное состояние эталонной системы ASUS B5402 — в
+Niri — Wayland-композитор, который размещает окна в горизонтальной ленте.
+Здесь описаны установка в Gentoo, запуск через systemd и основные настройки.
+Записанное состояние ASUS B5402 см. в
 [системном разделе](../../systems/asus-b5402/desktop/environment/).
 
-## Launch
+## Установка и запуск
 
-### Установка
+В Gentoo Niri доступен как `gui-wm/niri` из
+[GURU](https://github.com/gentoo/guru/tree/master/gui-wm/niri). Если оверлей
+ещё не подключён, включи и синхронизируй его:
 
-В Gentoo Niri обычно доступен через оверлеи (например, guru) или собственный
-ebuild. Захват экрана и системные диалоги обеспечивают portal-бэкенды — см.
-[XDG Desktop Portals](../wayland-portals/).
+```bash
+doas eselect repository enable guru
+doas emaint sync -r guru
+```
 
-### niri-session
+Для systemd включи USE-флаги `dbus` и `systemd`.
 
-На systemd-системе основной способ запуска — `niri-session`. Он:
+Файл: `/etc/portage/package.use/niri`
 
-- стартует Niri как user-юнит `niri.service`;
-- сам занимается интеграцией session environment с user systemd и D-Bus:
-  `XDG_SESSION_TYPE=wayland`, `XDG_CURRENT_DESKTOP=niri` и остальные
-  session-переменные создаются и импортируются автоматически;
-- поднимает `graphical-session.target`, а вместе с ним —
-  `xdg-desktop-autostart.target`.
+```text
+gui-wm/niri dbus systemd
+```
 
-Поэтому при запуске через `niri-session` не нужно вручную задавать
-`XDG_*`-переменные или вызывать `dbus-update-activation-environment`.
+Для демонстрации экрана добавь USE-флаг `screencast` к этой строке. Он требует
+`dbus` и добавляет `media-video/pipewire` и
+`sys-apps/xdg-desktop-portal-gnome`.
 
-### Display manager: greetd + tuigreet
+```bash
+emerge --pretend --verbose gui-wm/niri::guru
+doas emerge --ask --verbose gui-wm/niri::guru
+```
 
-Пример `/etc/greetd/config.toml` с tuigreet в качестве greeter:
+На systemd запускай Niri через `niri-session`: он подготавливает окружение
+пользователя для D-Bus и systemd, затем запускает композитор через
+`niri.service`. Служба Niri запускает `niri --session` и связана с
+`graphical-session.target` и `xdg-desktop-autostart.target`. После выхода
+`niri-session` очищает переменные окружения сессии. При обычном запуске через
+`niri-session` вручную вызывать `dbus-update-activation-environment` не нужно.
+
+Пример для greetd и tuigreet:
+
+Файл: `/etc/greetd/config.toml`
 
 ```toml
-[terminal]
-vt = 1
-
 [default_session]
 command = "tuigreet --time --remember --asterisks --cmd niri-session"
 user = "greetd"
 ```
 
-Greeter'у достаточно указать `niri-session` командой сессии. Niri работает и с
-другими display manager'ами — важно запускать именно `niri-session`, а не
-голый бинарник `niri`, если нужна systemd-интеграция.
+## Конфигурация
 
-## Configuration
+Основной файл — `~/.config/niri/config.kdl`. Конфигурация KDL состоит из
+блоков `input` для устройств ввода, `output` для экранов, `layout` для
+раскладки колонок, `window-rule` для правил окон, `binds` для сочетаний клавиш
+и `spawn-at-startup` для запуска программ.
+Полное описание параметров — в
+[справочнике конфигурации Niri](https://niri-wm.github.io/niri/Configuration:-Introduction.html).
 
-Конфигурация — `~/.config/niri/config.kdl` (формат KDL). Основные категории:
+## Автозапуск
 
-- `input` — клавиатура, тачпад, жесты, ускорение (libinput);
-- `outputs` — мониторы, масштаб, положение;
-- `layout` — ширина колонок, отступы, пресеты;
-- `window-rule` — плавающие окна, декорации, правила для отдельных приложений;
-- `binds` — клавиатурные сокращения;
-- `spawn-at-startup` — запуск программ при старте (см. Autostart).
+XDG autostart запускается через обычную интеграцию с графической сессией.
+Для каждого компонента выбери один способ запуска: если одновременно
+использовать XDG autostart и `spawn-at-startup`, могут появиться два экземпляра,
+например два экземпляра polkit-агента.
 
-Полный reference — [Niri wiki: Configuration](https://github.com/YaLTeR/niri/wiki/Configuration:-Overview).
-Базовый блок `environment {}` с session-переменными не нужен: их уже
-выставляет `niri-session`.
+Noctalia shell можно запускать из конфигурации Niri:
 
-## Autostart
-
-`niri-session` поднимает `graphical-session.target`, а вместе с ним —
-`xdg-desktop-autostart.target`. Приложения с XDG autostart entry
-(`/etc/xdg/autostart/*.desktop`, `~/.config/autostart/*.desktop`) запускаются
-сами.
-
-Не дублируйте такое приложение через `spawn-at-startup`/`spawn-sh-at-startup`
-— получится два экземпляра. Типичный пример — polkit authentication agent,
-которого на пользовательскую сессию допускается ровно один: второй экземпляр
-завершается ошибкой регистрации (`An authentication agent already exists for
-the given subject`).
-
-- [Niri wiki — Integrating niri (Autostart)](https://github.com/YaLTeR/niri/wiki/Integrating-niri)
-- [Niri wiki — Configuration: Miscellaneous (`spawn-at-startup`)](https://github.com/YaLTeR/niri/wiki/Configuration:-Miscellaneous)
-
-## Optional environment for processes spawned by Niri
-
-`environment {}` задаёт переменные для процессов, которые Niri запускает
-непосредственно. Это не механизм для настройки отдельных приложений, и эти
-значения не попадают автоматически в окружение systemd --user.
-
-Если переменная нужна только одному приложению, используй wrapper/launcher
-или соответствующий systemd unit.
-
-Глобально задавать backend'ы тулкитов (`GDK_BACKEND=wayland`,
-`QT_QPA_PLATFORM=wayland`, `SDL_VIDEODRIVER=wayland`, `EGL_PLATFORM=wayland`)
-не нужно: в Wayland-сессии тулкиты выбирают Wayland сами. Upstream Niri
-предупреждает, что глобальный `GDK_BACKEND=wayland` ломает screencast portal.
-## Xwayland (optional)
-
-Xwayland не обязателен. Если нужны X11-приложения, установите
-`xwayland-satellite >= 0.7`: Niri автоматически интегрирует его. Ручной
-экспорт `$DISPLAY` и ручной запуск satellite как baseline не нужны. Подробнее
-— [Niri wiki](https://github.com/YaLTeR/niri/wiki).
-
-## Verification
-
-Внутри запущенной сессии:
-
-```bash
-# Сессия представилась как niri
-echo "$XDG_CURRENT_DESKTOP"
-
-# Niri и session targets подняты как user-юниты
-systemctl --user is-active niri.service \
-                     graphical-session.target \
-                     xdg-desktop-autostart.target
+```kdl
+spawn-at-startup "noctalia"
 ```
 
-Ожидаемый результат: `niri` и `active` для каждого юнита. Затем можно
-проверить компоненты сессии: [portals](../wayland-portals/) и, при
-использовании, [Noctalia](../noctalia-shell/).
+Настройка оболочки описана в руководстве по
+[Noctalia](../noctalia-shell/).
 
-## Related docs
+## Окружение
 
-- [XDG Desktop Portals](../wayland-portals/) — screencast и диалоги.
-- [Noctalia v5 для Niri](../noctalia-shell/) — оболочка.
-- [Рабочее окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/)
-  — фактическое состояние.
-- [Niri wiki](https://github.com/YaLTeR/niri/wiki) — полный reference.
+Блок `environment {}` задаёт переменные только для процессов, которые Niri
+запускает сам; он не заменяет подготовку окружения сессии командой
+`niri-session`. Не задавай `GDK_BACKEND` глобально: это ломает работу портала
+демонстрации экрана.
+
+## Порталы
+
+Для корректной работы порталов Niri должен быть запущен как полноценная
+графическая сессия. В описанной здесь systemd-схеме для этого используется
+`niri-session`. GTK обеспечивает общие интерфейсы портала, а для демонстрации
+экрана нужен `xdg-desktop-portal-gnome`. Подробности настройки — в руководстве
+по [порталам Wayland](../wayland-portals/).
+
+## Xwayland
+
+Если нужны X11-приложения, установи `gui-apps/xwayland-satellite`. Niri
+автоматически создаёт X11-сокеты, задаёт `DISPLAY` и запускает satellite по
+запросу; при сбое запускает его снова. Вручную экспортировать `DISPLAY` и
+запускать satellite не нужно.
+
+## Проверка
+
+После входа в Niri-сессию проверь её окружение и состояние службы:
+
+```bash
+echo "$XDG_CURRENT_DESKTOP"
+systemctl --user is-active niri.service
+```
+
+Ожидаемый вывод:
+
+```text
+niri
+active
+```
+
+Эти команды проверяют уже запущенную Niri-сессию.
+
+## Связанные материалы
+
+- [Порталы Wayland](../wayland-portals/) — выбор backend и проверка.
+- [Noctalia](../noctalia-shell/) — установка и настройка оболочки.
+- [Рабочее окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/) — записанное состояние системы.
+- [Niri: интеграция с systemd и автозапуск](https://niri-wm.github.io/niri/Integrating-niri.html).
+- [Niri: важные программы и порталы](https://niri-wm.github.io/niri/Important-Software.html).
+- [Niri: Xwayland](https://niri-wm.github.io/niri/Xwayland.html).
