@@ -3,8 +3,8 @@ title: Umbriel — установка и запуск
 kind: guide
 scope: general
 status: current
-last_verified: null
-verified_on: []
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
 Umbriel управляет окнами и выводом изображения в Wayland-сессии. Noctalia
@@ -28,16 +28,19 @@ auto-sync = yes
 ```
 
 ```bash
-doas emaint sync -r umbriel-overlay
+doas emerge --sync umbriel-overlay
 ```
 
-Композитор и портал развиваются вместе. Выбери их версии из одной строки
-[таблицы оверлея](https://github.com/vovanbl411/umbriel-overlay#принятая-пара-и-откат).
-Если нужны точные версии для установки или отката, используй приведённые
-там команды с двумя атомами пакетов. Не смешивай строки таблицы.
+Umbriel и backend портала устанавливаются и откатываются как одна согласованная
+пара. Текущую пару бери из строки «Принятая текущая пара» в
+[таблице оверлея](https://github.com/vovanbl411/umbriel-overlay/blob/main/README.md#принятая-пара-и-откат).
+Обе версии должны быть из одной строки: так ты не смешаешь версии из разных
+принятых пар.
 
-Для захвата экрана у Umbriel нужен `screencast`. Флаг `picker` у портала
-добавляет окно выбора экрана или приложения, которым ты хочешь поделиться.
+Для демонстрации экрана включи USE-флаг `screencast` у Umbriel. Флаг `picker`
+у портала отвечает за окно выбора экрана или приложения. Сейчас `picker`
+включён по умолчанию; явная запись фиксирует, что нужен графический выбор
+источника.
 
 Файл: `/etc/portage/package.use/umbriel`
 
@@ -46,28 +49,43 @@ gui-wm/umbriel screencast
 gui-libs/xdg-desktop-portal-umbriel picker
 ```
 
-Оба пакета используют testing keyword `~amd64`. Добавь их в
-`package.accept_keywords`, если они ещё не разрешены в твоей конфигурации.
+Оба пакета помечены testing keyword `~amd64`. Разреши точные версии из строки
+«Принятая текущая пара» в `package.accept_keywords`.
+
+Файл: `/etc/portage/package.accept_keywords/umbriel-overlay`
 
 ```text
-# /etc/portage/package.accept_keywords/umbriel
-gui-wm/umbriel ~amd64
-gui-libs/xdg-desktop-portal-umbriel ~amd64
+=gui-wm/umbriel-<Umbriel-version> ~amd64
+=gui-libs/xdg-desktop-portal-umbriel-<portal-version> ~amd64
 ```
 
-Посмотри план установки. Portage должен выбрать оба пакета из
-`umbriel-overlay` и совместимые версии из таблицы.
+Подставь обе версии из строки «Принятая текущая пара». Сначала проверь, что
+Portage разрешает именно эту пару из `umbriel-overlay`:
 
 ```bash
-emerge -pv gui-wm/umbriel gui-libs/xdg-desktop-portal-umbriel
-doas emerge --ask gui-wm/umbriel gui-libs/xdg-desktop-portal-umbriel
+emerge -pv \
+  '=gui-wm/umbriel-<Umbriel-version>' \
+  '=gui-libs/xdg-desktop-portal-umbriel-<portal-version>'
 ```
+
+После проверки установи ту же пару:
+
+```bash
+doas emerge --ask \
+  '=gui-wm/umbriel-<Umbriel-version>' \
+  '=gui-libs/xdg-desktop-portal-umbriel-<portal-version>'
+```
+
+Для отката возьми версии нужной пары из одной строки таблицы и укажи их точными
+атомами в `package.accept_keywords` и командах `emerge`.
 
 Noctalia устанавливается отдельно: [установка и настройка оболочки](../noctalia-shell/).
 
 ## Конфигурация и Noctalia
 
-Если пользовательской конфигурации ещё нет, скопируй пример из пакета:
+Пакет устанавливает стартовую конфигурацию в
+`/usr/share/umbriel/config.toml`. Umbriel сам не создаёт пользовательский
+файл. Если его ещё нет, скопируй стартовую конфигурацию:
 
 ```bash
 mkdir -p ~/.config/umbriel
@@ -83,9 +101,9 @@ cp /usr/share/umbriel/config.toml ~/.config/umbriel/config.toml
 autostart = ["noctalia"]
 ```
 
-Если секция уже есть, измени существующую. В TOML нельзя объявлять одну
-секцию дважды. Сохрани остальные команды в массиве; не запускай Noctalia
-одновременно отсюда и другим способом.
+Добавь команду в существующий массив `autostart` и не создавай вторую секцию
+`[general]`: TOML не допускает повторного объявления таблицы. Сохрани другие
+команды в массиве и оставь один способ запуска Noctalia в сессии.
 
 Большую конфигурацию можно разделить на файлы. Например, в
 `~/.config/umbriel/config.toml`:
@@ -96,8 +114,8 @@ files = ["core.toml"]
 ```
 
 В этом случае `[general]` и `autostart` можно разместить в `core.toml`.
-Umbriel читает включённые файлы по порядку, а главный файл — последним.
-Поэтому значение в `config.toml` может перекрыть значение из `core.toml`.
+Подключённые файлы читаются по порядку, а главный `config.toml` — последним,
+поэтому его значения могут перекрыть настройки из `core.toml`.
 
 Проверь конфигурацию до выхода из работающей сессии:
 
@@ -131,9 +149,10 @@ user = "greetd"
 
 ## Порталы и проверка сессии
 
-Настрой backend Umbriel по [руководству по порталам](../wayland-portals/#umbriel).
-Это отдельная настройка: установка композитора сама по себе не определяет,
-какой backend выберет `xdg-desktop-portal`.
+Установка композитора сама по себе не выбирает backend портала. Настрой его по
+[руководству по порталам](../wayland-portals/#umbriel). Для демонстрации экрана
+нужны USE-флаг `screencast` и настроенный backend портала; `picker` включает
+графический выбор экрана или приложения.
 
 В терминале внутри Umbriel:
 
@@ -144,22 +163,22 @@ umbriel config validate
 ```
 
 Ожидается имя `umbriel`, список подключённых экранов и конфигурация без ошибок.
-Затем проверь Noctalia и [доставку уведомлений](../notifications/), открой
-диалог выбора файла и попробуй демонстрацию экрана в браузере.
+Затем проверь, что появилась Noctalia, работает выбор файла и приложения могут
+демонстрировать экран.
 
 ## Возврат к Niri
 
-Niri можно оставить установленным вместе с его конфигурацией. Чтобы сделать
-его следующей сессией greetd, замени только команду запуска:
+Если Niri установлен и его конфигурация сохранена, для возврата к нему замени
+команду запуска greetd:
 
 ```toml
 command = "tuigreet --time --remember --asterisks --cmd niri-session"
 ```
 
-Используй именно `niri-session`: он настраивает окружение и пользовательские
-службы Niri. После изменения выйди из Umbriel и войди снова.
-Если графический вход недоступен, переключись в текстовую консоль и восстанови
-сохранённый файл greetd. Подробнее — [запуск Niri](../niri/).
+Используй `niri-session`, а не `niri`: эта команда подготавливает окружение и
+пользовательские службы Niri. После изменения выйди из Umbriel и войди
+снова. Если графический вход недоступен, переключись в текстовую консоль и
+восстанови сохранённую копию greetd. Подробнее — [запуск Niri](../niri/).
 
 ## Связанные материалы
 

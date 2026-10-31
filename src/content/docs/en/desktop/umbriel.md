@@ -3,8 +3,8 @@ title: Umbriel — installation and startup
 kind: guide
 scope: general
 status: current
-last_verified: null
-verified_on: []
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
 Umbriel manages windows and display output in a Wayland session. Noctalia
@@ -28,16 +28,18 @@ auto-sync = yes
 ```
 
 ```bash
-doas emaint sync -r umbriel-overlay
+doas emerge --sync umbriel-overlay
 ```
 
-The compositor and portal are developed together. Choose their versions from
-one row of the [overlay table](https://github.com/vovanbl411/umbriel-overlay#принятая-пара-и-откат).
-For an installation or rollback to exact versions, use the commands with both
-package atoms provided there. Do not mix versions from different rows.
+Umbriel and its portal backend are installed and rolled back as one accepted
+pair. Take both versions from the **Current accepted pair** row in the
+[overlay table](https://github.com/vovanbl411/umbriel-overlay/blob/main/README.en.md#accepted-pair-and-rollback).
+Use both versions from this row so you do not mix versions from different pairs.
 
-Screen capture requires Umbriel's `screencast` flag. The portal's `picker`
-flag adds a dialog for selecting the screen or application to share.
+Screen sharing requires Umbriel's `screencast` USE flag. The portal's `picker`
+flag provides a dialog for choosing a screen or application. `picker` is
+currently enabled by default; keeping the entry explicit records that the
+graphical source chooser is wanted.
 
 File: `/etc/portage/package.use/umbriel`
 
@@ -46,28 +48,44 @@ gui-wm/umbriel screencast
 gui-libs/xdg-desktop-portal-umbriel picker
 ```
 
-Both packages use the testing keyword `~amd64`. Add them to
-`package.accept_keywords` if your configuration does not already allow them.
+Both packages are marked with the testing keyword `~amd64`. Allow the exact
+versions from the **Current accepted pair** row in `package.accept_keywords`.
+
+File: `/etc/portage/package.accept_keywords/umbriel-overlay`
 
 ```text
-# /etc/portage/package.accept_keywords/umbriel
-gui-wm/umbriel ~amd64
-gui-libs/xdg-desktop-portal-umbriel ~amd64
+=gui-wm/umbriel-<Umbriel-version> ~amd64
+=gui-libs/xdg-desktop-portal-umbriel-<portal-version> ~amd64
 ```
 
-Inspect the installation plan. Portage should select both packages from
-`umbriel-overlay` and compatible versions from the table.
+Substitute both versions from the **Current accepted pair** row. First verify
+that Portage resolves this exact pair from `umbriel-overlay`:
 
 ```bash
-emerge -pv gui-wm/umbriel gui-libs/xdg-desktop-portal-umbriel
-doas emerge --ask gui-wm/umbriel gui-libs/xdg-desktop-portal-umbriel
+emerge -pv \
+  '=gui-wm/umbriel-<Umbriel-version>' \
+  '=gui-libs/xdg-desktop-portal-umbriel-<portal-version>'
 ```
+
+After reviewing the plan, install the same pair:
+
+```bash
+doas emerge --ask \
+  '=gui-wm/umbriel-<Umbriel-version>' \
+  '=gui-libs/xdg-desktop-portal-umbriel-<portal-version>'
+```
+
+To roll back, take both versions for the pair you want to restore from the same
+table row, then use those exact atoms in `package.accept_keywords` and the
+`emerge` commands.
 
 Install Noctalia separately: [shell installation and configuration](../noctalia-shell/).
 
 ## Configuration and Noctalia
 
-If you do not yet have a user configuration, copy the package's example:
+The package installs a starting configuration at
+`/usr/share/umbriel/config.toml`. Umbriel does not create a user config file.
+If you do not have one yet, copy the starting configuration:
 
 ```bash
 mkdir -p ~/.config/umbriel
@@ -83,9 +101,9 @@ To start Noctalia, add `noctalia` to the `autostart` array in `[general]`:
 autostart = ["noctalia"]
 ```
 
-If the section already exists, edit that section. TOML does not allow declaring
-one section twice. Keep other commands in the array, and avoid starting Noctalia
-both here and through another mechanism.
+Add the command to the existing `autostart` array and do not create a second
+`[general]` section: TOML does not allow declaring a table twice. Keep the
+other commands in the array and use one Noctalia startup mechanism per session.
 
 A large configuration can be split into files. For example, in
 `~/.config/umbriel/config.toml`:
@@ -95,9 +113,9 @@ A large configuration can be split into files. For example, in
 files = ["core.toml"]
 ```
 
-You can then put `[general]` and `autostart` in `core.toml`. Umbriel reads
-included files in order and the main file last. A value in `config.toml`
-can therefore override one from `core.toml`.
+You can then put `[general]` and `autostart` in `core.toml`. Included files
+are read in order, and the main `config.toml` is read last, so its values can
+override settings from `core.toml`.
 
 Check the configuration before leaving your working session:
 
@@ -131,9 +149,10 @@ save your work first.
 
 ## Portals and session checks
 
-Configure the Umbriel backend using the [portals guide](../wayland-portals/#umbriel).
-This is a separate setting: installing the compositor alone does not determine
-which backend `xdg-desktop-portal` selects.
+Installing the compositor does not select a portal backend. Configure it using
+the [portals guide](../wayland-portals/#umbriel). Screen sharing requires the
+`screencast` USE flag and a configured portal backend; `picker` provides the
+graphical screen or application chooser.
 
 In a terminal inside Umbriel:
 
@@ -144,22 +163,22 @@ umbriel config validate
 ```
 
 Expect the name `umbriel`, a list of connected displays and no configuration
-errors. Then check Noctalia and [notification delivery](../notifications/),
-open a file chooser and try screen sharing in a browser.
+errors. Then check that Noctalia appears, the file chooser works and
+applications can share the screen.
 
 ## Returning to Niri
 
-You can keep Niri installed with its configuration. To make it greetd's next
-session, change only the launch command:
+If Niri is installed and its configuration is saved, change greetd's launch
+command to return to it:
 
 ```toml
 command = "tuigreet --time --remember --asterisks --cmd niri-session"
 ```
 
-Use `niri-session`: it sets up Niri's environment and user services. After
-changing the command, log out of Umbriel and log in again. If graphical login
-is unavailable, switch to a text console and restore the saved greetd file.
-See [starting Niri](../niri/) for details.
+Use `niri-session`, not `niri`: this command sets up Niri's environment and
+user services. After changing the command, log out of Umbriel
+and log in again. If graphical login is unavailable, switch to a text console
+and restore the saved greetd copy. See [starting Niri](../niri/) for details.
 
 ## Related material
 
