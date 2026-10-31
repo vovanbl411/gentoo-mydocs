@@ -1,188 +1,162 @@
 ---
-title: Настройка темы Noctalia для GTK4 на Niri
+title: "Палитра Noctalia в GTK4: настройка и диагностика"
 kind: troubleshooting
 scope: general
 status: current
-last_verified: "2026-09-22"
+last_verified: "2026-11-01"
 verified_on: [asus-b5402]
 ---
 
-Конкретная конфигурация ASUS B5402 записана в
-[system document](../../systems/asus-b5402/desktop/environment/). Этот документ
-описывает решение симптома, наблюдавшегося на проверенной машине; оно не
-объясняет все проблемы тем GTK.
+Если GTK4-приложение не получает ожидаемую палитру Noctalia или показывает
+неверный фон, включи оба штатных template Noctalia v5+ — GTK 3 и GTK 4. В
+текущей реализации Noctalia рендерит только включённые templates, а оба GTK
+template используют общий apply hook, который проверяет оба сгенерированных
+файла `noctalia.css`. Ручные CSS-правила нужны только для подтверждённой
+проблемы конкретного приложения или виджета.
 
-## Symptom
+## Штатные GTK templates Noctalia
 
-GTK4-приложения могут не получать палитру Noctalia, показывать прозрачный или
-неверный фон, а GTK4 и libadwaita-приложения могут реагировать на тему
-по-разному.
+В Noctalia открой **Settings → Templates** и включи оба встроенных template:
+**GTK 3** и **GTK 4**. Выключенный GTK3 template не рендерится автоматически
+вместе с GTK4, поэтому включение только GTK4 может завершить общий apply hook
+ошибкой.
 
-## Cause on the verified system
-
-На проверенной машине проблема была связана с broken/local theme imports,
-смешением system theme и `~/.config/gtk-4.0/`, а также различиями GTK4 и
-libadwaita-приложений. Это не универсальная причина каждого GTK-проблемы.
-
-## Working configuration
-
-Финальная модель — локальный CSS импортирует палитру, которую генерирует
-Noctalia:
-
-```text
-~/.config/gtk-4.0/
-├── gtk.css
-├── noctalia.css
-└── settings.ini
-```
+Noctalia создаёт `noctalia.css` отдельно в каталогах GTK3 и GTK4, а общий hook
+добавляет импорт в оба `gtk.css`. При смене палитры или режима Noctalia
+обновляет templates. После успешной проверки hook выбирает тему
+`adw-gtk3` для светлого режима или `adw-gtk3-dark` для тёмного. GTK4 читает пользовательский файл
+`$XDG_CONFIG_HOME/gtk-4.0/gtk.css`, если он есть; при незаданном
+`XDG_CONFIG_HOME` используется `~/.config`.
 
 ```text
-Noctalia generates palette
-→ local GTK CSS imports it
-→ application consumes resulting GTK colors/styles
+Палитра Noctalia
+→ встроенные templates GTK3 и GTK4
+→ отдельные noctalia.css в gtk-3.0/ и gtk-4.0/
+→ соответствующие импорты в обоих gtk.css
+→ GTK-приложения
 ```
 
-GTK4 автоматически читает `$XDG_CONFIG_HOME/gtk-4.0/gtk.css`. Этот файл
-импортирует сгенерированную палитру `noctalia.css` и содержит selectors для
-виджетов, которым одной палитры недостаточно:
+Проверь, что соответствующая тема `adw-gtk3` установлена. Не редактируй
+сгенерированный `noctalia.css` вручную: при повторной генерации Noctalia
+заменит его содержимое.
 
-Файл: `~/.config/gtk-4.0/gtk.css`
+## Цветовая схема и `settings.ini`
 
-```css
-@import url("noctalia.css");
+`theme.sync_color_scheme` отвечает за системное предпочтение тёмного или
+светлого режима. GTK-приложения в Wayland-сессии получают такие desktop-wide
+настройки через settings portal. GTK template решает другую задачу: передаёт
+цвета палитры через CSS. Синхронизация цветовой схемы сама по себе не создаёт
+палитру, а template не заменяет системное предпочтение dark/light.
 
-/* Дополнительные правила нужны только виджетам, которым недостаточно палитры. */
-window {
-  background-color: @window_bg_color;
-  color: @window_fg_color;
-}
+`settings.ini` не нужен для передачи палитры Noctalia. GTK использует desktop
+settings через платформенный API, а читает значения из `settings.ini` как
+настройки по умолчанию, если такого механизма нет. Не добавляй
+`gtk-application-prefer-dark-theme=1` как обязательную часть интеграции: это
+свойство GTK4 устарело начиная с версии 4.20. Существующий `settings.ini`
+проверяй только тогда, когда конкретное GTK-предпочтение ведёт себя не так,
+как ожидается.
 
-headerbar, .titlebar {
-  background-color: @headerbar_bg_color;
-  color: @headerbar_fg_color;
-}
+## Если палитра не применяется
 
-button {
-  background-color: @card_bg_color;
-  color: @card_fg_color;
-}
-
-button:checked, button:active {
-  background-color: @accent_bg_color;
-  color: @accent_fg_color;
-}
-
-scale trough {
-  background-color: @card_bg_color;
-}
-
-scale highlight, scale slider {
-  background-color: @accent_bg_color;
-}
-```
-
-Файл: `~/.config/gtk-4.0/settings.ini`
-
-```ini
-[Settings]
-gtk-application-prefer-dark-theme=1
-```
-
-## Apply the fix
-
-### Check imports first
-
-Проверь, что локальные файлы существуют и импорт `noctalia.css` разрешается:
+Сначала полностью закрой и снова открой GTK4-приложение. Затем проверь
+пользовательские файлы:
 
 ```bash
-ls -la ~/.config/gtk-4.0/
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+for gtk_version in gtk-3.0 gtk-4.0; do
+  gtk_dir="$config_home/$gtk_version"
+  printf '\n%s\n' "$gtk_dir"
+  ls -la "$gtk_dir"
+  sed -n '1,40p' "$gtk_dir/gtk.css"
+  head -20 "$gtk_dir/noctalia.css"
+  readlink "$gtk_dir/gtk.css" || true
+  readlink -f "$gtk_dir/gtk.css" || true
+done
 ```
 
-Если `gtk.css` — старый symlink на system theme, замени его локальным файлом с
-импортом выше. Не добавляй `@import url("noctalia.css")` в
-`/usr/share/themes/...`: system theme не должна зависеть от палитры в `$HOME`.
+Убедись, что `noctalia.css` существует, а `gtk.css` импортирует именно его.
+Если `gtk.css` — symlink на старую тему или содержит посторонние импорты,
+сначала зафиксируй текущий target и содержимое и сравни их со штатным выводом
+Noctalia. Не заменяй файл и не добавляй импорт в `/usr/share/themes/...`
+вслепую.
 
-### Repair a system theme only when needed
+Исправляй системную тему только после проверки владельца файлов и целостности
+пакета. Если проверка подтвердила повреждение package-managed CSS, восстанови
+пакет штатным менеджером пакетов. Не удаляй файлы тем вручную без доказанной
+причины и точного пути.
 
-Не удаляй `/usr/share/themes/...` как первый шаг. Сначала установи, что
-изменены именно system-owned files: проверь владельца и package integrity
-доступным в системе инструментом, например `equery check <category/package>`.
-Если проверка подтверждает повреждение, переустанови пакет штатным Portage
-workflow и проверь восстановленные CSS-файлы.
+Если используешь `nwg-look`, проверь, не навязывает ли он отдельную тему для
+GTK4: такой выбор может мешать применению палитры Noctalia. В Flatpak
+проверяй доступность GTK-темы и файлов внутри sandbox; результат `ldd` для
+хостового приложения здесь неприменим.
 
-Ручное удаление `/usr/share/themes/...` допустимо только для доказанных
-leftovers, которые Portage не восстановил после переустановки. Перед ним
-зафиксируй точный путь и причину, чтобы не удалить файлы другого пакета.
+## GTK4 и libadwaita
 
-### Refresh palette and local CSS
+GTK4 загружает пользовательский `gtk.css` с приоритетом
+`GTK_STYLE_PROVIDER_PRIORITY_USER`, выше приоритета CSS приложения. Но этот
+приоритет не гарантирует одинаковый результат во всех приложениях.
+libadwaita отдельно управляет светлым и тёмным видом и предоставляет CSS
+variables; приложения также могут использовать собственные CSS-классы и
+стили. Поэтому один selector может сработать в обычном GTK4-приложении и не
+дать такого же эффекта в приложении на libadwaita. Проверяй selectors на
+конкретном приложении, не рассчитывая на универсальный внешний вид.
 
-После изменения палитры перегенерируй `noctalia.css` средствами Noctalia и
-перезапусти приложение. Если нужно исключить старое локальное состояние,
-очисти GTK4 cache только после проверки содержимого каталога:
+Если после проверки конкретный виджет GTK4 всё ещё не использует нужный цвет,
+добавь узкое локальное правило в пользовательский
+`$XDG_CONFIG_HOME/gtk-4.0/gtk.css` после импорта Noctalia и проверь его в этом
+приложении. Такие selectors — необязательная локальная настройка, а не часть
+обязательной конфигурации template. Не добавляй их в сгенерированный
+`noctalia.css`.
 
-```bash
-rm -rf ~/.cache/gtk-4.0/
-```
-
-## GTK4 vs libadwaita
-
-GTK4 и libadwaita theming заметно отличаются от GTK3. Пользовательский CSS в
-`~/.config/gtk-4.0/` применяется независимо от старой GTK3 theme model;
-`gtk-theme-name` не стоит считать единственным механизмом оформления GTK4.
-libadwaita-приложения могут намеренно ограничивать traditional custom themes.
-Поэтому custom CSS — локальное решение для нужных виджетов, а не универсальный
-официальный механизм темизации всех приложений.
-
-Если palette definitions не дают нужного результата в чистом GTK4-приложении,
-добавляй selectors только для наблюдаемого виджета. Например, правила для
-`scale` выше нужны для ползунков, а не для всей темы.
-
-## Verification
-
-Проверь следующее:
-
-- `gtk.css` импортирует доступный `noctalia.css`;
-- приложение запускается без CSS warnings или errors;
-- визуально корректны фон, foreground и selected state;
-- после regeneration Noctalia новая палитра отражается в приложении.
-
-## Diagnostics
-
-Эти команды запускают приложение только для диагностики; не используй
-`GTK_THEME` или `GTK_DEBUG` как persistent configuration.
+## Диагностика
 
 ```bash
 # Версия GTK4
 pkg-config --modversion gtk4
 
-# Зависимости приложения
-ldd "$(command -v <приложение>)" | grep -E "gtk-4|adwaita"
+# Библиотеки нативного динамически связанного приложения
+ldd /path/to/native-application | grep -E 'libgtk-4|libadwaita'
 
-# GTK Inspector
-GTK_DEBUG=interactive <приложение>
+# GTK Inspector и сообщения GTK
+GTK_DEBUG=interactive application-name
 
-# Запуск из terminal для CSS parsing warnings
-<приложение>
+# Запуск из терминала для просмотра предупреждений разбора CSS
+application-name
 
-# Временный запуск без темы или с явной GTK3-темой
-GTK_THEME= <приложение> &
-GTK_THEME=adw-gtk3-dark <приложение> &
+# Временная проверка разрешения темы для одного запуска
+GTK_THEME=adw-gtk3-dark application-name
 ```
 
-## Example palette
+`ldd` не подходит для Flatpak, статически связанных приложений и некоторых
+wrapper-команд. `GTK_DEBUG` и `GTK_THEME` используй только для диагностики
+одного запуска, не как постоянную конфигурацию.
 
-Полный `noctalia.css` не дублируется здесь: его генерирует Noctalia, и значения
-меняются вместе с палитрой. Минимальный иллюстративный фрагмент выглядит так:
+## Проверка результата
 
-```css
-@define-color window_bg_color #0b0e14;
-@define-color window_fg_color #d1d1c7;
-@define-color accent_bg_color #e6b450;
-@define-color accent_fg_color #0b0e14;
-```
+- В **Settings → Templates** включены templates **GTK 3** и **GTK 4**.
+- Существуют файлы `noctalia.css` в `$XDG_CONFIG_HOME/gtk-3.0/` и
+  `$XDG_CONFIG_HOME/gtk-4.0/`; если `XDG_CONFIG_HOME` не задан, используй
+  `~/.config/gtk-3.0/` и `~/.config/gtk-4.0/`.
+- Оба `gtk.css` импортируют `noctalia.css` из своего каталога.
+- GTK4-приложение после перезапуска не сообщает об ошибках разбора CSS.
+- После смены палитры в Noctalia обновлённый цвет появляется в приложении.
+- Если добавлены локальные selectors, они влияют только на нужные виджеты.
 
-## Related docs
+Если нужна визуальная приёмка, проверяй её в целевом приложении после
+перезапуска; проверка файлов сама по себе её не подтверждает.
 
-- [Окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/) — проверенное состояние машины.
-- [Noctalia](../../desktop/noctalia-shell/) — shell, генерирующий палитру.
-- [Niri](../../desktop/niri/) — Wayland-композитор.
+## Связанные материалы
+
+- [Окружение ASUS B5402](../../systems/asus-b5402/desktop/environment/) — локальное состояние
+  эталонной системы.
+- [Noctalia](../../desktop/noctalia-shell/) — установка и конфигурация оболочки.
+- [Порталы Wayland](../../desktop/wayland-portals/) — desktop-wide настройки и portal.
+- [GTK и Qt templates Noctalia](https://docs.noctalia.dev/noctalia/templates/official/gtk-qt/)
+- [Темы и палитры Noctalia](https://docs.noctalia.dev/noctalia/theming/)
+- Исходный код Noctalia: [описания GTK templates](https://github.com/noctalia-dev/noctalia/blob/main/assets/templates/builtin.toml), [TemplateApplyService](https://github.com/noctalia-dev/noctalia/blob/main/src/theme/template_apply_service.cpp) и [общий apply hook](https://github.com/noctalia-dev/noctalia/blob/main/assets/templates/gtk/apply.sh)
+- GTK [`GtkCssProvider`](https://docs.gtk.org/gtk4/class.CssProvider.html) и
+  [приоритет пользовательского CSS](https://docs.gtk.org/gtk4/const.STYLE_PROVIDER_PRIORITY_USER.html)
+- GTK [`GtkSettings`](https://docs.gtk.org/gtk4/class.Settings.html) и
+  [отладка GTK-приложений](https://docs.gtk.org/gtk4/running.html)
+- [Styles & Appearance libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/styles-and-appearance.html)
