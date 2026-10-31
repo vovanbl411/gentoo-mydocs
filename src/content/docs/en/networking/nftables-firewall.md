@@ -2,116 +2,148 @@
 title: "Firewall: nftables"
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
-This document shows a minimal stateful firewall on nftables. The example
-allows all outgoing traffic, incoming established/related packets, loopback
-and ICMP. All other incoming traffic is blocked, and the `forward` chain is
-closed with a `drop` policy.
+nftables is Linux's current packet-filtering framework and replaces the old
+iptables rule-management model. This example allows loopback, established and
+related connections, ICMPv4/ICMPv6, and all outgoing traffic. It drops other
+incoming packets and all forwarded traffic.
 
-This is a simple desktop example, not a universal policy for a host with
-Docker, Libvirt, VPN, routing or server services. For such an environment
-the ruleset has to be adapted separately.
+## When this example applies
 
-nftables replaces the old iptables stack, offering simpler rule logic and
-less CPU overhead.
+Use it on a simple desktop host where:
 
-## 1. Before applying
+- Docker and Libvirt do not use forwarding;
+- the host does not route traffic or perform NAT;
+- the VPN does not manage its own nftables rules;
+- there are no incoming services, except those you explicitly allow before
+  applying the ruleset.
 
-Before changing the firewall:
+If you use Docker, Libvirt, routing, or such a VPN, inspect the full current
+ruleset first and do not load this example directly. The ASUS B5402 is a
+complex case; this minimal ruleset does not describe its firewall. See the
+[system page](../../systems/asus-b5402/networking/networkmanager-and-libvirt/).
 
-- save the existing working configuration and check which rules are already
-  loaded;
-- keep in mind that `flush ruleset` deletes all loaded nftables rules;
-- prepare a way to restore access: a mistake in the rules can cut a remote
-  machine off the network;
-- check whether Docker, Libvirt, VPN or other services add their own tables
-  and chains.
+On Gentoo with systemd, the `net-firewall/nftables` package loads saved rules
+from `/var/lib/nftables/rules-save`. This is the saved-state path, not a source
+configuration under `/etc`. A system can keep its source ruleset under `/etc`
+and load it through a separate mechanism; that is a local design, not the
+package integration's standard path.
 
-Do not apply this minimal example on top of a complex working ruleset
-without adaptation and an available rollback.
+## Minimal ruleset
 
-## 2. Configuration
+Before replacing the file, back it up along with the current runtime ruleset:
 
-File: `/etc/nftables.conf`
+```bash
+doas cp /var/lib/nftables/rules-save /var/lib/nftables/rules-save.backup
+doas nft list ruleset > "$HOME/nftables-ruleset-backup.nft"
+```
 
-```nftables
-flush ruleset
+File: `/var/lib/nftables/rules-save`. After creating the backups, write this
+ruleset to that file:
 
+```text
 table inet filter {
     chain input {
-        type filter hook input priority 0; policy drop;
+        type filter hook input priority filter; policy drop;
 
-        # Allow loopback (localhost)
-        iif "lo" accept
-
-        # Allow established connections
+        iifname "lo" accept
         ct state established,related accept
 
-        # Allow ICMP (ping)
-        ip protocol icmp accept
-        ip6 nexthdr icmpv6 accept
-
-        # Optional: allow SSH (if needed)
-        # tcp dport 22 accept
+        meta l4proto icmp accept
+        meta l4proto ipv6-icmp accept
     }
 
     chain forward {
-        type filter hook forward priority 0; policy drop;
+        type filter hook forward priority filter; policy drop;
     }
 
     chain output {
-        type filter hook output priority 0; policy accept;
+        type filter hook output priority filter; policy accept;
     }
 }
 ```
 
-## 3. Checking before applying
+`nftables-load.service` clears the current ruleset before loading the file, so
+a separate `flush ruleset` is not required for this loading method. Files
+created by `nftables-store.service` may contain their own `flush ruleset`.
 
-First check the syntax without loading the ruleset:
+`meta l4proto ipv6-icmp` matches ICMPv6 behind IPv6 extension headers.
+`ip6 nexthdr icmpv6` checks only the immediate Next Header and is not suitable
+here.
+
+The `inet` family handles IPv4 and IPv6 in one table.
+
+## Check and load on Gentoo
+
+After writing the rules, check them without applying them:
 
 ```bash
-doas /usr/sbin/nft -c -f /etc/nftables.conf
+doas nft -c -f /var/lib/nftables/rules-save
 ```
 
-A successful syntax check does not confirm that the policy fits the current
-network environment.
+A syntax check does not confirm that the policy fits your network.
 
-## 4. Applying
+`nftables-load.service` is a oneshot unit that loads this file before
+`network-pre.target`. Start it after the check succeeds:
 
-> ⚠️ **Important nuance**: applying a firewall can immediately change the
-> current network availability, including remote access to the machine.
-
-After checking the configuration, enable the service:
+> ⚠️ **Important nuance**: Loading the ruleset immediately changes packet
+> filtering and can cut off remote access. If you are working remotely,
+> prepare a local console or another way to restore access first.
 
 ```bash
-doas systemctl enable --now nftables
+doas systemctl start nftables-load.service
 ```
 
-## 5. Checking after applying
+The service runs `flush ruleset` and then loads
+`/var/lib/nftables/rules-save`. It replaces the entire current ruleset; it does
+not add rules on top. This can remove rules created by Docker, Libvirt, or a
+VPN.
 
-Check the service status and the actually loaded ruleset:
+`nftables-store.service` separately saves the current runtime ruleset to
+`/var/lib/nftables/rules-save` at shutdown. Enable it only if you want this
+save-at-shutdown behavior: if you maintain the file by hand, the service can
+replace it with the current runtime state.
+
+## Verify
+
+Check the load result and the rules:
 
 ```bash
-doas systemctl status nftables
+systemctl status nftables-load.service --no-pager
 doas nft list ruleset
 ```
 
-Then check the expected network availability: outgoing connections,
-loopback, ICMP and the management access the host needs. Do not consider
-the configuration working just because the service started successfully.
+This is a oneshot unit, so do not judge success by `is-active` alone. Check
+loopback, normal outgoing connectivity, DNS, IPv4 and IPv6 if used, and any
+management access the host needs. Enable loading at boot only after these
+checks pass:
 
-## 6. Rollback
+```bash
+doas systemctl enable nftables-load.service
+```
 
-Save the previous working configuration before the change. If the new
-ruleset broke availability, restore the old file, check its syntax again and
-reload the working ruleset through `nftables.service`.
+## Rollback
 
-## Related docs
+If connectivity breaks after loading, use a local console to restore the
+saved file, check it, and load it again:
 
+```bash
+doas cp /var/lib/nftables/rules-save.backup /var/lib/nftables/rules-save
+doas nft -c -f /var/lib/nftables/rules-save
+doas systemctl start nftables-load.service
+```
+
+## Related material
+
+- [ASUS B5402 networking](../../systems/asus-b5402/networking/networkmanager-and-libvirt/)
+  — the local firewall and network-service configuration.
 - [Docker, Libvirt and nftables](../../troubleshooting/docker-libvirt-nftables/)
-  — a separate analysis of the complex interaction between forwarded traffic
-  and multiple tables/chains.
+  — interactions between multiple rulesets.
+- [Gentoo net-firewall/nftables source](https://gitweb.gentoo.org/repo/gentoo.git/tree/net-firewall/nftables/)
+  — the ebuild, units, and helper.
+- [nftables manual](https://netfilter.org/projects/nftables/manpage.html)
+  — `meta l4proto`, IPv6 headers, and base-chain policies.
