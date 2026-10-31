@@ -3,98 +3,104 @@ title: Noctalia — desktop shell
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-15"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-Noctalia adds a panel, dock, application launcher, notifications, wallpapers,
-lock screen and clipboard history to Umbriel or Niri. Settings use TOML;
-`noctalia msg` provides command-line control. This guide covers the TOML
-implementation; older Quickshell/QML instructions do not apply.
+Noctalia is a native Wayland desktop shell. This guide covers installing the
+Gentoo package, starting it with Umbriel or Niri, managing hand-written TOML
+configuration, checking it, and updating the package.
 
 ## Installation
 
-The `gui-apps/noctalia` package is available in additional Gentoo repositories.
-ASUS B5402 uses [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay).
-Follow its README to add the repository.
+The `gui-apps/noctalia` package is available in
+[noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay). Follow the
+overlay README to add the repository. The package is keyworded `~amd64`.
 
-Sync it and inspect the installation plan:
+File: `/etc/portage/package.accept_keywords/noctalia`
+
+```text
+gui-apps/noctalia ~amd64
+```
+
+If Portage requests keywords for dependencies, add the entries shown in its
+messages. After adding the overlay, sync it and inspect the installation plan:
 
 ```bash
 doas emaint sync -r noctalia-overlay
 emerge --pretend --verbose gui-apps/noctalia
 ```
 
-If using a different repository, substitute its name in the sync command.
-Add keyword rules for the package and its dependencies in
-`/etc/portage/package.accept_keywords/` as requested by Portage.
-
-After reviewing the plan:
+If the plan looks correct, install the package:
 
 ```bash
 doas emerge --ask --verbose gui-apps/noctalia
 ```
 
-## Starting with the desktop
+## Starting Noctalia
 
-In Umbriel, add Noctalia to the existing `[general]` configuration section:
+Add Noctalia to the `autostart` array in Umbriel's existing `[general]`
+configuration section. Keep any other commands already in the array:
 
 ```toml
 [general]
 autostart = ["noctalia"]
 ```
 
-Keep any other array entries. The [Umbriel guide](../umbriel/#configuration-and-noctalia)
-shows how to split configuration across files.
-
-In Niri, use the KDL configuration's startup command:
+In Niri's KDL configuration, you can use:
 
 ```kdl
 spawn-at-startup "noctalia"
 ```
 
-Choose one startup method per session. If a user service or XDG autostart
-already launches Noctalia, do not also start it from the compositor config.
+Use only one startup method for Noctalia in a graphical session.
 
-## Where settings live
+## Configuration
 
-Noctalia reads two configuration layers:
+The default location for hand-written configuration is
+`~/.config/noctalia/`. Noctalia loads every `*.toml` file directly in this
+directory, sorts them by name, and merges their settings. A single file is
+enough to start: `~/.config/noctalia/config.toml`. Splitting settings across
+several files is optional.
 
-| Location | Purpose |
-|----------|---------|
-| `~/.config/noctalia/*.toml` | Settings edited by hand, suitable for keeping in dotfiles |
-| `~/.local/state/noctalia/settings.toml` | Changes made through the Noctalia interface |
+Changes saved through the Noctalia interface and runtime actions are written
+to `~/.local/state/noctalia/settings.toml`. This file loads after the
+hand-written TOML settings and overrides matching values. If a change in
+`~/.config/noctalia/*.toml` has no effect, first check the same setting in
+`settings.toml`.
 
-All TOML files in `~/.config/noctalia/` are merged. Start with `config.toml`;
-split settings into additional files when useful.
+These are the standard paths; Noctalia also honors XDG variables and its own
+`NOCTALIA_*` overrides.
 
-`settings.toml` loads later and overrides manual settings. If a change in
-`config.toml` has no effect, check the corresponding value in `settings.toml`.
-Do not delete the whole file for one setting: it can contain other choices
-you want to keep.
+For a more complex layout, `[include]` can load additional files and
+directories. See the [Noctalia documentation](https://docs.noctalia.dev/noctalia/configuration/)
+for details.
 
-Before a substantial edit, back up both the configuration and the state file.
-Restore both to roll back: an old `config.toml` will not help if the later
-file still overrides its setting.
+## Checking the configuration
 
-## Checking the result
+Validate the configuration:
 
 ```bash
 noctalia config validate
 ```
 
-This checks TOML. Fix the reported errors before the next desktop login.
-Check the panel and shortcuts in the session itself.
+With no arguments, the command checks and merges the hand-written `*.toml`
+files, then applies overrides from `settings.toml`. A successful check means
+there are no configuration errors. Warnings about outdated or ignored
+settings do not fail validation by themselves. After updating Noctalia, use
+warnings about legacy keys to bring the relevant hand-written TOML files up to
+the current format.
 
-To inspect the installed version and package source:
+Also check the panel and keyboard shortcuts in the graphical session. To see
+the installed CLI version, run:
 
 ```bash
 noctalia --version
-cat /var/db/pkg/gui-apps/noctalia-*/repository
 ```
 
-Noctalia also displays system notifications. The [notifications guide](../notifications/)
-covers libnotify installation, Portage integration and a test message.
+Noctalia can provide desktop notifications. The
+[notifications guide](../notifications/) covers `libnotify`, the Portage
+virtual package, and troubleshooting notifications that do not appear.
 
 ## Updating
 
@@ -104,14 +110,16 @@ emerge --pretend --verbose --update gui-apps/noctalia
 doas emerge --ask --verbose --update --oneshot gui-apps/noctalia
 ```
 
-Read the plan before confirming installation. Portage updates the package;
-user TOML files stay in the home directory. Release preparation is maintained
-in the overlay README.
+Review the Portage plan before confirming the update. User TOML files are
+stored separately from the package.
+
+> **Note**: This guide covers the current Noctalia implementation with TOML
+> configuration. Older Quickshell/QML instructions do not apply to it.
 
 ## Related material
 
-- [Umbriel](../umbriel/) — compositor and shell startup.
-- [Niri](../niri/) — fallback session and autostart.
+- [Umbriel](../umbriel/) — starting the shell in the primary session.
+- [Niri](../niri/) — configuring the fallback session.
 - [Noctalia on ASUS B5402](../../systems/asus-b5402/desktop/noctalia/)
 - [Noctalia documentation](https://docs.noctalia.dev/noctalia/configuration/)
-- [Migrating a palette from the older implementation](https://docs.noctalia.dev/noctalia/theming/palette/)
+- [Noctalia source code](https://github.com/noctalia-dev/noctalia)
