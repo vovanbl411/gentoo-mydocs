@@ -2,196 +2,153 @@
 title: Auditd on Gentoo Linux
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
-Auditd logs security-relevant events and lets you track file access, system
-calls, and the actions of processes and users. This guide shows the basic
-daemon configuration, an example ruleset, and ways to search and analyze
-events.
+Linux Audit sends kernel and userspace events to the `auditd` daemon, which
+writes them to a log. This guide installs Audit on Gentoo with systemd, adds a
+small example ruleset, and shows how to check the rules and search for events.
+The example does not define a policy for a specific workstation.
 
-The ruleset below is an example policy, not a universal production
-recommendation. It needs to be adapted to the specific system and threat
-model.
+## Kernel requirements
 
-## 1. Before enabling
-
-Audit rules can generate a significant log volume, affect performance and
-require adaptation to the specific system and threat model. Before applying
-them, decide which files, system calls and actions actually need to be
-tracked in this environment.
-
-## 2. Installation and service
-
-Install the package:
+The syscall rules in this guide require `CONFIG_AUDIT=y` and
+`CONFIG_AUDITSYSCALL=y` in the running kernel configuration. Check them with:
 
 ```bash
-emerge -av sys-process/audit
+zgrep -E '^CONFIG_AUDIT=|^CONFIG_AUDITSYSCALL=' /proc/config.gz 2>/dev/null || \
+grep -E '^CONFIG_AUDIT=|^CONFIG_AUDITSYSCALL=' "/boot/config-$(uname -r)" 2>/dev/null
 ```
 
-Enable and start the service:
+If policy requires processes started before `auditd` to be marked auditable
+too, add `audit=1` to the kernel command line. `audit=1` is not required for
+basic logging after the daemon starts.
+
+## Installation and services
+
+Install the package and enable `auditd.service` at boot:
 
 ```bash
-doas systemctl enable --now auditd
+doas emerge -av sys-process/audit
+doas systemctl enable auditd.service
 ```
 
-## 3. Basic configuration
+To start it now without rebooting:
+
+```bash
+doas systemctl start auditd.service
+```
+
+In the standard Audit 4.x model, `auditd.service` pulls in
+`audit-rules.service` through `Wants=`. Systemd starts `auditd.service` before
+the rules loader. `audit-rules.service` is a `oneshot` unit with
+`ExecStart=/sbin/augenrules --load`: it exits after loading rules and may show
+as `inactive (dead)`. When `auditd.service` is enabled, `audit-rules.service`
+does not need to be enabled separately. This is a weak dependency: the daemon
+can start even if rule loading fails, so check the loaded rules with
+`auditctl -l`.
+
+The standard `auditd.service` sets `RefuseManualStop=yes`, which prevents a
+manual stop through the unit. Rule changes do not require restarting `auditd`.
+
+## `auditd` configuration
 
 File: `/etc/audit/auditd.conf`
 
-```conf
-# Log file
-log_file = /var/log/audit/audit.log
+This file sets the log path and format, rotation, and behavior when space runs
+low or writes fail. Parameters such as `log_file`, `max_log_file`, and
+`max_log_file_action` control log storage; choose values for your system. If
+you have specific retention or write-failure requirements, also choose
+`space_left_action`, `disk_full_action`, and `disk_error_action`. Defaults are
+not a universal security policy.
 
-# Maximum file size
-max_log_file = 100
+## Rules
 
-# Action on overflow
-max_log_file_action = rotate
+File: `/etc/audit/rules.d/70-local.rules`
 
-# On-disk record format
-log_format = RAW
+`augenrules` reads only `*.rules` files from `/etc/audit/rules.d/`, combines
+them in natural sort order, and creates `/etc/audit/audit.rules`. Fragment
+names determine their order; `70-local.rules` is suitable for local rules.
+
+```text
+# Record writes and attribute changes to account files
+-a always,exit -F arch=b64 -F path=/etc/passwd -F perm=wa -F key=identity
+-a always,exit -F arch=b64 -F path=/etc/shadow -F perm=wa -F key=identity
+
+# Optional: set this to an installed privilege escalation utility path, then uncomment
+# -a always,exit -F arch=b64 -F path=/usr/bin/doas -F perm=x -F key=privilege_tool
+
+# Optional: kernel module load and unload syscalls
+# -a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F key=kernel_modules
 ```
 
-Valid `log_format` values are `RAW` and `ENRICHED`. The timestamp format of
-audit records is not configurable through `auditd.conf`.
+Use the syscall form `-F path=...` for file rules; the legacy `-w` watch form
+is deprecated. In this example, `arch=b64` means the 64-bit syscall ABI. On
+amd64, add matching `b32` rules if the 32-bit ABI is used and should also be
+audited; on other architectures, select the appropriate ABI. The module rule
+tracks module load and unload syscalls, not changes to files under
+`/usr/lib/modules`.
 
-## 4. Audit rules
+## Loading and checking rules
 
-File: `/etc/audit/rules.d/security.rules`
-
-The `/etc/audit/rules.d/` directory holds `*.rules` fragments processed by
-`augenrules` (section 5). Below is an example policy, not a universal
-recommendation: adapt the set to your specific system and threat model.
+Before loading, you can check whether the assembled rules have changed:
 
 ```bash
-# Changes to critical files
--a always,exit -F arch=b64 -F path=/etc/passwd -F perm=wa -F key=passwd_changes
--a always,exit -F arch=b64 -F path=/etc/shadow -F perm=wa -F key=shadow_changes
--a always,exit -F arch=b64 -F path=/etc/doas.conf -F perm=wa -F key=doas_conf_changes
-# Optional, only if sudo is used:
-# -a always,exit -F arch=b64 -F path=/etc/sudoers -F perm=wa -F key=sudoers_changes
-# Optional, only if an OpenSSH server is used and the file exists:
-# -a always,exit -F arch=b64 -F path=/etc/ssh/sshd_config -F perm=wa -F key=sshd_config_changes
-
-# Execution of privilege escalation tools
--a always,exit -F arch=b64 -F path=/usr/bin/doas -F perm=x -F key=doas_exec
-# Optional, only if sudo is used:
-# -a always,exit -F arch=b64 -F path=/usr/bin/sudo -F perm=x -F key=sudo_exec
-
-# Kernel module load and unload
--a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F key=kernel_modules
-
-# Optional broad example: all connect() calls
--a always,exit -F arch=b64 -S connect -F key=network_connect
+doas augenrules --check
 ```
 
-Keep only paths that actually exist and matter on your system:
-
-- `/etc/doas.conf` is a relevant example for this project's reference
-  system, not a universal requirement;
-- `/etc/sudoers` only makes sense if sudo is used;
-- `/etc/ssh/sshd_config` only if an OpenSSH server is used and the file
-  exists.
-
-> **Note**: the examples use `arch=b64` — rules for the 64-bit syscall ABI.
-> On bi-arch systems, syscall rules may require matching `b32` variants; do
-> not treat `b64` as universally correct for every architecture.
-
-The `kernel_modules` rule tracks kernel module load and unload themselves
-(the `init_module`, `finit_module`, `delete_module` syscalls). That is not
-the same as changes to files under `/usr/lib/modules`: the latter would
-need a separate filesystem watch, and such a watch does not record the fact
-that a module was loaded.
-
-> **Important**: the `-S connect` rule is very broad: it records every
-> `connect()` call, including local sockets, not only remote connections.
-> Such a watch can generate a high volume of events, so it stays an
-> optional broad example.
-
-## 5. Applying the rules
+`--check` reports whether the rules differ from `/etc/audit/audit.rules`
+without overwriting that file. It is not a full syntax or runtime validation.
+To assemble and load the rules:
 
 ```bash
 doas augenrules --load
+doas auditctl -s
 doas auditctl -l
 ```
 
-`augenrules` assembles all `*.rules` fragments from `/etc/audit/rules.d/`
-into the resulting `/etc/audit/audit.rules` and loads that ruleset.
-`auditctl -l` shows the actually loaded rules — check them after each load.
+At startup, `auditd.service` automatically starts `audit-rules.service`. After
+changing fragments, load them with `augenrules --load`; `auditd` does not need
+to be restarted. `auditctl -s` shows Audit status, and `auditctl -l` shows the
+rules loaded in the kernel.
 
-The `auditctl -R <file>` command can also load a specific rules file, but
-with `rules.d` it must not be the primary method: it bypasses the other
-fragments in the directory.
-
-## 6. Checking and usage
-
-### 6.1. Checking the service and rules
-
-| Command | Description |
-|---------|-------------|
-| `auditctl -l` | Show the current rules |
-| `auditctl -s` | Show the status |
-| `ausearch -k doas_exec` | Search by key |
-| `ausearch -ui 1000` | Search by user UID |
-| `aureport --summary` | Summary report |
-| `aureport --failed` | Failed attempts only |
-
-### 6.2. Viewing and searching events
+## Searching events
 
 ```bash
-# View in real time
-tail -f /var/log/audit/audit.log
-
-# Search events by key
-ausearch -ts today -k doas_exec
-
-# Report for today
-aureport -ts today
+doas ausearch -k identity
+doas aureport --summary
 ```
 
-### 6.3. Search examples
+The key search may return no records until an event matching the rule occurs.
 
-The commands below search for specific observable record types. A record in
-the log is not a security interpretation by itself — evaluate events in the
-context of your system.
+## If rules do not work
 
-```bash
-# AVC records (for example, kernel-enforced denials from MAC subsystems
-# such as AppArmor); userspace-mediated AppArmor events may land in USER_AVC
-ausearch -i -m AVC,USER_AVC
+- Run `doas auditctl -l` and check that the required rules are loaded.
+- If syscall rules are loaded but do not match, check the list for
+  `never,task`: this rule disables syscall rule processing for new processes.
+- In `doas auditctl -s`, `enabled 2` means immutable mode; the rules cannot be
+  changed until reboot.
 
-# connect() syscall records — including local sockets
-ausearch -i -sc connect
+AppArmor sends security events through the Linux Audit subsystem. If `auditd`
+receives these events, you can search for them with `ausearch`. A filesystem
+watch on the log file is unnecessary: it would record writes to the log, not
+the security event itself. See [the AppArmor guide](../app-armor/) for profile
+setup.
 
-# Program execution records (execve)
-ausearch -i -sc execve
-```
+## Rollback
 
-## 7. AppArmor integration
+1. Restore the previous version of `/etc/audit/rules.d/70-local.rules`.
+2. Run `doas augenrules --check` to see whether the assembled rules differ
+   from `/etc/audit/audit.rules`.
+3. Load the restored rules with `doas augenrules --load`.
+4. Check the active rules with `doas auditctl -l`.
 
-AppArmor generates its own audit/security events, and auditd can record
-them: kernel-enforced denials end up in the audit log as AVC records, while
-userspace-mediated AppArmor events may also appear as USER_AVC — both are
-found with the command from section 6.3. An extra filesystem watch on the
-system log file is not needed for that — such a watch would record writes
-to a log file, not the security event itself.
+If `auditctl -s` shows `enabled 2`, rollback is not possible until reboot.
 
-For profile setup and diagnostics, see
-[the AppArmor guide](../app-armor/).
+## Related material
 
-## 8. Rollback and recovery
-
-If a new ruleset causes problems:
-
-1. restore the previous version of the
-   `/etc/audit/rules.d/security.rules` fragment;
-2. reload the rules: `doas augenrules --load`;
-3. check the actually loaded rules: `doas auditctl -l`.
-
-## Related docs
-
-- [AppArmor on Gentoo Linux](../app-armor/) — profile setup and violation
-  diagnostics.
+- [AppArmor on Gentoo Linux](../app-armor/) — profile setup and diagnostics.
+- [Gentoo `sys-process/audit` package](https://packages.gentoo.org/packages/sys-process/audit).
+- [Linux Audit documentation](https://github.com/linux-audit/audit-userspace/tree/master/docs).

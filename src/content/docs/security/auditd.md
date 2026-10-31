@@ -2,197 +2,157 @@
 title: Auditd в Gentoo Linux
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
-Auditd записывает в журнал значимые для безопасности события и позволяет
-отслеживать доступ к файлам, системные вызовы, а также действия процессов и
-пользователей. Это руководство показывает базовую конфигурацию демона, пример
-набора правил и способы поиска и анализа событий.
+Система Linux Audit передаёт события ядра и userspace демону `auditd`, который
+записывает их в журнал. Здесь показаны установка Audit на Gentoo с systemd,
+небольшой пример правил, их проверка и поиск событий. Пример не задаёт
+политику для конкретной рабочей станции.
 
-Приведённый набор правил — пример политики (example policy), а не
-универсальная рекомендация для production. Его нужно адаптировать под
-конкретную систему и модель угроз.
+## Требования ядра
 
-## 1. Перед включением
-
-Правила аудита могут создавать значительный объём логов, влиять на
-производительность и требовать адаптации под конкретную систему и модель
-угроз. До применения оцени, какие файлы, системные вызовы и действия
-действительно нужно отслеживать в этом окружении.
-
-## 2. Установка и сервис
-
-Установи пакет:
+Для syscall-правил из этого руководства нужны `CONFIG_AUDIT=y` и
+`CONFIG_AUDITSYSCALL=y` в конфигурации запущенного ядра. Проверить их можно
+так:
 
 ```bash
-emerge -av sys-process/audit
+zgrep -E '^CONFIG_AUDIT=|^CONFIG_AUDITSYSCALL=' /proc/config.gz 2>/dev/null || \
+grep -E '^CONFIG_AUDIT=|^CONFIG_AUDITSYSCALL=' "/boot/config-$(uname -r)" 2>/dev/null
 ```
 
-Включи и запусти сервис:
+Если политика требует, чтобы процессы, запущенные до старта `auditd`, тоже
+получали признак auditable, добавь `audit=1` в kernel command line. Для
+базового журналирования после запуска демона `audit=1` не обязателен.
+
+## Установка и сервисы
+
+Установи пакет и включи запуск `auditd.service` при загрузке:
 
 ```bash
-doas systemctl enable --now auditd
+doas emerge -av sys-process/audit
+doas systemctl enable auditd.service
 ```
 
-## 3. Основная конфигурация
+Для первого запуска без перезагрузки:
+
+```bash
+doas systemctl start auditd.service
+```
+
+В штатной модели Audit 4.x `auditd.service` подтягивает `audit-rules.service`
+через `Wants=`. Systemd запускает `auditd.service` перед загрузчиком правил.
+`audit-rules.service` — unit типа `oneshot` с
+`ExecStart=/sbin/augenrules --load`: после загрузки он завершается и может
+отображаться как `inactive (dead)`. При включённом `auditd.service` отдельно
+включать `audit-rules.service` не требуется. Это слабая зависимость: демон
+может запуститься, даже если загрузка правил завершилась ошибкой, поэтому
+проверяй активный набор через `auditctl -l`.
+
+В `auditd.service` задано `RefuseManualStop=yes`: штатный unit запрещает
+ручную остановку демона. Для изменения правил перезапуск `auditd` не нужен.
+
+## Конфигурация `auditd`
 
 Файл: `/etc/audit/auditd.conf`
 
-```conf
-# Файл логов
-log_file = /var/log/audit/audit.log
+Здесь задаются путь и формат журнала, ротация, а также поведение при нехватке
+места или ошибке записи. Параметры `log_file`, `max_log_file` и
+`max_log_file_action` помогают настроить хранение; конкретные значения
+выбирай для своей системы. Если есть отдельные требования к сроку хранения
+или обработке ошибок записи, также выбери `space_left_action`,
+`disk_full_action` и `disk_error_action`. Значения по умолчанию не являются
+универсальной политикой безопасности.
 
-# Максимальный размер файла
-max_log_file = 100
+## Правила
 
-# Действие при переполнении
-max_log_file_action = rotate
+Файл: `/etc/audit/rules.d/70-local.rules`
 
-# Формат записей на диске
-log_format = RAW
+`augenrules` читает из `/etc/audit/rules.d/` только файлы `*.rules`,
+объединяет их в natural sort order и создаёт `/etc/audit/audit.rules`.
+Порядок fragments влияет на набор правил; `70-local.rules` подходит для
+локальных правил.
+
+```text
+# Запись и изменение атрибутов файлов учётных записей
+-a always,exit -F arch=b64 -F path=/etc/passwd -F perm=wa -F key=identity
+-a always,exit -F arch=b64 -F path=/etc/shadow -F perm=wa -F key=identity
+
+# Необязательно: укажи путь к установленной программе повышения привилегий и раскомментируй
+# -a always,exit -F arch=b64 -F path=/usr/bin/doas -F perm=x -F key=privilege_tool
+
+# Необязательно: системные вызовы загрузки и выгрузки модулей ядра
+# -a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F key=kernel_modules
 ```
 
-Допустимые значения `log_format` — `RAW` и `ENRICHED`. Формат timestamp в
-audit records не конфигурируется через `auditd.conf`.
+Для файловых правил используется syscall-форма `-F path=...`; legacy watch
+`-w` устарел. В примере `arch=b64` означает 64-битный syscall ABI. На amd64
+добавь соответствующие правила `b32`, если 32-битный ABI используется и его
+тоже нужно аудировать; на других архитектурах выбери подходящий ABI.
+Правило для модулей отслеживает syscalls загрузки и выгрузки, а не изменения
+файлов в `/usr/lib/modules`.
 
-## 4. Правила аудита
+## Загрузка и проверка
 
-Файл: `/etc/audit/rules.d/security.rules`
-
-Каталог `/etc/audit/rules.d/` содержит fragment-файлы `*.rules`, которые
-обрабатывает `augenrules` (раздел 5). Ниже — пример политики, не
-универсальная рекомендация: адаптируй набор под конкретную систему и модель
-угроз.
+Перед загрузкой можно проверить, изменился ли собранный набор:
 
 ```bash
-# Изменения критичных файлов
--a always,exit -F arch=b64 -F path=/etc/passwd -F perm=wa -F key=passwd_changes
--a always,exit -F arch=b64 -F path=/etc/shadow -F perm=wa -F key=shadow_changes
--a always,exit -F arch=b64 -F path=/etc/doas.conf -F perm=wa -F key=doas_conf_changes
-# Опционально, только если используется sudo:
-# -a always,exit -F arch=b64 -F path=/etc/sudoers -F perm=wa -F key=sudoers_changes
-# Опционально, только если используется OpenSSH server и файл существует:
-# -a always,exit -F arch=b64 -F path=/etc/ssh/sshd_config -F perm=wa -F key=sshd_config_changes
-
-# Выполнение инструментов повышения привилегий
--a always,exit -F arch=b64 -F path=/usr/bin/doas -F perm=x -F key=doas_exec
-# Опционально, только если используется sudo:
-# -a always,exit -F arch=b64 -F path=/usr/bin/sudo -F perm=x -F key=sudo_exec
-
-# Загрузка и выгрузка модулей ядра
--a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F key=kernel_modules
-
-# Опциональный широкий пример: все вызовы connect()
--a always,exit -F arch=b64 -S connect -F key=network_connect
+doas augenrules --check
 ```
 
-Оставляй в правилах только реально существующие и нужные пути:
-
-- `/etc/doas.conf` — relevant example для reference-системы этого проекта,
-  а не универсальное требование;
-- `/etc/sudoers` — имеет смысл только при использовании sudo;
-- `/etc/ssh/sshd_config` — только если используется OpenSSH server и этот
-  путь существует.
-
-> **Примечание**: примеры используют `arch=b64` — правила для 64-bit syscall
-> ABI. На bi-arch системах syscall rules могут требовать соответствующие
-> `b32` variants; нельзя механически считать `b64` универсальным для любой
-> архитектуры.
-
-Правило `kernel_modules` отслеживает именно загрузку и выгрузку модулей
-ядра (системные вызовы `init_module`, `finit_module`, `delete_module`). Это
-не то же самое, что изменение файлов в `/usr/lib/modules`: для последнего
-нужен отдельный filesystem watch, и он не фиксирует факт загрузки модуля.
-
-> **Важно**: правило с `-S connect` очень широкое: оно фиксирует все вызовы
-> `connect()`, включая локальные сокеты, а не только удалённые подключения.
-> Такой watch может создавать большой объём событий, поэтому он оставлен как
-> optional broad example.
-
-## 5. Применение правил
+`--check` сообщает, отличаются ли правила от `/etc/audit/audit.rules`, и не
+перезаписывает этот файл. Это не полноценная проверка синтаксиса или
+runtime-эффекта правил. Чтобы собрать и загрузить набор:
 
 ```bash
 doas augenrules --load
+doas auditctl -s
 doas auditctl -l
 ```
 
-`augenrules` собирает все fragment-файлы `*.rules` из `/etc/audit/rules.d/`
-в итоговый `/etc/audit/audit.rules` и загружает получившийся набор.
-`auditctl -l` показывает фактически загруженные правила — проверяй их после
-каждой загрузки.
+При старте `auditd.service` автоматически запускает `audit-rules.service`.
+После изменения fragments загружай их через `augenrules --load`;
+перезапуск `auditd` не нужен. `auditctl -s` показывает состояние Audit,
+а `auditctl -l` — правила, загруженные в ядро.
 
-Команда `auditctl -R <файл>` тоже умеет загрузить конкретный файл правил,
-но при работе с `rules.d` она не должна быть основным способом: она обходит
-остальные fragments каталога.
-
-## 6. Проверка и использование
-
-### 6.1. Проверка сервиса и правил
-
-| Команда | Описание |
-|---------|----------|
-| `auditctl -l` | Показать текущие правила |
-| `auditctl -s` | Показать статус |
-| `ausearch -k doas_exec` | Поиск по ключу |
-| `ausearch -ui 1000` | Поиск по UID пользователя |
-| `aureport --summary` | Сводный отчёт |
-| `aureport --failed` | Только неудачные попытки |
-
-### 6.2. Просмотр и поиск событий
+## Поиск событий
 
 ```bash
-# Просмотр в реальном времени
-tail -f /var/log/audit/audit.log
-
-# Поиск событий по ключу
-ausearch -ts today -k doas_exec
-
-# Отчёт за сегодня
-aureport -ts today
+doas ausearch -k identity
+doas aureport --summary
 ```
 
-### 6.3. Примеры поиска
+До события, подходящего под правило, поиск по ключу может не вернуть записей.
 
-Команды ниже ищут конкретные типы наблюдаемых записей. Наличие записи в
-журнале само по себе не является security-интерпретацией — оценивай события
-в контексте системы.
+## Если правила не срабатывают
 
-```bash
-# AVC records (например, kernel-enforced denials MAC-подсистем вроде AppArmor);
-# userspace-опосредованные события AppArmor могут попадать в USER_AVC
-ausearch -i -m AVC,USER_AVC
+- Выполни `doas auditctl -l` и проверь, что нужные правила действительно загружены.
+- Если syscall-правила загружены, но не срабатывают, проверь список на
+  `never,task`: это правило отключает обработку syscall-правил для новых
+  процессов.
+- В выводе `doas auditctl -s` значение `enabled 2` означает immutable mode:
+  менять набор правил до перезагрузки нельзя.
 
-# Записи вызовов connect() — включая локальные сокеты
-ausearch -i -sc connect
+AppArmor передаёт security events через подсистему Linux Audit. Если `auditd`
+получает эти события, их можно искать через `ausearch`. Filesystem watch на
+файл журнала не нужен: он отслеживал бы запись в журнал, а не само событие.
+Настройка AppArmor описана в [руководстве по AppArmor](../app-armor/).
 
-# Записи выполнения программ (execve)
-ausearch -i -sc execve
-```
+## Откат
 
-## 7. Интеграция с AppArmor
+1. Верни предыдущую версию `/etc/audit/rules.d/70-local.rules`.
+2. Выполни `doas augenrules --check`, чтобы узнать, отличается ли собранный
+   набор от `/etc/audit/audit.rules`.
+3. Загрузи восстановленные правила: `doas augenrules --load`.
+4. Проверь активный набор: `doas auditctl -l`.
 
-AppArmor генерирует собственные audit/security события, и auditd может их
-сохранять: kernel-enforced denials попадают в audit log как AVC records, а
-userspace-опосредованные события AppArmor могут попадать в USER_AVC; и те,
-и другие ищутся командой из раздела 6.3. Дополнительный filesystem watch
-на файл системного журнала для этого не нужен — такой watch фиксировал бы
-запись в файл журнала, а не само security event.
+Если `auditctl -s` показывает `enabled 2`, откат правил невозможен до
+перезагрузки.
 
-Настройка и диагностика профилей — в [руководстве по AppArmor](../app-armor/).
+## Связанные материалы
 
-## 8. Rollback и восстановление
-
-Если новый ruleset создаёт проблемы:
-
-1. верни предыдущую версию fragment-файла
-   `/etc/audit/rules.d/security.rules`;
-2. перезагрузи правила: `doas augenrules --load`;
-3. проверь фактически загруженные правила: `doas auditctl -l`.
-
-## Related docs
-
-- [AppArmor в Gentoo Linux](../app-armor/) — настройка профилей и диагностика
-  нарушений.
+- [AppArmor в Gentoo Linux](../app-armor/) — настройка профилей и диагностика.
+- [Пакет Gentoo `sys-process/audit`](https://packages.gentoo.org/packages/sys-process/audit).
+- [Документация Linux Audit](https://github.com/linux-audit/audit-userspace/tree/master/docs).
