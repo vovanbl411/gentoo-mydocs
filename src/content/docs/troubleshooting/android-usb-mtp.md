@@ -1,322 +1,107 @@
 ---
-title: Подключение Android-телефона через USB к Gentoo Linux
+title: Подключение Android-телефона по USB к Gentoo Linux
 kind: troubleshooting
 scope: general
-status: draft
+status: current
 last_verified: null
 verified_on: []
 ---
 
-## Что такое MTP и зачем он нужен?
+Проверяй проблему по слоям: USB enumeration → kernel authorization → USBGuard → права userspace → режим MTP/PTP → desktop- или FUSE-клиент. Ошибка на одном уровне сама по себе не доказывает причину на другом.
 
-**MTP** (Media Transfer Protocol) – протокол для передачи медиафайлов между устройствами. На Android используется при подключении по USB в режиме «Передача файлов».
-
-В отличие от USB-флешки, MTP не даёт прямого доступа к файловой системе телефона. Он работает через **сессии**: телефон сам решает, какие файлы показывать. Это безопаснее, но менее надёжно: сессия сбрасывается при блокировке экрана, смене режима USB или ошибках авторизации.
-
-**Почему MTP часто «ломается» в Linux?**
-
-- Требует разблокированного экрана и явного разрешения доступа.
-- Некоторые производители (Vivo, Xiaomi, Oppo, Huawei) используют нестандартные MTP-реализации → ошибки `NULL device`.
-- Ядро Linux может блокировать USB-устройство (`usbguard`, отсутствие авторизации).
-
----
-
-## Типичные проблемы при подключении
-
-- Телефон постоянно переподключается (цикл: подключился → отключился → подключился)
-- В `dmesg` ошибка: `Device is not authorized for usage`
-- `simple-mtpfs` выдаёт: `LIBMTP PANIC: NULL device!`
-- `mtp-detect` показывает: `PTP_ERROR_IO: failed to open session`
-
-### Пример логов (ядро)
+## 1. Видит ли USB subsystem телефон?
 
 ```bash
-[1456.402150] usb 3-1: Product: Android Phone
-[1456.402153] usb 3-1: Manufacturer: ManufacturerName
-[1456.402156] usb 3-1: SerialNumber: ABC123
-[1456.402624] usb 3-1: Device is not authorized for usage
+lsusb
+doas journalctl -k -b --no-pager | grep -Ei 'usb|mtp|ptp|authorized|authorization' || true
 ```
 
----
+Если телефона нет в `lsusb`, сначала проверь кабель с передачей данных, другой физический порт и подключение напрямую, без проблемного hub или dock. В журнале ищи ошибки enumeration, например `error -71`, `device descriptor read` или `not accepting address`. Пока устройство не появилось на USB-уровне, диагностика MTP преждевременна.
 
-## Причины (общие)
+## 2. Авторизовано ли USB-устройство?
 
-1. **Авторизация USB на уровне ядра** – устройство получает `authorized=0`, ядро блокирует его.
-2. **usbguard блокирует устройство** – при смене режима (зарядка → MTP → ADB) телефон перерегистрируется, и usbguard видит «новое» устройство и блокирует.
-3. **MTP-сессия не открывается**, если:
-   - экран заблокирован;
-   - не выбран режим «Передача файлов (MTP)»;
-   - не нажато «Разрешить» в диалоге доступа к данным.
-4. **Библиотека `libmtp` несовместима с конкретной моделью** → ошибка `NULL device` в `simple-mtpfs`.
-5. **`gvfs-mtp` перехватывает устройство** – мешает ручному монтированию через `jmtpfs`/`simple-mtpfs`.
-
----
-
-## Диагностика
-
-### 1. Логи ядра в реальном времени
-
-```bash
-dmesg -w
-```
-
-Подключите телефон. Ищите:
-- `Device is not authorized for usage`
-- `usb X-X: Product:`
-- `PTP_ERROR_IO`
-
-### 2. Статус авторизации USB
-
-Из `dmesg` узнайте порт (например, `3-1`). Затем:
+Если журнал сообщает `Device is not authorized for usage`, найди имя устройства в kernel log или sysfs и прочитай его состояние. Например, если имя устройства `3-1`:
 
 ```bash
 cat /sys/bus/usb/devices/3-1/authorized
-# 0 – не авторизовано, 1 – авторизовано
 ```
 
-### 3. VID и PID вашего телефона
+`0` означает, что USB-устройство сейчас не авторизовано; `1` — что оно авторизовано. Это состояние не показывает, какая политика его установила. Сначала выясни, управляет ли им USBGuard, пользовательское udev-правило или другой механизм.
+
+Для USBGuard проверь состояние сервиса, решение для устройства и загруженные правила:
 
 ```bash
-lsusb | grep -i "название вашего телефона"
-# Пример вывода: Bus 003 Device 004: ID 2d95:6002 Android Phone
+systemctl is-active usbguard.service
+doas usbguard list-devices
+doas usbguard list-rules
 ```
 
-Здесь `2d95` – **VID** (Vendor ID), `6002` – **PID** (Product ID). Запомните их.
-
-### 4. Проверка MTP-обнаружения
+Если USBGuard не показывает решение для телефона, проверь пользовательские udev-правила и другие локальные компоненты, которые могут менять USB authorization:
 
 ```bash
-sudo emerge --ask mtp-tools   # установка, если нет
-mtp-detect
+grep -R -n 'authorized' /etc/udev/rules.d /usr/lib/udev/rules.d 2>/dev/null || true
 ```
 
-Если `PTP_ERROR_IO: failed to open session` – проблема в открытии сессии (экран заблокирован / нет разрешения).
+В `list-devices` найди внутренний ID телефона и его решение. Если устройство заблокировано и ты решил разрешить именно этот экземпляр, команда USBGuard — `doas usbguard allow-device -p <internal-id>`. Флаг `-p` сохраняет решение для конкретного устройства, добавляя соответствующее правило в текущую policy. После команды проверь `list-rules` и `list-devices`: действует первое совпавшее правило, поэтому более ранний общий `block` или `reject` может помешать новому `allow`. Правило USBGuard задаёт VID:PID через `id <vendor-id>:<product-id>`; `with-vid` не является синтаксисом правила.
 
----
+Не обходи работающий USBGuard записью `authorized=1` или общим udev-правилом на авторизацию. Не останавливай USBGuard и не генерируй заново весь ruleset ради одного телефона. Порядок правил и решения для устройств описаны в [руководстве по USBGuard](../../security/usbguard/).
 
-## Решение (пошагово)
+При переключении телефона между зарядкой, MTP и ADB могут измениться USB descriptors, interfaces или PID; USBGuard может обработать новую конфигурацию отдельно. Это возможное объяснение повторной блокировки, а не универсальное поведение. Если проблема воспроизводится при таком переключении, сравни `lsusb`, `doas usbguard list-devices` и `doas usbguard list-rules` до и после него.
 
-### Этап 1: Авторизация USB-устройства (ядро)
+## 3. Есть ли у userspace доступ к устройству?
 
-**Быстрое решение (до перезагрузки):**
+udev-правило Gentoo-пакета `media-libs/libmtp` задаёт для MTP-устройств группу `plugdev` и режим `0660`. Проверь активные группы пользователя и само правило:
 
 ```bash
-# Замените 3-1 на свой порт из dmesg
-echo 1 | sudo tee /sys/bus/usb/devices/3-1/authorized
+id
+getent group plugdev
+grep -R 'plugdev' /usr/lib/udev/rules.d 2>/dev/null | grep -Ei 'mtp|android|usb' || true
 ```
 
-**Постоянное решение (через udev):**
+Сопоставь результат с группой и правами на USB device node. Это проверка доступа для libmtp/MTP, а не универсальное требование для ADB. Правила ADB могут использовать другой способ доступа; проверяй установленное правило, а не добавляй `plugdev` наугад.
+
+В текущем Gentoo tree команда `mtp-detect` входит в `media-libs/libmtp`.
+
+## 4. Выбран ли режим MTP на телефоне?
+
+Для описанного здесь MTP-пути выбери **Передача файлов / File transfer (MTP)**, а не режим передачи фото (PTP). Разблокируй телефон и подтверди доступ к данным, если Android покажет запрос. Поведение при заблокированном экране зависит от устройства и его состояния: держи экран разблокированным для первой проверки, но не считай блокировку доказанной причиной сбоя.
+
+Перед запуском `mtp-detect` проверь, не открыл ли другой клиент MTP-сеанс:
 
 ```bash
-sudo nano /etc/udev/rules.d/99-android-usb.rules
-```
-Добавьте строку (замените `2d95` на свой VID):
-
-```bash
-# Авторизует все устройства с данным VID
-SUBSYSTEM=="usb", ATTR{idVendor}=="2d95", ATTR{authorized}="1"
-
-# Или для конкретных VID+PID:
-# SUBSYSTEM=="usb", ATTR{idVendor}=="2d95", ATTR{idProduct}=="6002", ATTR{authorized}="1"
-```
-
-Примените правила:
-
-```bash
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+pgrep -a -f 'gvfs.*mtp|kio.*mtp|mtpfs|jmtpfs|simple-mtpfs' || true
 ```
 
-Отключите и подключите телефон заново.
+Найденный процесс — повод проверить открытый сеанс в соответствующем приложении, но сам по себе он не доказывает, что клиент занял телефон. Закрой сеанс штатно, не завершай процессы автоматически. Если `mtp-detect` установлен, он проверит userspace-обнаружение MTP, открыв собственный MTP-сеанс.
 
----
+Ошибки `PTP_ERROR_IO` и `NULL device` не указывают на единственную причину. После предыдущих проверок они могут быть связаны с доступом к устройству, занятым MTP-сеансом, режимом или состоянием телефона, реализацией устройства либо проблемой клиента/libmtp. Сопоставь их с наблюдениями предыдущих слоёв и выводом `mtp-detect`.
 
-### Этап 2: Настройка usbguard (если используется)
+## 5. Какой клиент открывает MTP?
 
-Если `usbguard` активен, он блокирует телефон при смене режима. Добавьте разрешение по VID:
+MTP обычно обслуживает один активный клиент за раз, поэтому desktop automounter и ручной FUSE-клиент могут конфликтовать. Для desktop-интеграции выясни, какой framework использует приложение:
 
-```bash
-sudo systemctl stop usbguard
-echo "allow with-vid 2d95" | sudo tee -a /etc/usbguard/rules.conf
-sudo systemctl start usbguard
-```
+- GIO/GVfs-приложения используют MTP backend `gnome-base/gvfs[mtp]`.
+- Dolphin использует отдельный KDE KIO backend из `kde-apps/kio-extras[mtp]`.
+- Для других файловых менеджеров проверь документацию их framework и доступный backend.
 
-Или сгенерируйте политику без хэшей:
+Для отдельной проверки или если desktop backend недоступен, запусти один ручной FUSE-клиент после закрытия другого MTP-сеанса. Пример с `jmtpfs`:
 
 ```bash
-sudo usbguard generate-policy --no-hashes --no-ports-sn > /etc/usbguard/rules.conf
-sudo systemctl restart usbguard
-```
-
----
-
-### Этап 3: Подготовка телефона (обязательно!)
-
-Перед монтированием MTP выполните на телефоне:
-
-1. **Разблокируйте экран** (PIN/пароль/жест).
-2. Подключите USB-кабель.
-3. Нажмите на уведомление «Зарядка через USB».
-4. Выберите **«Передача файлов (MTP)**» (может называться «MTP» или «Передача данных»).
-5. Если появится диалог «Разрешить доступ к данным?» – нажмите **«Разрешить»**.
-6. Держите экран разблокированным во время монтирования.
-
----
-
-### Этап 4: Монтирование MTP в Gentoo
-
-> **Примечание от автора:** В соответствии с официальной документацией Gentoo Wiki, предпочтительным инструментом для монтирования MTP-устройств является `sys-fs/mtpfs` (MTPfs). Это FUSE-файловая система, которая предоставляет доступ к MTP-устройствам.
-
-#### Способ 1: `mtpfs` (рекомендуется, основано на официальной документации)
-
-```bash
-sudo emerge --ask sys-fs/mtpfs
-mkdir -p ~/phone
-mtpfs ~/phone
-ls ~/phone
-fusermount -u ~/phone   # отмонтировать
-```
-
-**Важно:** Будьте терпеливы, первое монтирование может занять несколько минут.
-
-#### Способ 2: `gvfs` с поддержкой MTP (для файловых менеджеров GNOME/KDE/Xfce)
-
-Этот метод не требует ручного монтирования через терминал и интегрирован в файловые менеджеры популярных рабочих окружений.
-
-```bash
-# Включите USE-флаг "mtp" для пакета gvfs
-echo "gnome-base/gvfs mtp" >> /etc/portage/package.use/gvfs
-sudo emerge --ask gnome-base/gvfs
-```
-
-После этого перезапустите сеанс рабочего стола. Подключите телефон в режиме MTP, и он должен автоматически появиться в боковой панели вашего файлового менеджера (Nautilus, Dolphin, Thunar и т.д.).
-
-#### Способ 3: `simple-mtpfs` (альтернатива, может не работать на некоторых моделях)
-
-```bash
-sudo emerge --ask sys-fs/simple-mtpfs
-mkdir -p ~/phone
-simple-mtpfs --device 1 --mount ~/phone
-```
-
-При ошибке `LIBMTP PANIC: NULL device` – попробуйте другой способ.
-
-#### Способ 4: `jmtpfs` (альтернатива, если другие не работают)
-
-```bash
-sudo emerge --ask jmtpfs
 mkdir -p ~/phone
 jmtpfs ~/phone
 ls ~/phone
 fusermount -u ~/phone
 ```
 
-#### Способ 5: `adbfs` – через ADB (самый надёжный, не требует MTP)
+В Gentoo также доступны `sys-fs/mtpfs` и `sys-fs/simple-mtpfs`; если выберешь один из них, сначала проверь справку установленного клиента. Не запускай одновременно несколько MTP-клиентов.
 
-На телефоне включите **USB-отладку** (режим разработчика). Затем:
+## ADB — отдельный канал
 
-```bash
-# Установите android-tools, который предоставляет ADB и fastboot
-sudo emerge --ask dev-util/android-tools
-adb devices   # разрешите доступ на телефоне
-mkdir -p ~/phone
-adbfs ~/phone
-ls ~/phone
-fusermount -u ~/phone
-```
+`dev-util/android-tools` предоставляет `adb` и `fastboot`; его USE-флаг `udev` подключает `dev-util/android-udev-rules`. Для ADB на телефоне нужно отдельно включить USB debugging и подтвердить запрос доверия компьютеру. ADB — отдельный канал управления и отладки, он не заменяет MTP backend для файлового менеджера. `android-tools` не предоставляет `adbfs`.
 
-Этот метод обходит все проблемы MTP.
+## Источники
 
----
-
-## Чек-лист для быстрого решения (подставьте свой VID и порт)
-
-```bash
-# 1. Авторизация USB (порт из dmesg)
-echo 1 | sudo tee /sys/bus/usb/devices/3-1/authorized
-
-# 2. Постоянное правило udev
-echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2d95", ATTR{authorized}="1"' | sudo tee /etc/udev/rules.d/99-android-usb.rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-
-# 3. usbguard: разрешить VID
-sudo systemctl stop usbguard
-echo "allow with-vid 2d95" | sudo tee -a /etc/usbguard/rules.conf
-sudo systemctl start usbguard
-
-# 4. Подготовка телефона (разблокировать, MTP, разрешить)
-
-# 5. Установка mtpfs и монтирование
-sudo emerge --ask sys-fs/mtpfs
-mkdir -p ~/phone
-mtpfs ~/phone
-ls ~/phone
-```
-
----
-
-## Дополнительные советы
-
-### Если телефон всё равно переподключается
-
-- Попробуйте другой USB-кабель (обязательно с поддержкой данных).
-- Подключитесь напрямую в USB 2.0 порт (без хаба).
-- Если ноутбук от батареи – включите питание от сети (недостаток тока).
-- Смотрите `dmesg -w` на предмет ошибок `error -71` или `device not accepting address`.
-
-### Права доступа для ADB (android-tools)
-
-Для работы ADB от имени обычного пользователя необходимо добавить себя в группу `plugdev`:
-
-```bash
-sudo gpasswd -a <USER_NAME> plugdev
-```
-
-После этого выйдите из системы и зайдите снова, чтобы изменения вступили в силу.
-
----
-
-## FAQ
-
-**Вопрос:** Откуда взять VID/PID моего телефона?  
-**Ответ:** Выполните `lsusb` без аргументов. Найдите строку с вашим телефоном. VID – первое число после `ID`, PID – второе. Например, `ID 18d1:4ee1` → VID=18d1, PID=4ee1.
-
-**Вопрос:** Какой пакет предоставляет ADB в Gentoo?  
-**Ответ:** **`dev-util/android-tools`**. Именно он официально поддерживается в Gentoo и включает в себя ADB и fastboot.
-
-**Вопрос:** Почему `simple-mtpfs` выдаёт `NULL device`?  
-**Ответ:** Библиотека `libmtp` не смогла инициализировать MTP-сессию. Это часто бывает на телефонах Vivo, Xiaomi, Oppo. Используйте `mtpfs` или `adbfs`.
-
-**Вопрос:** Нужно ли отключать usbguard?  
-**Ответ:** Нет, достаточно добавить правило `allow with-vid <ваш ID>`.
-
-**Вопрос:** Можно ли монтировать MTP при заблокированном экране?  
-**Ответ:** Нет, сессия не откроется. Экран должен быть разблокирован во время первого монтирования.
-
-**Вопрос:** Какой способ самый надёжный?  
-**Ответ:** `adbfs` через ADB. Он не зависит от MTP и работает почти всегда, если включена USB-отладка.
-
----
-
-## Ссылки на официальную документацию Gentoo Wiki
-
-- [MTPfs](https://wiki.gentoo.org/wiki/MTPfs) — FUSE-файловая система для доступа к MTP-устройствам.  
-  *(Используется как основной инструмент для монтирования в данном гайде.)*
-- [GVfs](https://wiki.gentoo.org/wiki/GVfs) — Виртуальная файловая система, обеспечивающая интеграцию MTP в файловые менеджеры.  
-  *(Рекомендуется для десктопных сред.)*
-- [Android Debug Bridge (ADB)](https://wiki.gentoo.org/wiki/Android/adb) — Официальная страница, посвящённая ADB в Gentoo.  
-  *(Содержит информацию о пакете `dev-util/android-tools`, настройке udev и прав доступа.)*
-
----
-
-**Проблемы:**  
-- `Device is not authorized for usage` → цикл переподключений  
-- `LIBMTP PANIC: NULL device` → `simple-mtpfs` не работает  
-- `PTP_ERROR_IO: failed to open session` → экран заблокирован / нет разрешения  
-
-**Решения:**  
-1. Авторизация через `/sys/bus/usb/devices/*/authorized` + правило udev  
-2. `allow with-id` в usbguard  
-3. `mtpfs` (официально рекомендуется) или `adbfs` (самый надёжный) вместо `simple-mtpfs`  
-4. Разблокировка экрана + режим MTP + подтверждение доступа
+- Gentoo: [`media-libs/libmtp`](https://packages.gentoo.org/packages/media-libs/libmtp), [`sys-fs/mtpfs`](https://packages.gentoo.org/packages/sys-fs/mtpfs), [`sys-fs/simple-mtpfs`](https://packages.gentoo.org/packages/sys-fs/simple-mtpfs), [`sys-fs/jmtpfs`](https://packages.gentoo.org/packages/sys-fs/jmtpfs).
+- Gentoo: [`gnome-base/gvfs`](https://packages.gentoo.org/packages/gnome-base/gvfs), [`kde-apps/kio-extras`](https://packages.gentoo.org/packages/kde-apps/kio-extras), [`dev-util/android-tools`](https://packages.gentoo.org/packages/dev-util/android-tools).
+- Upstream: [USBGuard command](https://github.com/USBGuard/usbguard/blob/main/doc/man/usbguard.1.adoc) и [язык USBGuard rules](https://github.com/USBGuard/usbguard/blob/main/doc/man/usbguard-rules.conf.5.adoc); [Linux USB authorization](https://docs.kernel.org/usb/authorization.html).
+- Upstream: [libmtp diagnostics](https://github.com/libmtp/libmtp); Android: [передача файлов по USB](https://support.google.com/android/answer/9064445) и [Android Debug Bridge](https://developer.android.com/tools/adb).
