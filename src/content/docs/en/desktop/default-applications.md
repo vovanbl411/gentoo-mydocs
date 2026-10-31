@@ -3,113 +3,104 @@ title: Default applications and MIME types (XDG)
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-14"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-View and change the default application for a MIME type or URI scheme:
+`xdg-mime query default` shows the current handler; `xdg-mime default` assigns
+a new one. Run these commands as your regular user from a graphical session.
+
+## How to query or change a handler
+
+For a MIME type, provide its name. URI schemes use the MIME-like form
+`x-scheme-handler/<scheme>`:
 
 ```bash
-xdg-mime query default <mime-or-scheme>          # current handler
-xdg-mime default <desktop-id> <mime-or-scheme>   # assign a handler
+xdg-mime query default <mime-type>
+xdg-mime default <desktop-id> <mime-type>
 ```
 
-Example:
+Replace the values in angle brackets with a MIME type and desktop ID.
+The first form only reads the setting. The second assigns the default handler
+for the user session.
 
 ```bash
 xdg-mime query default x-scheme-handler/https
 xdg-mime default firefox.desktop x-scheme-handler/https
 ```
 
-Associations apply to the user session and do not depend on the Wayland
-compositor. Applications, including Flatpak ones, usually honor these XDG
-associations when opening external links.
+Before assigning a handler, make sure the app is installed and its desktop
+entry declares support for the MIME type or URI scheme.
 
 ## Desktop IDs and mimeapps.list
 
-The commands operate on the desktop file's ID, for example `firefox.desktop`
-or `com.google.Chrome.desktop`. The ID does not have to match the name of
-the executable. An association needs an installed desktop file: local ones
-usually live in `~/.local/share/applications/`, system ones in
-`/usr/share/applications/`.
+`xdg-mime` takes the ID of a `.desktop` file, not the name of an executable.
+For example, `firefox.desktop` is Firefox's desktop ID. `query default`
+returns the selected handler's desktop ID.
 
-The result of `xdg-mime default` is stored in the user's `mimeapps.list`,
-usually `~/.config/mimeapps.list`. Per the XDG specification this is not
-the only possible location: there are also system-wide and desktop-specific
-files (for example, `<desktop>-mimeapps.list`). The setting persists across
-reboots, but a desktop interface or another application may change it.
-If the file is managed through dotfiles, check before adding that the
-listed desktop files exist on the target system.
+The `[Default Applications]` group in `mimeapps.list` stores default handler
+assignments, mapping MIME types and URI schemes to one or more desktop IDs
+separated by semicolons. The usual user-level file is
+`$XDG_CONFIG_HOME/mimeapps.list` (`~/.config/mimeapps.list` when the variable
+is unset). `xdg-mime default` asks the current desktop environment to change a
+default; it does not guarantee that every environment writes to the same file.
+
+Defaults are usually shared between sessions. The specification also allows
+desktop-specific files such as `<desktop>-mimeapps.list`, which can provide
+different values. The desktop name comes from `XDG_CURRENT_DESKTOP`; a
+higher-priority file can override a lower-priority setting.
 
 ## Examples
 
-Below are examples, not a universal default set: substitute your own
-desktop IDs. Which applications are actually installed on the reference
-system is recorded in [its entry](../../systems/asus-b5402/applications/).
+The `query default` commands below are read-only. Each `xdg-mime default`
+command changes the setting. These examples show different association types,
+not a universal default set; use an installed app that supports the type.
 
-### HTTP/HTML/PDF (example: Firefox)
+For a regular MIME type, such as PDF:
 
 ```bash
-xdg-mime default firefox.desktop x-scheme-handler/http
-xdg-mime default firefox.desktop x-scheme-handler/https
-xdg-mime default firefox.desktop text/html
-xdg-mime default firefox.desktop application/xhtml+xml
+xdg-mime query default application/pdf
 xdg-mime default firefox.desktop application/pdf
 ```
 
-### Images (example: qimgv)
+For a custom URI scheme, such as Perplexity:
 
 ```bash
-xdg-mime default qimgv.desktop image/jpeg
-xdg-mime default qimgv.desktop image/png
-xdg-mime default qimgv.desktop image/gif
-xdg-mime default qimgv.desktop image/webp
-xdg-mime default qimgv.desktop image/bmp
+xdg-mime query default x-scheme-handler/perplexity-app
+xdg-mime default perplexity.desktop x-scheme-handler/perplexity-app
 ```
 
-### Audio/video (example: mpv)
+The desktop ID and scheme for Perplexity are documented in the
+[Perplexity AppImage guide](../../settings/perplexity/).
 
-```bash
-xdg-mime default mpv.desktop audio/mpeg
-xdg-mime default mpv.desktop audio/ogg
-xdg-mime default mpv.desktop audio/flac
-xdg-mime default mpv.desktop video/mp4
-xdg-mime default mpv.desktop video/webm
-xdg-mime default mpv.desktop video/x-matroska
-```
+## Flatpak and portals
 
-### Custom URI schemes
+Sandboxed apps, including Flatpak apps, may delegate file and URI opening to
+the XDG Desktop Portal. Host associations still matter, but the portal may use
+the default handler, a previous choice, or show an application chooser when
+the calling app requests one. See the [Wayland portals guide](../wayland-portals/).
 
-Schemes like `perplexity-app://`, `tg://` or `steam://` should be assigned
-following the documentation of the respective application. The format is
-the same:
-
-```bash
-xdg-mime default <application>.desktop x-scheme-handler/<scheme>
-xdg-mime query default x-scheme-handler/<scheme>
-```
-
-See [Perplexity AppImage](../../settings/perplexity/) and
-[r2modman](../../settings/r2modman/).
+The `xdg-mime(1)` manual warns that `xdg-mime query default` may differ from
+the app that `xdg-open` actually launches. A desktop environment may use its
+own opener. If the results differ, check the desktop-specific opener and portal
+path.
 
 ## Verification
 
-The query commands for the main types, collected together:
+Query the current settings:
 
 ```bash
-xdg-mime query default x-scheme-handler/http
 xdg-mime query default x-scheme-handler/https
-xdg-mime query default text/html
 xdg-mime query default application/pdf
-xdg-mime query default image/png
-xdg-mime query default video/mp4
 ```
 
-To replace a handler, repeat the `xdg-mime default` command with a
-different desktop ID. Editing `mimeapps.list` by hand is usually
-unnecessary.
+After changing a handler, repeat `query default` for the same MIME type or URI
+scheme. Then test opening a suitable file or URI.
 
-## Related docs
+## Related material
 
-- [ASUS B5402 applications](../../systems/asus-b5402/applications/) — the
-  reference system's actual application set.
+- [Perplexity AppImage](../../settings/perplexity/) — an example URI scheme handler.
+- [Wayland portals](../wayland-portals/) — portal backends.
+- [ASUS B5402 applications](../../systems/asus-b5402/applications/) — the reference system's applications.
+- [MIME Applications specification (freedesktop.org)](https://specifications.freedesktop.org/mime-apps/latest-single/).
+- [XDG Desktop Portal: OpenURI](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.OpenURI.html).
