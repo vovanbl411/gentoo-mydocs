@@ -1,48 +1,56 @@
 ---
-title: Wireless regulatory domains
+title: Wireless regulatory domain
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
-The regulatory domain defines the allowed Wi-Fi frequencies and transmit
-power according to the region. It uses a two-letter ISO 3166-1 alpha-2
-country code. The value must match the user's actual regulatory domain.
+A regulatory domain defines Wi-Fi rules, including allowed frequencies,
+channel widths, transmit power, and other restrictions. The country code is a
+two-letter ISO 3166-1 alpha-2 code. Use `<CC>` for the code of the place where
+the device is actually used.
 
-The `net-wireless/wireless-regdb` package provides the regulatory database
-to the kernel; `crda` is obsolete. The kernel loads `regulatory.db` from
-`wireless-regdb` automatically.
+`net-wireless/wireless-regdb` provides `regulatory.db`; the kernel requests this
+database through the firmware API. A separate CRDA component is not needed for
+an ordinary modern setup. A country code in a request does not guarantee that
+all corresponding rules will apply to every device: the result also depends on
+the database, driver, and firmware.
 
-## 1. Before the change
-
-Do not copy someone else's country code without checking: substitute your
-own `<CC>`, where `<CC>` is the ISO 3166-1 alpha-2 code for the actual
-region.
-
-Before the change, check the current regulatory domain:
+## Check the current state
 
 ```bash
 iw reg get
 ```
 
-The same command is used to verify the result. For example, for Belarus the
-code is `BY`; this is only a syntax example, not a universally recommended
-value. The current region of the ASUS B5402 is not determined here.
+The output may contain a `global` block for the central domain and separate
+`phy#N` blocks for device (wiphy) state. The listed rules show the kernel's
+current state, but they do not by themselves confirm that the country code is
+legally correct for where the device is used. To query a particular device,
+use this command if the installed `iw` supports it:
 
-## 2. Temporary setting
+```bash
+iw phy <phy-name> reg get
+```
 
-Set the regulatory domain until the next reboot or reconfiguration:
+If a PHY is marked `self-managed`, its driver or firmware controls its
+regulatory state. A userspace request may not change that device's rules, even
+if the global domain changes.
+
+## Send a country request
+
+For a one-time request to the kernel, use the code for the actual region:
 
 ```bash
 doas iw reg set <CC>
-iw reg get
 ```
 
-## 3. Permanent setting
+The command sends the country code to the kernel as a regulatory
+request/hint; it does not set unconditional hardware limits. After the
+request, check the global domain and PHY state with the commands above.
 
-### Via iwd
+## Set the country through iwd
 
 File: `/etc/iwd/main.conf`
 
@@ -51,11 +59,25 @@ File: `/etc/iwd/main.conf`
 Country=<CC>
 ```
 
-The `Country` parameter in iwd is only a request to the kernel. The final
-decision is made by the kernel and the regdb, and for a `self-managed
-wiphy` the userspace setting is ignored altogether.
+`Country=` also sends a request. For an ordinary wiphy, this is a regulatory
+hint; userspace cannot directly set the regulatory domain's country for a
+`self-managed wiphy`. If NetworkManager uses iwd as its Wi-Fi backend,
+`Country=` remains an iwd setting in `main.conf`, while NetworkManager
+continues to manage connections. See [NetworkManager + iwd](../networkmanager-iwd/).
 
-### Via the cfg80211 module parameter
+## Alternative: the cfg80211 parameter
+
+Use this option when the country hint should be set as `cfg80211` loads. For
+day-to-day configuration, `Country=` in iwd is usually sufficient.
+
+Check the configuration of the running kernel:
+
+```bash
+zgrep '^CONFIG_CFG80211=' /proc/config.gz 2>/dev/null || \
+  grep '^CONFIG_CFG80211=' "/boot/config-$(uname -r)" 2>/dev/null
+```
+
+If `CONFIG_CFG80211=m`, pass the parameter through `modprobe`.
 
 File: `/etc/modprobe.d/cfg80211.conf`
 
@@ -63,36 +85,37 @@ File: `/etc/modprobe.d/cfg80211.conf`
 options cfg80211 ieee80211_regdom=<CC>
 ```
 
-The setting applies when the module is loaded. It can be applied via
-`modprobe -r cfg80211 && modprobe cfg80211` or after a reboot.
+If `CONFIG_CFG80211=y`, the module configuration in `/etc/modprobe.d` does not
+apply. Pass the parameter for built-in code on the kernel command line:
 
-> ⚠️ **Important nuance**: unloading `cfg80211` touches the running Wi-Fi
-> stack and can drop the current wireless connection. If it must not be
-> interrupted, apply the setting at the next reboot.
+```text
+cfg80211.ieee80211_regdom=<CC>
+```
 
-## 4. Verification
+The parameter takes effect when the module or kernel loads. Do not unload
+`cfg80211` on a running Wi-Fi system: this affects the entire wireless stack.
+Check the result after a planned reboot.
 
-After applying, check the regulatory domain again with the same command as
-before the change:
+## Verify the result
+
+After a change, check both the global and device-specific state:
 
 ```bash
 iw reg get
+iw phy <phy-name> reg get
+iw phy <phy-name> info
 ```
 
-## 5. What not to do
-
-- `iwdctl set-domain <CC>` — no such utility exists. iwd is managed through
-  the interactive client `iwctl` and its configuration file, not through a
-  separate domain-setting command.
-- `echo "<CC>" > /sys/devices/virtual/net/wlan0/phy80211/country_code` —
-  this sysfs attribute is read-only, writes are ignored.
-
-## Related docs
-
-- [NetworkManager + iwd](../networkmanager-iwd/) — choosing `iwd` as the
-  Wi-Fi backend for NetworkManager.
+Check more than the country code: compare the regulatory rules, including
+frequency ranges, channel width, power, and flags. `iw phy <phy-name> info`
+shows the device's channels and their restrictions. A matching country code
+does not guarantee that every channel is available on a particular adapter.
+These commands only read the current state.
 
 ## References
 
-- [iwd.config(5) — the `[General]` section's `Country` setting](https://manpages.ubuntu.com/manpages/noble/man5/iwd.config.5.html)
-- [kernel.org: Regulatory](https://wireless.wiki.kernel.org/en/developers/regulatory)
+- [Linux kernel: wireless regulatory](https://docs.kernel.org/networking/regulatory.html)
+- [Linux Wireless: iw documentation](https://wireless.docs.kernel.org/en/latest/en/users/documentation/iw.html)
+- [iwd: upstream iwd.config](https://kernel.googlesource.com/pub/scm/network/wireless/iwd/+/refs/heads/master/src/iwd.config.rst)
+- [Linux kernel: net/wireless/reg.c](https://github.com/torvalds/linux/blob/master/net/wireless/reg.c)
+- [Linux kernel: kernel command-line parameters](https://docs.kernel.org/admin-guide/kernel-parameters.html)
