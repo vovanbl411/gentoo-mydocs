@@ -3,88 +3,76 @@ title: Noctalia на ASUS ExpertBook B5402
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-07"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-## Оболочка рабочего стола
+## Текущее состояние
 
-Noctalia показывает панель, меню приложений, уведомления и экран блокировки.
-Она запускается вместе с Umbriel из `~/.config/umbriel/core.toml`.
-Пакет `gui-apps/noctalia` установлен из
-[noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay) с USE
-`jemalloc`, который выбирает альтернативный распределитель памяти.
+Noctalia — оболочка основной Umbriel-сессии ASUS B5402: она показывает панель,
+меню приложений, уведомления и экран блокировки. Пакет `gui-apps/noctalia`
+установлен из [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay)
+с USE `jemalloc`, который выбирает альтернативный распределитель памяти.
+Noctalia запускается через Umbriel `autostart` и владеет D-Bus-интерфейсом
+`org.freedesktop.Notifications`. Для Portage установлен
+`virtual/notification-daemon` из `noctalia-overlay`.
 
-[Установка и обновление Noctalia](../../../../desktop/noctalia-shell/).
+## Запуск
 
-## Где менять настройки
+Главный файл `~/.config/umbriel/config.toml` подключает `core.toml`. В нём
+Umbriel запускает Noctalia при входе в сессию.
 
-Основная конфигурация — `~/.config/noctalia/config.toml`. Noctalia также
-читает остальные TOML-файлы этого каталога, поэтому настройки можно разделить
-по темам.
+Файл: `~/.config/umbriel/core.toml`
 
-Изменения через интерфейс Noctalia сохраняются в
-`~/.local/state/noctalia/settings.toml`. Этот файл загружается позже и может
-перекрывать значения из `~/.config/noctalia/`.
+```toml
+[general]
+autostart = ["noctalia"]
+```
 
-Если параметр в `config.toml` не действует, сначала проверь его значение
-в `settings.toml`. Повторное редактирование основного файла не поможет,
-пока более поздняя настройка продолжает его перекрывать.
+Подробнее о запуске сессии — в [руководстве Umbriel](../../../../desktop/umbriel/).
 
-После редактирования TOML проверь синтаксис:
+## Конфигурация
+
+Ручные настройки находятся в TOML-файлах `~/.config/noctalia/`. Изменения,
+сделанные через интерфейс Noctalia, сохраняются в
+`~/.local/state/noctalia/settings.toml` и загружаются после ручных настроек.
+Значение из `settings.toml` может перекрыть то же значение в файлах
+`~/.config/noctalia/`. Если правка не действует, проверь параметр в файле
+состояния.
+
+## Уведомления
+
+Noctalia принимает уведомления через `org.freedesktop.Notifications`.
+Установленный `virtual/notification-daemon` из `noctalia-overlay` позволяет
+Portage использовать Noctalia как провайдер обработчика уведомлений.
+Настройка `libnotify` и поиск причин непоказанных уведомлений описаны в
+[руководстве по уведомлениям](../../../../desktop/notifications/).
+
+## Проверка
+
+Проверь объединённую конфигурацию:
 
 ```bash
 noctalia config validate
 ```
 
-Команда должна завершиться без ошибок. Если она указывает на конкретный
-файл и строку, исправь их перед следующим входом в рабочий стол.
+Команда должна завершиться без ошибок.
 
-## Уведомления
-
-Noctalia сама выполняет роль обработчика уведомлений. Для Portage установлен
-`virtual/notification-daemon` из `noctalia-overlay`: он позволяет учитывать
-Noctalia как подходящую программу, не добавляя второй обработчик.
-
-Thunderbird использует библиотеку `x11-libs/libnotify`; она установлена явно,
-поскольку установка Thunderbird не обязательно добавляет её автоматически.
-
-Пробное сообщение:
+Узнай, какая программа обслуживает D-Bus-интерфейс уведомлений:
 
 ```bash
-notify-send "Проверка Noctalia" "Уведомления работают"
+gdbus call \
+  --session \
+  --dest org.freedesktop.Notifications \
+  --object-path /org/freedesktop/Notifications \
+  --method org.freedesktop.Notifications.GetServerInformation
 ```
 
-При выключенном режиме «Не беспокоить» должен появиться баннер.
-Если сообщения нет или Portage предлагает зависимости X11, используй
-[инструкцию по уведомлениям](../../../../desktop/notifications/).
-
-## Обновление
-
-Оверлей отслеживает стабильные релизы. Сначала синхронизируй его и посмотри,
-что предлагает Portage:
-
-```bash
-doas emaint sync -r noctalia-overlay
-emerge -pv gui-apps/noctalia
-```
-
-После просмотра плана:
-
-```bash
-doas emerge --ask --verbose --update --oneshot gui-apps/noctalia
-```
-
-Keyword-правила добавляй по текущему сообщению Portage в
-`/etc/portage/package.accept_keywords/`. Старые списки зависимостей не нужно
-копировать без разбора: они меняются вместе с пакетами.
-
-Пользовательские настройки находятся в домашнем каталоге и не заменяются
-при обновлении пакета. Перед существенным изменением конфигурации сохрани
-копии обоих каталогов настроек.
+В ответе имя сервера должно быть `noctalia`.
 
 ## Связанные материалы
 
-- [Модель конфигурации Noctalia](../../../../desktop/noctalia-shell/)
-- [Запуск оболочки в Umbriel](../../../../desktop/umbriel/#конфигурация-и-noctalia)
-- [Рабочее окружение](../environment/)
+- [Установка и конфигурация Noctalia](../../../../desktop/noctalia-shell/)
+- [Уведомления рабочего стола](../../../../desktop/notifications/)
+- [Запуск оболочки в Umbriel](../../../../desktop/umbriel/)
+- [Рабочее окружение ASUS B5402](../environment/)

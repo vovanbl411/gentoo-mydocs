@@ -3,86 +3,79 @@ title: Noctalia on ASUS ExpertBook B5402
 kind: system
 scope: system
 status: current
-last_verified: "2026-10-07"
+last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
 
-## Desktop shell
+## Current state
 
-Noctalia displays the panel, application menu, notifications and lock screen.
-It starts with Umbriel from `~/.config/umbriel/core.toml`.
-The `gui-apps/noctalia` package is installed from
+Noctalia is the shell in the primary Umbriel session on the ASUS B5402. It
+provides the panel, application menu, notifications, and lock screen. The
+`gui-apps/noctalia` package is installed from
 [noctalia-overlay](https://github.com/vovanbl411/noctalia-overlay) with USE
-`jemalloc`, which selects an alternative memory allocator.
+`jemalloc`, which selects an alternative memory allocator. Umbriel starts
+Noctalia through `autostart`, and Noctalia owns the
+`org.freedesktop.Notifications` D-Bus interface. The
+`virtual/notification-daemon` package from `noctalia-overlay` is installed for
+Portage integration.
 
-[Installing and updating Noctalia](../../../../desktop/noctalia-shell/).
+## Startup
 
-## Where to change settings
+The main `~/.config/umbriel/config.toml` file includes `core.toml`. Umbriel
+starts Noctalia at session login from that file.
 
-The main configuration is `~/.config/noctalia/config.toml`. Noctalia also
-reads the other TOML files in this directory, so settings can be split by topic.
+File: `~/.config/umbriel/core.toml`
 
-Changes made through Noctalia's interface are saved to
-`~/.local/state/noctalia/settings.toml`. This file is loaded later and can
-override values from `~/.config/noctalia/`.
+```toml
+[general]
+autostart = ["noctalia"]
+```
 
-If a setting in `config.toml` has no effect, first check its value in
-`settings.toml`. Editing the main file again will not help while the later
-setting still overrides it.
+See the [Umbriel guide](../../../../desktop/umbriel/) for more about starting
+the session.
 
-After editing TOML, check the syntax:
+## Configuration
+
+Manual settings live in TOML files under `~/.config/noctalia/`. Changes made
+through the Noctalia interface are saved to
+`~/.local/state/noctalia/settings.toml` and loaded after the manual settings.
+A value in `settings.toml` can override the same value in files under
+`~/.config/noctalia/`. If an edit has no effect, check the state file for that
+setting.
+
+## Notifications
+
+Noctalia handles notifications through `org.freedesktop.Notifications`. The
+installed `virtual/notification-daemon` from `noctalia-overlay` lets Portage
+use Noctalia as the notification-daemon provider. The
+[notifications guide](../../../../desktop/notifications/) covers `libnotify`
+setup and troubleshooting notifications that do not appear.
+
+## Verification
+
+Validate the merged configuration:
 
 ```bash
 noctalia config validate
 ```
 
-The command should finish without errors. If it points to a particular file
-and line, fix them before the next desktop login.
+The command should complete without errors.
 
-## Notifications
-
-Noctalia itself acts as the notification handler. Portage uses
-`virtual/notification-daemon` from `noctalia-overlay` to recognize Noctalia
-as a suitable program without adding a second handler.
-
-Thunderbird uses the `x11-libs/libnotify` library. It is installed explicitly
-because installing Thunderbird does not necessarily add it automatically.
-
-Test message:
+Check which application serves the notification D-Bus interface:
 
 ```bash
-notify-send "Noctalia test" "Notifications work"
+gdbus call \
+  --session \
+  --dest org.freedesktop.Notifications \
+  --object-path /org/freedesktop/Notifications \
+  --method org.freedesktop.Notifications.GetServerInformation
 ```
 
-With Do Not Disturb disabled, a banner should appear. If no message is shown
-or Portage proposes X11 dependencies, follow the
-[notifications guide](../../../../desktop/notifications/).
-
-## Updating
-
-The overlay tracks stable releases. First sync it and inspect what Portage
-proposes:
-
-```bash
-doas emaint sync -r noctalia-overlay
-emerge -pv gui-apps/noctalia
-```
-
-After reviewing the plan:
-
-```bash
-doas emerge --ask --verbose --update --oneshot gui-apps/noctalia
-```
-
-Add keyword rules to `/etc/portage/package.accept_keywords/` according to
-Portage's current message. Do not copy old dependency lists without reviewing
-them: they change with the packages.
-
-User settings are in the home directory and are not replaced by package
-updates. Before major configuration changes, back up both settings directories.
+The server name in the response should be `noctalia`.
 
 ## Related material
 
-- [Noctalia configuration model](../../../../desktop/noctalia-shell/)
-- [Starting the shell in Umbriel](../../../../desktop/umbriel/#configuration-and-noctalia)
-- [Desktop environment](../environment/)
+- [Installing and configuring Noctalia](../../../../desktop/noctalia-shell/)
+- [Desktop notifications](../../../../desktop/notifications/)
+- [Starting the shell in Umbriel](../../../../desktop/umbriel/)
+- [ASUS B5402 desktop environment](../environment/)
