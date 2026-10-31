@@ -2,7 +2,7 @@
 title: "Оптимизация CPU: Intel Alder Lake (i7-1260P)"
 kind: system
 scope: system
-status: draft
+status: current
 last_verified: "2026-10-30"
 verified_on: [asus-b5402]
 ---
