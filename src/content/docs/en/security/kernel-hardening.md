@@ -2,159 +2,102 @@
 title: Linux kernel hardening
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
-The document covers several levels of kernel hardening: protective kernel
-build features, sysctl runtime parameters, module restriction and verification
-tools. The values below form an example hardening policy, not a universally
-safe configuration for any system.
+Check hardening in layers: build settings, the actual Kconfig of the running kernel, current runtime defaults, and only then additional restrictions for a specific goal. There is no universal sysctl set for every Gentoo system; values can depend on the kernel, init system, and workload.
 
-Some restrictions can break existing workloads. Before applying them, match
-them against the specific environment and verify it after the change.
+## 1. Gentoo kernel build
 
-## 1. Scope and risks
+A Portage profile such as `default/linux/amd64/23.0/no-multilib/hardened/systemd` and the `hardened` USE flag for `sys-kernel/gentoo-kernel` are separate mechanisms. The profile defines policy for Gentoo packages and the toolchain; the USE flag participates in building the kernel Kconfig. The profile does not automatically enable every kernel hardening option.
 
-Hardening sysctl parameters can affect:
+The current `sys-kernel/gentoo-kernel` ebuild adds `hardened-base.config` and, when present, `hardened-<arch>.config` when the flag is enabled. With GCC it also adds `hardened-gcc-plugins.config`. The base hardened fragment follows Kernel Self-Protection Project recommended settings with Gentoo-specific changes.
 
-- networking;
-- debugging and perf;
-- BPF workloads;
-- kexec;
-- crash dumps;
-- panic/recovery behaviour.
+The amd64 Fedora input config already enables examples such as `STRICT_KERNEL_RWX`, `STRICT_MODULE_RWX`, `STACKPROTECTOR_STRONG`, `HARDENED_USERCOPY`, `SLAB_FREELIST_HARDENED`, `FORTIFY_SOURCE`, and `VMAP_STACK`. Hardened fragments repeat some of these settings and add others, such as `INIT_ON_FREE_DEFAULT_ON`, `PANIC_ON_OOPS`, and disabling `KEXEC`; `hardened-amd64.config` also sets `RANDOMIZE_BASE`. The USE flag alone therefore cannot establish the final Kconfig.
 
-Save the previous policy and decide in advance which workloads need to be
-checked after the change.
+`savedconfig` and the source version also affect the result. The source of truth for build-time protections is the final configuration of the running kernel. For a fully custom kernel, use KSPP as a reference, not as a checklist to copy blindly.
 
-## 2. Kernel build hardening
+## 2. Check the running kernel Kconfig
 
-`sys-kernel/gentoo-sources` provides Linux sources with the Gentoo patchset.
-Using `gentoo-sources` by itself does not imply any specific set of hardening
-options: for a kernel you build yourself, hardening is determined primarily by
-its Kconfig.
+First match the config to `uname -r`. If the kernel exports `/proc/config.gz`, it contains the running kernel configuration. Otherwise check the matching `/boot/config-$(uname -r)`; do not use a config from another version. This command prints selected options only, not the full `.config`.
 
-`sys-kernel/gentoo-kernel` has a local USE flag `hardened`, which enables a
-selection of hardening options recommended by the Kernel Self Protection
-Project.
-
-`PIE`, ELF `RELRO` and similar mechanisms are userspace toolchain hardening —
-a separate protection level that should not be conflated with kernel Kconfig
-hardening.
-
-## 3. Example sysctl policy
-
-File: `/etc/sysctl.d/99-hardened-kernel.conf`
-
-The policy below is an example, not a recommendation for an arbitrary system
-and not a description of an applied configuration on a specific machine. Check
-and adapt the values and comments to the environment.
-
-```conf
-# Reverse Path Filtering: 1 is strict mode (protection against IP spoofing)
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-
-# --- Filesystem protection ---
-# Restrictions on FIFOs and regular files in sticky directories (/tmp)
-fs.protected_fifos = 2
-fs.protected_regular = 2
-
-# --- Hiding pointers and restricting perf ---
-kernel.kptr_restrict = 2
-kernel.perf_event_paranoid = 3
-
-# --- BPF hardening ---
-kernel.unprivileged_bpf_disabled = 1
-net.core.bpf_jit_harden = 2
-
-# --- System integrity and dumps ---
-kernel.kexec_load_disabled = 1
-fs.suid_dumpable = 0
-
-# TTY restriction
-dev.tty.ldisc_autoload = 0
-
-# The core dump is piped to a userspace helper via stdin (/bin/false discards it)
-kernel.core_pattern = |/bin/false
-
-# panic_on_oops = 1: a kernel oops/BUG becomes a panic
-# panic = 10: reboot 10 seconds after a panic
-kernel.panic_on_oops = 1
-kernel.panic = 10
+```bash
+pattern='^(# )?CONFIG_(STRICT_KERNEL_RWX|STRICT_MODULE_RWX|STACKPROTECTOR_STRONG|HARDENED_USERCOPY|SLAB_FREELIST_RANDOM|SLAB_FREELIST_HARDENED|RANDOM_KMALLOC_CACHES|KMALLOC_PARTITION_CACHES|SHUFFLE_PAGE_ALLOCATOR|INIT_ON_ALLOC_DEFAULT_ON|INIT_ON_FREE_DEFAULT_ON|VMAP_STACK|REFCOUNT_FULL|FORTIFY_SOURCE|SECURITY_DMESG_RESTRICT|RANDOMIZE_BASE|BPF_UNPRIV_DEFAULT_OFF|KEXEC|KEXEC_FILE|PANIC_ON_OOPS|PANIC_TIMEOUT|MODULE_SIG|MODULE_SIG_FORCE)(=| is not set)'
+zgrep -E "$pattern" /proc/config.gz 2>/dev/null ||
+    grep -E "$pattern" "/boot/config-$(uname -r)" 2>/dev/null || true
 ```
 
-### Notes on individual parameters
+A line such as `# CONFIG_NAME is not set` means the option is off. The absence of a line does not by itself prove that it is disabled: the symbol may have changed or disappeared in that kernel version. Check it against the matching kernel sources and inspect the final config after `savedconfig` is merged.
 
-**rp_filter.** `1` is strict reverse-path filtering: the best reverse route for
-an incoming source address must go through the same interface the packet
-arrived on. Strict mode can interfere with asymmetric routing, policy routing,
-multihoming and some VPN/network setups; loose mode (`2`) sometimes fits such
-environments better.
+## 3. Runtime policy knobs
 
-**fs.protected_fifos / fs.protected_regular.** `1` restricts `O_CREAT` for
-objects owned by others in world-writable sticky directories; `2` extends this
-protection to group-writable sticky directories as well.
+Start by checking the current value with `sysctl` and finding what sets it. Change a value only when the goal is clear and compatibility has been reviewed.
 
-**kernel.unprivileged_bpf_disabled.** `1` disables unprivileged `bpf()` and,
-once set to `1`, cannot be returned to `0` until a reboot. The value `2` also
-disables unprivileged BPF but remains reversible.
+| Parameter | What it restricts | Main trade-off |
+|---|---|---|
+| `kernel.kptr_restrict` | `0` applies minimal restrictions and hashes addresses; `1` restricts `%pK` output with capability checks; `2` hides those addresses regardless of privileges. | kernel debugging and observability |
+| `kernel.perf_event_paranoid` | A value of `>=2` blocks unprivileged kernel profiling; upstream documents the thresholds `-1`, `>=0`, `>=1`, and `>=2`. | `perf`, profilers, and observability; `3` is not a distinct portable recommendation |
+| `kernel.unprivileged_bpf_disabled` | `0` allows unprivileged BPF; `1` disables it until reboot with no way to re-enable it; `2` disables it but allows a later change. With `CONFIG_BPF_UNPRIV_DEFAULT_OFF=y`, the initial value is already `2`. | BPF workloads; changing `2 → 1` makes the restriction irreversible until reboot |
+| `net.core.bpf_jit_harden` | `0` disables JIT hardening; `1` enables it for unprivileged users; `2` enables it for everyone. | performance; use only when the knob exists and BPF JIT is in use |
+| `fs.protected_fifos`, `fs.protected_regular` | `1` restricts `O_CREAT` opens of existing FIFOs or regular files not owned by the caller in world-writable sticky directories; `2` also applies in group-writable sticky directories. | compatibility with some applications; check kernel defaults and existing system policy |
+| `fs.suid_dumpable` | Controls core dumps for setuid and other protected processes. The upstream default is `0`, but system configuration may choose another value for its collector. | crash diagnostics; do not add an override if the current value already meets the chosen policy |
+| `dev.tty.ldisc_autoload` | `0` prevents ordinary users from automatically loading line-discipline modules. | workloads that need automatic line-discipline loading |
+| `kernel.kexec_load_disabled` | Disables `kexec_load` and `kexec_file_load` when kexec support is built into the kernel. The value `1` cannot be reversed until reboot. | later kexec or kdump use; if `CONFIG_KEXEC` and `CONFIG_KEXEC_FILE` are disabled, the knob is unnecessary |
 
-**net.core.bpf_jit_harden.** `2` enables JIT hardening for all users. It has a
-performance cost and only makes sense in the context of the BPF JIT in use.
+`net.ipv4.conf.*.rp_filter` is network/routing policy, not a general kernel hardening recommendation. Strict mode can interfere with asymmetric or policy routing, multihoming, and VPNs; choose anti-spoofing settings for the network topology.
 
-**kernel.kexec_load_disabled.** Disables the `kexec_load` and `kexec_file_load`
-syscalls; the transition to `1` is irreversible until the next boot. It reduces
-the ability to replace or load a new kernel image via kexec, but is
-incompatible with normal subsequent kexec use and may affect
-kdump/crash-kernel workflows. The parameter is not required for Secure Boot,
-UKI or systemd-boot.
+`kernel.core_pattern` selects core-dump handling. The value `|/bin/false` discards dumps and can disable `systemd-coredump` and application diagnostics. Choose a collector as a separate policy. `kernel.panic_on_oops` and `kernel.panic` define failure and recovery behavior: for example, the timeout changes whether the system reboots after a panic. These are not a universal hardening preset.
 
-**kernel.core_pattern.** A string starting with `|` means the kernel passes the
-core dump to a userspace helper via stdin. `|/bin/false` effectively directs
-the core stream to `/bin/false`, which discards it.
+Keep module signing, Secure Boot, and runtime module bans distinct. `CONFIG_MODULE_SIG_FORCE` enforces signature checks in the kernel; Secure Boot verifies the boot chain. `kernel.modules_disabled=1` prevents modules from being loaded or unloaded until reboot. This is a high-impact choice: first make sure all required hardware and workload modules are available. Module autoloading may also be required and is not the same as explicit module loading.
 
-> ⚠️ **Important nuance**: such a setting replaces the normal core-dump
-> collector and can interfere with crash diagnostics and system coredump
-> handling. Apply it only if the intent is really to opt out of userspace core
-> dumps.
+## 4. Apply a selected value
 
-**fs.suid_dumpable = 0** separately forbids core dumps for setuid and other
-protected processes in the standard mode.
+This example shows the process; it does not recommend setting `kernel.kptr_restrict=2`.
 
-**kernel.panic_on_oops / kernel.panic.** `panic_on_oops = 1` turns a kernel
-oops/BUG into a panic; `panic = 10` reboots the system 10 seconds after a
-panic. This is an availability/recovery policy, not protection against cold
-boot attacks or RAM remanence. Trade-off: failing fast can be preferable to
-continuing on corrupted kernel state, but an automatic reboot can interfere
-with crash-dump/debugging workflows and, with a persistent panic cause, can
-lead to a reboot loop.
+1. Record the current value: `sysctl kernel.kptr_restrict`.
+2. Check how the change affects the tools and workloads you need.
+3. If the setting is reversible, you may test it temporarily:
 
-## 4. Module loading considerations
+   ```bash
+   doas sysctl -w kernel.kptr_restrict=2
+   ```
 
-Restricting module loading (a full ban, blacklisting, signing requirements) is
-a separate policy with possible compatibility consequences for hardware and
-workloads. This document does not define specific rules.
+4. After validation, save only the selected value.
 
-## 5. Verification
+   File: `/etc/sysctl.d/90-local-hardening.conf`
 
-After the change, check the actual runtime values, make sure the needed sysctl
-file is loaded, and test the workloads the restrictions can affect. This
-document does not record the results of such checks.
+   ```ini
+   kernel.kptr_restrict = 2
+   ```
 
-## 6. Verification tools
+5. Load only this file and check the result:
 
-The following tools are listed as possible verification means; the document
-does not claim they are installed, present in the Gentoo repository or have
-already been used:
+   ```bash
+   doas sysctl -p /etc/sysctl.d/90-local-hardening.conf
+   sysctl kernel.kptr_restrict
+   ```
 
-- `kernel-hardening-checker` — an external tool for checking Kconfig, the
-  kernel command line and sysctl;
-- `lynis` — general security auditing.
+Record the previous value before a reversible change. To roll it back, restore it with `doas sysctl -w <key>=<previous-value>`, then correct or remove the local entry.
 
-## 7. Rollback
+Values such as `kernel.unprivileged_bpf_disabled=1`, `kernel.kexec_load_disabled=1`, and `kernel.modules_disabled=1` cannot be undone by writing another value before reboot. Do not use them for casual live testing: check Kconfig and the current state, establish a recovery path, and then make a separate policy decision. If the value is already persisted in sysctl configuration, remove or correct that entry before rebooting, then verify the effective value after boot.
 
-Save the previous sysctl policy before the change. If a regression appears,
-restore the previous values and re-check the affected workload.
+## 5. Verify after a change
+
+Check each layer separately:
+
+- **Build-time:** `uname -r` and the matching running Kconfig in `/proc/config.gz` or `/boot/config-$(uname -r)`.
+- **Runtime:** actual values of selected keys with `sysctl <key>`.
+- **Persistent source:** only entries for the selected keys in `/etc/sysctl.conf`, `/etc/sysctl.d/`, `/run/sysctl.d/`, and `/usr/lib/sysctl.d/`.
+- **Boot parameters:** `cat /proc/cmdline`.
+- **Workload:** test the affected function, such as perf/profilers, BPF, kexec/kdump, the core-dump collector, networking, or hardware module loading.
+
+Use system data and targeted workload checks; treat external scanners as supplementary tools.
+
+## Sources
+
+- [Linux Kernel Self-Protection](https://docs.kernel.org/security/self-protection.html)
+- Gentoo [sys-kernel/gentoo-kernel ebuild](https://github.com/gentoo/gentoo/tree/master/sys-kernel/gentoo-kernel)
+- Gentoo [hardened-base.config](https://github.com/gentoo/gentoo-kernel-config/blob/master/hardened-base.config) and [hardened-amd64.config](https://github.com/gentoo/gentoo-kernel-config/blob/master/hardened-amd64.config)
+- Linux kernel [kernel sysctl](https://docs.kernel.org/admin-guide/sysctl/kernel.html), [filesystem sysctl](https://docs.kernel.org/admin-guide/sysctl/fs.html), [network sysctl](https://docs.kernel.org/admin-guide/sysctl/net.html), and [IP sysctl](https://docs.kernel.org/networking/ip-sysctl.html)

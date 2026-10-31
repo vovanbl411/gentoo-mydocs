@@ -2,159 +2,102 @@
 title: Защита ядра Linux
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-10-31"
+verified_on: [asus-b5402]
 ---
 
-Документ рассматривает несколько уровней kernel hardening: защитные свойства
-сборки ядра, runtime-параметры sysctl, ограничение модулей и инструменты
-проверки. Приведённые значения образуют пример политики hardening, а не
-универсально безопасную конфигурацию для любой системы.
+Проверяй hardening по слоям: настройки сборки, фактический Kconfig запущенного ядра, текущие runtime defaults и только затем дополнительные ограничения под конкретную цель. Универсального sysctl-набора для всех Gentoo-систем нет: значение может зависеть от ядра, init-системы и workload.
 
-Некоторые ограничения могут нарушить работу существующих workloads. Перед
-применением их нужно сопоставить с конкретным окружением и проверить его после
-изменения.
+## 1. Gentoo kernel build
 
-## 1. Область применения и риски
+Профиль Portage, например `default/linux/amd64/23.0/no-multilib/hardened/systemd`, и USE-флаг `hardened` пакета `sys-kernel/gentoo-kernel` — разные механизмы. Профиль задаёт policy для Gentoo packages и toolchain; USE-флаг участвует в формировании Kconfig. Сам профиль не включает автоматически все kernel hardening options.
 
-Hardening-параметры sysctl могут влиять на:
+В текущем ebuild `sys-kernel/gentoo-kernel` флаг добавляет `hardened-base.config` и, если он существует, `hardened-<arch>.config`. Для GCC добавляется также `hardened-gcc-plugins.config`. Базовый hardened fragment основан на recommended settings Kernel Self-Protection Project с изменениями Gentoo.
 
-- networking;
-- debugging и perf;
-- BPF workloads;
-- kexec;
-- crash dumps;
-- panic/recovery behaviour.
+В amd64 Fedora input config уже включены, например, `STRICT_KERNEL_RWX`, `STRICT_MODULE_RWX`, `STACKPROTECTOR_STRONG`, `HARDENED_USERCOPY`, `SLAB_FREELIST_HARDENED`, `FORTIFY_SOURCE` и `VMAP_STACK`. Hardened fragments повторяют часть этих настроек и добавляют, например, `INIT_ON_FREE_DEFAULT_ON`, `PANIC_ON_OOPS` и отключение `KEXEC`; `hardened-amd64.config` также задаёт `RANDOMIZE_BASE`. Поэтому по одному USE-флагу нельзя определить итоговый Kconfig.
 
-Сохрани предыдущую policy и заранее определи, какие workloads нужно проверить
-после изменения.
+`savedconfig` и версия исходников тоже влияют на результат. Источник истины для build-time protections — итоговый конфиг именно запущенного ядра. При полностью собственной конфигурации используй KSPP как справочник, а не как готовый список для слепого копирования.
 
-## 2. Kernel build hardening
+## 2. Проверка Kconfig запущенного ядра
 
-`sys-kernel/gentoo-sources` предоставляет Linux sources с Gentoo patchset.
-Использование `gentoo-sources` само по себе не означает конкретный набор
-hardening-опций: для самостоятельно собираемого ядра hardening определяется
-прежде всего его Kconfig.
+Сначала сопоставь конфиг с `uname -r`. Если ядро экспортирует `/proc/config.gz`, он содержит конфигурацию running kernel. Иначе проверь соответствующий ему `/boot/config-$(uname -r)`; не подставляй конфиг другой версии. Команда показывает только выбранные параметры, а не весь `.config`.
 
-У `sys-kernel/gentoo-kernel` есть local USE flag `hardened`, который включает
-подборку hardening-опций, рекомендованных Kernel Self Protection Project.
-
-`PIE`, ELF `RELRO` и подобные механизмы — это userspace toolchain hardening,
-отдельный уровень защиты, который не следует смешивать с kernel Kconfig
-hardening.
-
-## 3. Пример sysctl policy
-
-Файл: `/etc/sysctl.d/99-hardened-kernel.conf`
-
-Ниже приведён пример политики hardening. Это не рекомендация для произвольной
-системы и не описание применённой конфигурации конкретного компьютера; значения
-и комментарии нужно проверять и адаптировать под окружение.
-
-```conf
-# Reverse Path Filtering: 1 — strict mode (защита от IP-спуфинга)
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-
-# --- Защита файловой системы ---
-# Ограничения на FIFO и обычные файлы в sticky-директориях (/tmp)
-fs.protected_fifos = 2
-fs.protected_regular = 2
-
-# --- Скрытие указателей и ограничение perf ---
-kernel.kptr_restrict = 2
-kernel.perf_event_paranoid = 3
-
-# --- Харденинг BPF ---
-kernel.unprivileged_bpf_disabled = 1
-net.core.bpf_jit_harden = 2
-
-# --- Целостность системы и дампы ---
-kernel.kexec_load_disabled = 1
-fs.suid_dumpable = 0
-
-# Ограничение TTY
-dev.tty.ldisc_autoload = 0
-
-# Core dump передаётся userspace-хелперу через stdin (/bin/false его отбрасывает)
-kernel.core_pattern = |/bin/false
-
-# panic_on_oops = 1: kernel oops/BUG превращается в panic
-# panic = 10: перезагрузка через 10 секунд после panic
-kernel.panic_on_oops = 1
-kernel.panic = 10
+```bash
+pattern='^(# )?CONFIG_(STRICT_KERNEL_RWX|STRICT_MODULE_RWX|STACKPROTECTOR_STRONG|HARDENED_USERCOPY|SLAB_FREELIST_RANDOM|SLAB_FREELIST_HARDENED|RANDOM_KMALLOC_CACHES|KMALLOC_PARTITION_CACHES|SHUFFLE_PAGE_ALLOCATOR|INIT_ON_ALLOC_DEFAULT_ON|INIT_ON_FREE_DEFAULT_ON|VMAP_STACK|REFCOUNT_FULL|FORTIFY_SOURCE|SECURITY_DMESG_RESTRICT|RANDOMIZE_BASE|BPF_UNPRIV_DEFAULT_OFF|KEXEC|KEXEC_FILE|PANIC_ON_OOPS|PANIC_TIMEOUT|MODULE_SIG|MODULE_SIG_FORCE)(=| is not set)'
+zgrep -E "$pattern" /proc/config.gz 2>/dev/null ||
+    grep -E "$pattern" "/boot/config-$(uname -r)" 2>/dev/null || true
 ```
 
-### Пояснения к отдельным параметрам
+Строка `# CONFIG_NAME is not set` означает, что параметр выключен. Отсутствие строки само по себе не доказывает, что опция выключена: символ мог измениться или исчезнуть в этой версии ядра. Сверяй его с исходниками соответствующей версии и проверяй итоговый конфиг после merge `savedconfig`.
 
-**rp_filter.** `1` — strict reverse-path filtering: лучший reverse route для
-входящего source-адреса должен использовать тот же interface, через который
-пришёл пакет. Strict mode может мешать asymmetric routing, policy routing,
-multihoming и некоторым сетевым конфигурациям (например, VPN); для таких
-окружений иногда лучше подходит loose mode (`2`).
+## 3. Runtime policy knobs
 
-**fs.protected_fifos / fs.protected_regular.** `1` ограничивает `O_CREAT` для
-чужих объектов в world-writable sticky-директориях; `2` распространяет эту
-защиту также на group-writable sticky-директории.
+Сначала посмотри текущее значение через `sysctl` и проверь, кто его задаёт. Меняй значение только при понятной цели и после проверки совместимости.
 
-**kernel.unprivileged_bpf_disabled.** `1` отключает unprivileged `bpf()`:
-после установки в `1` вернуть значение в `0` нельзя до reboot. Значение `2`
-тоже отключает unprivileged BPF, но остаётся reversible.
+| Параметр | Что ограничивает | Основной trade-off |
+|---|---|---|
+| `kernel.kptr_restrict` | `0` оставляет минимальные ограничения и хеширует адреса; `1` ограничивает вывод через `%pK` с проверкой capabilities; `2` скрывает такие адреса независимо от прав. | kernel debugging и observability |
+| `kernel.perf_event_paranoid` | Уровень `>=2` запрещает unprivileged kernel profiling; upstream описывает пороги `-1`, `>=0`, `>=1` и `>=2`. | `perf`, profilers и observability; отдельный уровень `3` не нужен как portable recommendation |
+| `kernel.unprivileged_bpf_disabled` | `0` разрешает unprivileged BPF; `1` запрещает его до reboot без обратного переключения; `2` запрещает, но допускает последующее изменение. При `CONFIG_BPF_UNPRIV_DEFAULT_OFF=y` начальное значение уже `2`. | BPF workloads; переход `2 → 1` делает запрет необратимым до reboot |
+| `net.core.bpf_jit_harden` | `0` выключает hardening JIT; `1` включает его для unprivileged users; `2` — для всех. | производительность; настройка имеет смысл только если knob доступен и используется BPF JIT |
+| `fs.protected_fifos`, `fs.protected_regular` | `1` ограничивает `O_CREAT`-открытие уже существующих чужих FIFO или regular files в world-writable sticky directories; `2` распространяет ограничение также на group-writable sticky directories. | совместимость отдельных приложений; проверь kernel defaults и уже заданную system policy |
+| `fs.suid_dumpable` | Управляет core dumps для setuid и других защищённых процессов. Upstream default — `0`, но system config может выбрать другое значение для своего collector. | диагностика аварий; не добавляй override, если текущее значение уже соответствует выбранной policy |
+| `dev.tty.ldisc_autoload` | `0` запрещает обычным users автоматически загружать модули line discipline. | workloads, которым нужна автоматическая загрузка line discipline |
+| `kernel.kexec_load_disabled` | Отключает `kexec_load` и `kexec_file_load`, если поддержка kexec собрана в ядро. Значение `1` необратимо до reboot. | последующий kexec или kdump; если `CONFIG_KEXEC` и `CONFIG_KEXEC_FILE` выключены, knob не нужен |
 
-**net.core.bpf_jit_harden.** `2` включает JIT hardening для всех users; у
-такого режима есть performance cost, и он имеет смысл только при реально
-используемом BPF JIT.
+`net.ipv4.conf.*.rp_filter` — network/routing policy, а не общая рекомендация по hardening ядра. Strict mode может нарушить asymmetric или policy routing, multihoming и VPN; anti-spoofing настраивай с учётом topology.
 
-**kernel.kexec_load_disabled.** Отключает syscalls `kexec_load` и
-`kexec_file_load`; переход в `1` необратим до следующего boot. Уменьшает
-возможность подменить или загрузить новое kernel image через kexec, но
-несовместим с обычным последующим использованием kexec и может влиять на
-kdump/crash-kernel workflows. Параметр не обязателен для Secure Boot, UKI или
-systemd-boot.
+`kernel.core_pattern` задаёт обработку core dumps. Значение `|/bin/false` отбрасывает дампы и может отключить `systemd-coredump` и диагностику приложений. Выбор collector — отдельная policy. `kernel.panic_on_oops` и `kernel.panic` задают failure/recovery behavior: например, timeout меняет решение о перезагрузке после panic. Это не универсальный hardening preset.
 
-**kernel.core_pattern.** Строка, начинающаяся с `|`, означает, что kernel
-передаёт core dump в userspace helper через stdin. `|/bin/false` фактически
-направляет core stream в `/bin/false`, который его отбрасывает.
+Не смешивай подпись модулей, Secure Boot и runtime запрет загрузки. `CONFIG_MODULE_SIG_FORCE` задаёт enforcement подписей ядром; Secure Boot проверяет цепочку загрузки. `kernel.modules_disabled=1` запрещает загружать и выгружать модули до reboot. Это high-impact решение: сначала проверь, что все нужные hardware и workload modules уже доступны. Автозагрузка модулей тоже может быть нужна системе и не равна явной загрузке.
 
-> ⚠️ **Важный нюанс**: такой setting заменяет обычный core-dump collector и
-> может мешать crash diagnostics и системной обработке coredump. Применяй его,
-> только если действительно хочешь отказаться от userspace core dumps.
+## 4. Применение выбранного значения
 
-**fs.suid_dumpable = 0** отдельно запрещает core dumps для setuid и других
-защищённых процессов в стандартном режиме.
+Пример показывает порядок действий, а не рекомендацию выставить именно `kernel.kptr_restrict=2`.
 
-**kernel.panic_on_oops / kernel.panic.** `panic_on_oops = 1` превращает kernel
-oops/BUG в panic; `panic = 10` перезагружает систему через 10 секунд после
-panic. Это availability/recovery policy, а не защита от cold boot attacks или
-RAM remanence. Trade-off: fail-fast может быть полезнее, чем продолжать работу
-на повреждённом kernel state, но автоматический reboot может мешать
-crash-dump/debugging workflows и при постоянной причине panic способен
-приводить к reboot loop.
+1. Запиши текущее значение: `sysctl kernel.kptr_restrict`.
+2. Проверь, как изменение повлияет на нужные инструменты и workloads.
+3. Если параметр обратим, при необходимости временно проверь его:
 
-## 4. Module loading considerations
+   ```bash
+   doas sysctl -w kernel.kptr_restrict=2
+   ```
 
-Ограничение загрузки модулей (полный запрет, blacklisting, требования подписи)
-— отдельная policy с возможными compatibility consequences для оборудования и
-workloads. В этом документе конкретные правила не задаются.
+4. После проверки сохрани только выбранное значение.
 
-## 5. Проверка
+   Файл: `/etc/sysctl.d/90-local-hardening.conf`
 
-После изменения проверь фактические runtime values, убедись, что нужный
-sysctl-файл загружается, и протестируй workloads, на которые могут влиять
-ограничения. Этот документ не фиксирует результаты таких проверок.
+   ```ini
+   kernel.kptr_restrict = 2
+   ```
 
-## 6. Инструменты проверки
+5. Загрузи только этот файл и проверь результат:
 
-Следующие инструменты перечислены как возможные средства проверки; документ
-не утверждает, что они установлены, присутствуют в Gentoo repository или уже
-использовались:
+   ```bash
+   doas sysctl -p /etc/sysctl.d/90-local-hardening.conf
+   sysctl kernel.kptr_restrict
+   ```
 
-- `kernel-hardening-checker` — внешний инструмент для проверки Kconfig,
-  kernel command line и sysctl;
-- `lynis` — общий аудит безопасности.
+Перед обратимым изменением запиши предыдущее значение. Для отката верни его командой `doas sysctl -w <key>=<previous-value>`, затем исправь или удали local entry.
 
-## 7. Rollback
+Значения `kernel.unprivileged_bpf_disabled=1`, `kernel.kexec_load_disabled=1` и `kernel.modules_disabled=1` нельзя отменить записью другого значения до reboot. Не проверяй их случайным live-переключением: сначала проверь Kconfig и current state, определи recovery path, затем принимай отдельное policy-решение. Если значение уже сохранено в persistent sysctl configuration, сначала удали или исправь эту запись, затем перезагрузи систему и проверь фактическое значение.
 
-До изменения сохрани прежнюю sysctl policy. Если возникнет регрессия, верни
-предыдущие значения и повторно проверь затронутый workload.
+## 5. Проверка после изменения
+
+Проверяй каждый слой отдельно:
+
+- **Build-time:** `uname -r` и соответствующие строки running Kconfig в `/proc/config.gz` или matching `/boot/config-$(uname -r)`.
+- **Runtime:** фактические значения выбранных ключей через `sysctl <key>`.
+- **Persistent source:** только относящиеся к выбранным ключам записи в `/etc/sysctl.conf`, `/etc/sysctl.d/`, `/run/sysctl.d/` и `/usr/lib/sysctl.d/`.
+- **Boot parameters:** `cat /proc/cmdline`.
+- **Workload:** проверь именно затронутую функцию — например, perf/profilers, BPF, kexec/kdump, core-dump collector, networking или загрузку hardware modules.
+
+Проверяй системные данные и затронутый workload; внешний scanner используй только как дополнительный инструмент.
+
+## Источники
+
+- [Linux Kernel Self-Protection](https://docs.kernel.org/security/self-protection.html)
+- [Gentoo `sys-kernel/gentoo-kernel` ebuild](https://github.com/gentoo/gentoo/tree/master/sys-kernel/gentoo-kernel)
+- [Gentoo `hardened-base.config`](https://github.com/gentoo/gentoo-kernel-config/blob/master/hardened-base.config) и [`hardened-amd64.config`](https://github.com/gentoo/gentoo-kernel-config/blob/master/hardened-amd64.config)
+- Linux kernel [kernel sysctl](https://docs.kernel.org/admin-guide/sysctl/kernel.html), [filesystem sysctl](https://docs.kernel.org/admin-guide/sysctl/fs.html), [network sysctl](https://docs.kernel.org/admin-guide/sysctl/net.html) и [IP sysctl](https://docs.kernel.org/networking/ip-sysctl.html)
