@@ -7,86 +7,128 @@ last_verified: null
 verified_on: []
 ---
 
-USBGuard applies a policy to connected USB devices and lets you allow, block
-or reject them. The guide covers the daemon configuration, the initial
-policy, device management, IPC, monitoring and security aspects.
+USBGuard applies a policy to USB devices: it allows, blocks or rejects them.
+Prepare and review the initial rules before starting the daemon, and make sure
+they preserve access to the devices you need.
 
-A strict policy can block a device you need. Prepare the configuration and
-the initial rules before enabling the service and applying strict mode.
+> **Important:** Without a suitable policy, USBGuard can block your keyboard,
+> mouse, phone, storage or another required device. Before the first start,
+> prepare a recovery path that does not depend on the USB devices you plan to
+> filter.
 
-## 1. Before enabling
-
-Before starting the service:
-
-- decide which USB devices are connected now and which of them must remain
-  allowed;
-- check the policy path — in the example it is `/etc/usbguard/rules.conf`;
-- keep in mind that `PresentDevicePolicy=apply-policy` can re-apply the
-  policy to already connected devices;
-- prepare a recovery path in case a wrong ruleset blocks the keyboard, mouse,
-  USB storage or another device you need.
-
-## 2. Installation
+## 1. Install and create the initial policy
 
 ```bash
-emerge -av sys-apps/usbguard
+doas emerge -av sys-apps/usbguard
 ```
 
-## 3. Daemon configuration
+Create and review `/etc/usbguard/rules.conf` before the first start of
+`usbguard.service`. The Gentoo ebuild explicitly warns you to create or generate
+the policy before starting USBGuard to avoid locking yourself out.
+
+`usbguard generate-policy` prints rules for devices currently connected to
+standard output. Review the list and remove any devices you do not want to
+trust:
+
+```bash
+doas usbguard generate-policy > rules.conf
+less rules.conf
+
+doas install -m 0600 -o root -g root \
+  rules.conf /etc/usbguard/rules.conf
+```
+
+The `>` redirection creates `rules.conf` in the current directory as the
+regular user; `install` copies the reviewed file to `/etc/usbguard/` with the
+required permissions. Do not start the service until the policy and recovery
+path are ready.
+
+## 2. Daemon settings
 
 File: `/etc/usbguard/usbguard-daemon.conf`
 
-```conf
-# Rules file
-RuleFile=/etc/usbguard/rules.conf
+Do not replace the whole file with a template. Check the current values and
+change only the settings whose behavior you need to control:
 
-# Reaction to already connected and newly inserted devices
-ImplicitPolicyTarget=block
-PresentDevicePolicy=apply-policy
-PresentControllerPolicy=keep
-InsertedDevicePolicy=apply-policy
-RestoreControllerDeviceState=false
+| Setting | Purpose |
+|---------|---------|
+| `RuleFile` | Main policy file; the initial policy above is written to `rules.conf`. |
+| `RuleFolder` | Optional directory for policy fragments. Since USBGuard 1.1.3, the upstream default enables both `RuleFile` and `RuleFolder`; files in `rules.d/` are read in alphanumeric order, so use clear prefixes such as `10-` and `20-`. |
+| `ImplicitPolicyTarget` | Decision for a device that matches no rule. `block` denies devices by default; a separate unconditional `block` at the end of the basic policy is not needed. |
+| `PresentDevicePolicy` | Decision for devices already connected when the daemon starts. `apply-policy` checks them against the policy again and can change their authorization state. |
+| `InsertedDevicePolicy` | Decision for devices connected after startup. `apply-policy` checks them against the policy. |
+| `AuditBackend` | Selects `FileAudit` or `LinuxAudit`. Gentoo's `sys-process/audit` dependency does not by itself mean that `auditd` must be running for USB policy enforcement. |
 
-# Kernel notification backend
-DeviceManagerBackend=uevent
+`ImplicitPolicyTarget=block`, `PresentDevicePolicy=apply-policy` and
+`InsertedDevicePolicy=apply-policy` are a common strict setup, not universal
+requirements. Choose the behavior based on the devices you need and your
+recovery path.
 
-# Who may talk to the daemon over IPC (Unix domain socket)
-IPCAllowedUsers=root
-IPCAccessControlFiles=/etc/usbguard/IPCAccessControl.d/
+If you use `RuleFolder`, keep fragments in `/etc/usbguard/rules.d/` and give
+them numeric prefixes. Do not assume a relative load order between `RuleFile`
+and `RuleFolder` unless the documentation for your USBGuard version defines
+one.
 
-# Audit
-AuditBackend=FileAudit
-AuditFilePath=/var/log/usbguard/usbguard-audit.log
+## 3. Rule order and device decisions
+
+USBGuard checks rules sequentially. The first matching rule sets the decision;
+later rules do not override it. Put more specific `allow`, `block` and `reject`
+rules before broader rules. Files in `RuleFolder` are also considered in
+alphanumeric filename order.
+
+This is a syntax example; replace the placeholders with attributes from your
+devices:
+
+```text
+allow id <vendor-id>:<product-id>
 ```
 
-`RuleFile` is the primary rules path. Current USBGuard versions additionally
-support `RuleFolder=/etc/usbguard/rules.d/`; `RuleFile` and `RuleFolder` can
-be used at the same time. The guide stays on `RuleFile` (for files in
-`rules.d` see section 4).
+With `ImplicitPolicyTarget=block`, a device that matches no rule is already
+blocked. Do not add an unconditional `block` to the basic policy: it can make
+later `allow` rules unreachable.
 
-### IPC over a Unix domain socket
+`list-devices` shows internal device IDs, not VID:PID values:
 
-> **Important:** `usbguard-daemon.conf` has no `IpAddress` / `Port` options.
-> IPC is a Unix domain socket, not TCP. With such lines present, the daemon
-> will not start. See
-> [usbguard.github.io: Configuration](https://usbguard.github.io/documentation/configuration)
-> and [RHEL 8 Security hardening: USBGuard](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/protecting-systems-against-intrusive-usb-devices_security-hardening).
+| Action | Runtime decision | Permanent rule |
+|--------|------------------|----------------|
+| Allow | `doas usbguard allow-device <id>` | `doas usbguard allow-device -p <id>` |
+| Block | `doas usbguard block-device <id>` | `doas usbguard block-device -p <id>` |
+| Reject and remove from the system | `doas usbguard reject-device <id>` | `doas usbguard reject-device -p <id>` |
 
-### IPC access control
+A command without `-p` changes the device's current authorization state but
+does not save a device-specific rule. That decision can change when the device
+is unplugged and reconnected, the daemon restarts or the policy is reapplied—
+before the next system reboot.
 
-`IPCAllowedUsers` and `IPCAllowedGroups` are a legacy mechanism: the users
-and groups listed there get full IPC access. That is why the baseline above
-does not add the `wheel` group: root with full access is enough for
-administration, and full modify access for a whole group is not a neutral
-security baseline.
+The `-p` flag adds a permanent device-specific rule to the current policy.
+After the command, check `doas usbguard list-rules` and
+`doas usbguard list-devices`. If an earlier, broader `block` or `reject` rule
+already matches, an `allow` appended at the end may not allow the device.
 
-Grant non-root access granularly instead — via ACL files in
-`/etc/usbguard/IPCAccessControl.d/` or the `usbguard add-user` command. An
-ACL can separately allow `Devices=list/modify/listen`,
-`Policy=list/modify`, `Exceptions=listen` and individual `Parameters`.
-ACL files created manually must have mode `0600`.
+Use `append-rule` for manual policy editing:
 
-An optional example of restricted access:
+```bash
+doas usbguard append-rule 'allow id <vendor-id>:<product-id>'
+doas usbguard append-rule --after <rule-id> 'allow id <vendor-id>:<product-id>'
+doas usbguard list-rules
+```
+
+The command adds a rule to the ordered list. `--after <rule-id>` sets its
+position relative to an existing rule; inspect the result with `list-rules`.
+
+## 4. IPC access control
+
+The USBGuard CLI communicates with the daemon over IPC. If only an
+administrator will manage it, full access for root is sufficient:
+
+```text
+IPCAllowedUsers=root
+```
+
+`IPCAllowedUsers` and `IPCAllowedGroups` grant full IPC access to the listed
+users or groups. Do not add `wheel` unless that access is needed. For a
+non-root user, upstream recommends ACLs with narrowly scoped privileges in
+`/etc/usbguard/IPCAccessControl.d/` or the `usbguard add-user` command:
 
 ```bash
 doas usbguard add-user <username> \
@@ -95,223 +137,96 @@ doas usbguard add-user <username> \
   --exceptions=listen
 ```
 
-An ACL created via `usbguard add-user` takes effect only after restarting
-`usbguard-daemon`; before the restart keep in mind the
-`PresentDevicePolicy=apply-policy` effect (section 1). This is an example of
-granular access, not a policy of a specific system.
+This example allows device management and policy listing, but not policy
+modification. Manually created ACL files must have mode `0600`. An ACL created
+with `add-user` takes effect after the daemon restarts; keep in mind that with
+`PresentDevicePolicy=apply-policy`, a restart checks already connected devices
+again.
 
-## 4. `.keep` files in configuration directories
+The D-Bus bridge is an optional Gentoo feature (`USE=dbus`). Its authorization
+uses D-Bus/Polkit and does not replace native USBGuard IPC ACLs.
 
-The Gentoo package may leave empty `.keep_sys-apps_usbguard-0` placeholder
-files to preserve directories. For USBGuard these are not configuration: a
-file name in `IPCAccessControl.d` must denote a user, UID or group, and files
-in `rules.d` should start with a two-digit number. A `.keep` in
-`IPCAccessControl.d` triggers a warning about an incorrect name. The
-same-named file in `rules.d` is not a rule and is not needed either.
+## 5. First start and safe checks
 
-If this warning appears in the journal, remove only the placeholder files:
+Review the policy, the devices that must remain allowed and your local recovery
+path once more, then start the service:
 
 ```bash
-doas rm -- \
-  /etc/usbguard/IPCAccessControl.d/.keep_sys-apps_usbguard-0 \
-  /etc/usbguard/rules.d/.keep_sys-apps_usbguard-0
+doas systemctl start usbguard.service
 ```
 
-> **Important:** do not delete real ACL files in `IPCAccessControl.d`, rules
-> in `rules.d` or `/etc/usbguard/rules.conf`.
+Do not restart the daemon “just in case.” If `PresentDevicePolicy=apply-policy`,
+starting or restarting it can immediately change the authorization state of
+connected devices.
 
-Do not restart USBGuard just to get rid of the warnings: with
-`PresentDevicePolicy=apply-policy` a restart would re-apply the policy to
-connected devices. Check the journal after the next regular boot:
+These commands read the daemon state and do not change device decisions:
 
 ```bash
-doas journalctl -b -u usbguard --no-pager
+systemctl status usbguard.service --no-pager
+doas usbguard get-parameter ImplicitPolicyTarget
+doas usbguard list-rules
+doas usbguard list-devices
+doas journalctl -b -u usbguard.service --no-pager
 ```
 
-If the `.keep` files come back after a `sys-apps/usbguard` update, report it
-in the Gentoo Bugzilla: the package puts placeholder files into directories
-that USBGuard processes as configuration.
+`list-rules` shows the loaded policy and its order; `list-devices` shows the
+current decisions for devices.
 
-## 5. Creating the initial policy
-
-`usbguard generate-policy` allows the devices connected at generation time,
-so review the generated list before applying it.
-
-The command `doas usbguard generate-policy > /etc/usbguard/rules.conf` is
-wrong in terms of shell privilege semantics: the `>` redirection is performed
-by the current user's shell before `doas` runs, so the file is opened with
-the unprivileged user's permissions and the write to `/etc/usbguard/` fails
-with permission denied.
-
-Use the safe workflow instead:
+If all checks pass, enable the service at boot:
 
 ```bash
-# Generate basic rules from the current devices
-doas usbguard generate-policy > rules.conf
-
-# Review the generated rules before applying
-less rules.conf
-
-# Install the file with root ownership and a restrictive mode
-doas install -m 0600 -o root -g root \
-  rules.conf /etc/usbguard/rules.conf
+doas systemctl enable usbguard.service
 ```
 
-## 6. Example rules file
+If a check fails, do not enable the service at boot until you have addressed
+the cause and checked the policy again.
 
-This is an example policy, not a universal ruleset. Before applying, match
-the rules against your devices.
+## 6. Gentoo: `.keep` warning
+
+If the journal contains:
 
 ```text
-# Allow the keyboard and mouse
-allow id 046d:c52b name "Logitech Unifying Device"
-allow id 046d:c534 name "Logitech USB Receiver"
-
-# Allow Android devices in PTP mode
-allow id 0fce:71b2 name "MTP Device"
-
-# Block all unknown devices
-block
+Ignoring access control file because of malformed name: .keep_sys-apps_usbguard-0
 ```
 
-## 7. Enabling the service
-
-Enable the service after preparing the configuration and the initial policy:
+check that it refers to the Gentoo placeholder in
+`/etc/usbguard/IPCAccessControl.d/`. ACL filenames must identify a user or
+group, so the daemon ignores `.keep`. If that exact placeholder exists, remove
+only that file:
 
 ```bash
-doas systemctl enable --now usbguard
+doas rm -- /etc/usbguard/IPCAccessControl.d/.keep_sys-apps_usbguard-0
 ```
 
-## 8. Management
+Do not remove real ACL or policy files. The daemon does not need to be
+restarted just to remove the placeholder.
 
-### Basic commands
+## 7. Rollback
 
-| Command | Description |
-|---------|-------------|
-| `usbguard list-devices` | Show all USB devices |
-| `usbguard allow-device <id>` | Allow a device (runtime) |
-| `usbguard block-device <id>` | Block a device (runtime) |
-| `usbguard reject-device <id>` | Reject a device (runtime) |
-| `usbguard list-rules` | Show the current policy |
-| `usbguard append-rule "allow ..."` | Add a rule to the policy |
-| `usbguard remove-rule <id>` | Remove a rule from the policy |
-
-### Temporary vs permanent decisions
-
-`allow-device`, `block-device` and `reject-device` without `-p` change the
-device's authorization state at runtime only and do **not** persist a
-device-specific rule in the policy. Such a decision does not live "until
-reboot": it can lose effect earlier — on device disconnect and reconnect, a
-daemon restart or a policy re-application. The main boundary here is
-runtime-only versus persisted policy.
-
-The permanent form adds the corresponding device-specific rule to the policy:
+Before changing anything, save `/etc/usbguard/usbguard-daemon.conf`,
+`/etc/usbguard/rules.conf` and the entire `/etc/usbguard/rules.d/` directory in
+a backup directory with mode `0700`, accessible only to root:
 
 ```bash
-usbguard allow-device -p <id>
-usbguard block-device -p <id>
-usbguard reject-device -p <id>
+backup_dir="/root/usbguard-backup-$(date +%F-%H%M%S)"
+doas install -d -m 0700 "$backup_dir"
+doas cp -a /etc/usbguard/. "$backup_dir/"
 ```
 
-For `append-rule` it is the other way round: a normal call modifies the
-persistent policy, while `append-rule -t 'allow ...'` creates a temporary
-rule and does not update the policy file.
+If the new policy blocks a required device:
 
-### Usage examples
+1. Use local or other recovery access that does not depend on the blocked USB
+   device.
+2. Restore the previous daemon configuration and policy from the backup.
+3. Check the rule order and any conflicting matches.
+4. Only then apply the restored policy or restart the daemon. With
+   `PresentDevicePolicy=apply-policy`, a restart checks connected devices
+   again.
+5. Check `list-rules`, `list-devices`, the service status and the journal.
 
-```bash
-# View connected devices
-usbguard list-devices
+## Sources
 
-# Allow a device at runtime (no rule is added to the policy)
-usbguard allow-device 2
-
-# Add a permanent rule
-usbguard append-rule 'allow id 046d:c52b'
-
-# Block a device at runtime
-usbguard block-device 3
-
-# Show the current policy
-usbguard list-rules
-```
-
-## 9. PAM
-
-USBGuard does not require a custom PAM stack for its normal IPC or D-Bus
-authorization path. Do not create /etc/pam.d/usbguard merely to grant
-USBGuard access; use USBGuard IPC ACLs or, for the optional D-Bus bridge,
-the corresponding D-Bus/Polkit authorization model.
-
-## 10. D-Bus integration
-
-The D-Bus bridge is an optional feature: in Gentoo `sys-apps/usbguard` is
-built with the `dbus` USE flag, and a running daemon alone does not mean the
-bridge is available. Authorization of D-Bus operations is a separate matter
-of D-Bus/Polkit configuration.
-
-A read-only device list query through the bridge:
-
-```bash
-busctl --system call \
-  org.usbguard1 \
-  /org/usbguard1/Devices \
-  org.usbguard.Devices1 \
-  listDevices \
-  s match
-```
-
-Here `org.usbguard1` is the service name, `/org/usbguard1/Devices` is the
-object path and `org.usbguard.Devices1` is the interface; the `listDevices`
-method takes a string query.
-
-## 11. Checking and monitoring
-
-Check the daemon state and journal, the current policy, the device list and
-the audit log. These commands do not mean the check has already been performed
-on the ASUS B5402.
-
-```bash
-# Daemon state
-systemctl status usbguard
-
-# Current policy and device list
-usbguard list-rules
-usbguard list-devices
-
-# View logs
-journalctl -u usbguard -f
-
-# View the audit log
-cat /var/log/usbguard/usbguard-audit.log
-```
-
-## 12. Security recommendations
-
-1. **ImplicitPolicyTarget=block** — the target for devices that match no
-   policy rule. Allowed values are `allow`, `block` and `reject`; `block` is
-   an example of a deny-by-default policy, not a value mandatory for every
-   system.
-2. **Update the rules regularly** — add only the devices you need.
-3. **Device identity attributes** — a serial number, when present and
-   reliable, makes a rule more specific, but it can be missing, incorrect or
-   shared between devices. Combine the relevant attributes (`id`, `serial`,
-   `name`, `via-port`, `hash`, `parent-hash`, `with-interface`) and always
-   review a generated policy before applying it.
-4. **Audit connections** — log connection events.
-
-### Threat example
-
-An unknown device is evaluated against the policy rules when inserted. If no
-rule matches and `ImplicitPolicyTarget=block` is set, the device is blocked.
-The exact audit record depends on the USBGuard version, the audit backend and
-the device data — rely on the actual audit log rather than a specific message
-format.
-
-## 13. Rollback and recovery
-
-Save the previous configuration and rules before the change. If the new
-policy blocks devices you need, restore the old files and re-check the policy
-and the device list. Do not restart USBGuard without a reason: with
-`PresentDevicePolicy=apply-policy` a restart can re-apply the policy to
-already connected devices.
+- [Gentoo: `sys-apps/usbguard`](https://packages.gentoo.org/packages/sys-apps/usbguard)
+- [Upstream: `usbguard(1)`](https://github.com/USBGuard/usbguard/blob/main/doc/man/usbguard.1.adoc)
+- [Upstream: `usbguard-daemon.conf(5)`](https://github.com/USBGuard/usbguard/blob/main/doc/man/usbguard-daemon.conf.5.adoc)
+- [Upstream: `usbguard-rules.conf(5)`](https://github.com/USBGuard/usbguard/blob/main/doc/man/usbguard-rules.conf.5.adoc)
