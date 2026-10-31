@@ -1,201 +1,266 @@
 ---
-title: "Flatpak: GUI-приложения и permissions"
+title: "Flatpak: приложения, permissions и обслуживание"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-10-04"
-verified_on: [asus-b5402]
+last_verified: "2026-11-01"
+verified_on: []
 ---
 
-Flatpak устанавливает приложения из Flathub в изолированном runtime. Доступ к
-файлам и desktop-сервисам предоставляют sandbox permissions и portals; Flatseal
-может быть необязательным GUI для их просмотра и изменения.
+Flatpak устанавливает и запускает sandboxed applications из настроенных remotes,
+локальных sources или bundles. Для публичных desktop applications часто
+используют Flathub. Доступ приложения к ресурсам зависит от permissions в
+установленном metadata, локальных overrides и portals, если приложение умеет
+ими пользоваться.
 
-```text
-Flatpak
-→ Flathub
-→ sandboxed application
-→ portals
-→ permissions
-→ optional Flatseal GUI
-```
+## Установки и remotes
 
-Локальная политика ASUS B5402 записана в
-[applications.md](../../systems/asus-b5402/applications/).
+Flatpak поддерживает system installation, user installation и дополнительные
+именованные system installations. System installation доступна всем
+пользователям машины; user installation — только текущему пользователю. В
+руководстве подробно рассматриваются первые два варианта.
 
-## Flathub
+Большинство команд управления без scope работает с default system installation;
+`--user` выбирает user installation. Но `flatpak info` и `flatpak list` без
+scope опрашивают обе стандартные установки, `flatpak update` обновляет обе, а
+`flatpak uninstall` ищет ref в обеих. Указывай scope, когда важно выбрать одну
+установку. Для именованной system installation используй `--installation=<name>`.
 
-Установи `sys-apps/flatpak` способом, подходящим текущему ebuild и профилю
-Gentoo. Не привязывай общую инструкцию к одному обязательному USE-флагу: они
-зависят от версии ebuild и профиля. Затем добавь Flathub и проверь remote:
+Remote — источник приложений и runtimes. Flathub часто используют для публичных
+desktop applications, но Flatpak также устанавливает refs из других
+настроенных remotes и локальных sources или bundles. Добавляй remote в тот
+scope, где будут приложения; в обеих установках он нужен только тогда, когда
+приложения будут устанавливаться в обе.
 
-```bash
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remotes
-```
-
-## Permissions model
-
-Главный принцип — давать приложению только необходимые permissions. Portals
-позволяют выбрать отдельный файл или каталог в диалоге приложения без
-постоянного доступа ко всему `$HOME`.
-
-| Категория | Когда нужна |
-|-----------|-------------|
-| Filesystem | Доступ к `$HOME` широк; предпочтительнее конкретная директория или portal. |
-| Wayland / X11 sockets | Native Wayland-only приложение может использовать только Wayland. Приложению с X11 fallback могут понадобиться `wayland` и `fallback-x11`, а X11-only приложению — X11. |
-| Devices | Разрешай только реальные нужные устройства, например GPU или контроллер, если этого требует приложение. |
-| Environment | Не форсируй Wayland-переменные через override без конкретной причины и проверки результата. |
-
-## Optional: Flatseal
-
-Flatseal — GUI для просмотра и изменения overrides Flatpak-приложений. Он не
-обязателен для работы Flatpak и не заменяет понимание того, какой доступ нужен
-приложению.
-
-## CLI overrides
-
-CLI позволяет проверить и сбросить overrides без Flatseal:
+User remote:
 
 ```bash
-flatpak info --show-permissions <app-id>
-flatpak override --user ...
+flatpak remote-add --user --if-not-exists flathub \
+  https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+System remote:
+
+```bash
+flatpak remote-add --system --if-not-exists flathub \
+  https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+Устанавливай и проверяй приложение в том же scope, где находится его remote:
+
+```bash
+# User installation
+flatpak install --user flathub <app-id>
+flatpak info --user <app-id>
+
+# System installation
+flatpak install --system flathub <app-id>
+flatpak info --system <app-id>
+```
+
+Не удаляй remote только потому, что сейчас не видишь установленных из него
+приложений. Перед удалением проверь refs и подтверди, что remote больше не
+нужен.
+
+## Permissions и portals
+
+Эффективный доступ приложения складывается из нескольких частей:
+
+| Источник | Что задаёт |
+|----------|------------|
+| Manifest и metadata установленного ref | Постоянные sandbox permissions приложения. |
+| Local overrides | Изменения permissions в per-user или system-wide слое overrides. |
+| Portals | Доступ к отдельным host resources через запрос приложения и desktop-mediated API. |
+
+Portal может, например, открыть выбор файла или источника для screen capture.
+Он не всегда заменяет постоянный filesystem permission: это зависит от того,
+поддерживает ли приложение нужный portal.
+
+Не настраивай compositor или portal backend здесь. Маршрутизация и backend
+описаны в [руководстве по Wayland portals](../../desktop/wayland-portals/).
+
+## Проверка permissions и overrides
+
+`flatpak info --show-permissions` показывает permissions установленного ref.
+`flatpak override --show` показывает overrides; это отдельный слой. Параметр
+scope у `info` выбирает installation приложения, а у `override` — per-user или
+system-wide слой overrides. Per-user override может менять доступ приложения,
+установленного в system scope. Для диагностики проверь оба слоя overrides.
+
+Проверка metadata приложения:
+
+```bash
+flatpak info --user --show-permissions <app-id>
+flatpak info --system --show-permissions <app-id>
+```
+
+Проверка per-user и system-wide overrides:
+
+```bash
+flatpak override --user --show <app-id>
+flatpak override --system --show <app-id>
+```
+
+Добавляй override только для подтверждённой потребности конкретного приложения:
+
+```bash
+flatpak override --user <specific-option> <app-id>
+```
+
+`--user` сохраняет per-user override; `--system` сохраняет system-wide
+override. Параметр `--reset` удаляет все overrides этого приложения в выбранном
+слое, а не только последнее изменение:
+
+```bash
 flatpak override --user --reset <app-id>
+flatpak override --system --reset <app-id>
 ```
 
-`--user` создаёт user override. Без него `flatpak override` по умолчанию
-относится к default system-wide installation. Добавляй конкретный
-`flatpak override --user` только для подтверждённой потребности конкретного
-`<app-id>`.
+Flatseal — необязательный GUI для просмотра и изменения overrides. Это не
+средство безопасности и не источник истины: сверяй установленное metadata и
+overrides через Flatpak CLI.
 
-## Example: Steam
+## Локальные сборки и `extra-data`
 
-Steam — отдельный пример, а не baseline для всех Flatpak-приложений:
+`flatpak-builder` может экспортировать собранный ref в локальный OSTree
+repository; из него при необходимости создают single-file bundle и затем
+устанавливают его:
 
 ```bash
-flatpak install flathub com.valvesoftware.Steam
+flatpak-builder --repo=repo build-dir manifest.yml
+flatpak build-bundle repo app.flatpak <app-id>
+flatpak install --user ./app.flatpak
 ```
 
-Steam Flatpak приносит необходимые userspace runtime libraries внутри Flatpak
-runtime и тем самым уменьшает объём native multilib dependencies на host. Это
-не определяет Gentoo profile или ABI всей системы.
+Для system installation укажи `--system` в команде установки. Используй один и
+тот же выбранный scope при установке, обновлении и проверке локально собранного
+приложения.
 
-Для Steam проверяй только реальные sandbox categories: доступ к GPU, игровым
-контроллерам и требуемым каталогам. MangoHud можно подключить как optional
-integration для мониторинга FPS; Flatseal не управляет компиляцией шейдеров.
+Для source типа `extra-data` ref хранит metadata источника. При установке
+Flatpak загружает внешний payload, проверяет его checksum и выполняет локальный
+`apply_extra`; payload не обязан заранее находиться в build repository. Пример
+такого workflow — [ChatGPT Desktop](../chatgpt-desktop/).
 
-## Локальная сборка с `extra-data`
+## Обновления
 
-`--user` и `--system` обращаются к разным Flatpak installations. В обычной
-политике этой workstation итоговые приложения устанавливаются в system scope.
-Некоторым локальным сборкам с `extra-data` перед созданием bundle может
-понадобиться промежуточная установка в user scope: она материализует payload в
-user Flatpak repo. ChatGPT Desktop — проверенный пример такого порядка; см.
-[отдельное руководство](../chatgpt-desktop/). Этот workflow проверен на ASUS
-B5402 2026-10-18; остальные разделы этого guide в эту дату повторно не
-проверялись.
-
-## Verification
+Обновляй установки отдельно, чтобы scope был явным:
 
 ```bash
-flatpak remotes
-flatpak info --show-permissions <app-id>
+flatpak update --user
+flatpak update --system
 ```
 
-Проверь, что приложение запускается, использует нужный display backend и
-имеет только необходимые filesystem, device и socket permissions.
+Без `--user`, `--system` или `--installation` `flatpak update` обновляет refs
+в обеих стандартных установках. Явный параметр выбирает одну установку.
 
-## Обслуживание EOL runtimes и pins
+`flatpak update` обновляет refs из настроенных источников. Локально собранное
+приложение без application remote не получает новую upstream-версию из Git
+repository автоматически: собери новый ref или bundle и установи его отдельно.
+Особенности обновления ChatGPT Desktop описаны в
+[его руководстве](../chatgpt-desktop/).
 
-`flatpak update` может сообщить, что branch runtime или extension достигла
-end-of-life (EOL). Пометка `(pinned)` означает защиту от автоматического
-удаления; она сама по себе не доказывает, что runtime ещё нужен приложению.
-`flatpak uninstall --unused` недостаточно для такого случая: pin может
-препятствовать cleanup.
+## EOL runtimes и pins
 
-Перед удалением проверь pins, runtime branches приложений и установленные
-runtimes:
+При обновлении Flatpak может предложить удалить неиспользуемые EOL runtimes.
+Явно установленные runtimes и pinned refs могут остаться, даже если Flatpak
+считает их неиспользуемыми; предупреждение об EOL не означает, что приложение
+сломано. Перед удалением выбери installation, проверь pins и зависимости.
 
 ```bash
+# System installation
 flatpak pin
-flatpak list --app \
-    --columns=application,runtime
-flatpak list --runtime --all \
-    --columns=application,branch,installation
+flatpak list --system --app --columns=application,runtime,installation
+flatpak list --system --runtime --all \
+  --columns=application,branch,installation
+
+# User installation
+flatpak pin --user
+flatpak list --user --app --columns=application,runtime,installation
+flatpak list --user --runtime --all \
+  --columns=application,branch,installation
 ```
 
-Для extension учитывай также manifest/runtime зависимости приложения:
-список основных runtimes не перечисляет все нужные extensions. Не устанавливай
-branch N+1 автоматически только потому, что прежняя EOL: нужную branch
-определяют зависимости приложения.
+Колонка `runtime` показывает основной runtime, но не все extensions. Проверь их
+по dependency metadata или manifest: `flatpak info --system --show-extensions <app-id>`
+выводит matching extensions (для user installation используй `--user`).
+Различие branch основного runtime не доказывает, что extension не используется.
+Если зависимость установить не удалось, ref не удаляй.
 
-Если подтверждено, что EOL runtime больше не используется, сними именно его
-pin, затем удали именно эту branch из нужной installation. Пример для default
-system installation; замени `<runtime-id>` и `<branch>` целиком, без угловых
-скобок, а `x86_64` — на нужную архитектуру:
+После подтверждения сними только pin нужного ref и удали его branch из выбранной
+installation. Если Flatpak предлагает удалить зависимое приложение, остановись
+и проверь зависимости ещё раз. Подставь настоящий `<runtime-id>`, `<arch>` и
+`<branch>`:
 
 ```bash
-flatpak pin --remove \
-  runtime/<runtime-id>/x86_64/<branch>
-
+# System installation
+flatpak pin --system --remove \
+  runtime/<runtime-id>/<arch>/<branch>
 flatpak uninstall --system \
+  <runtime-id>//<branch>
+
+# User installation
+flatpak pin --user --remove \
+  runtime/<runtime-id>/<arch>/<branch>
+flatpak uninstall --user \
   <runtime-id>//<branch>
 ```
 
-Для user installation используй `--user` при просмотре/изменении pins и
-вместо `--system` при удалении; scope должен совпадать с диагностикой.
-Если Flatpak предлагает удалить зависящие приложения, остановись и повторно
-проверь зависимости.
-
-### Проверенный пример: ffmpeg-full 24.08
-
-Это пример maintenance на ASUS B5402, а не универсальные команды для копирования.
-До cleanup предупреждение было таким:
-
-```text
-Info: (pinned) runtime org.freedesktop.Platform.ffmpeg-full branch 24.08 is end-of-life
-```
-
-Pin: `runtime/org.freedesktop.Platform.ffmpeg-full/x86_64/24.08`.
-Приложения использовали Freedesktop 25.08/26.08 и GNOME 50;
-приложений на Freedesktop 24.08 не было. После подтверждения, что старый
-extension больше не используется, выполнены:
+`flatpak uninstall --unused` удаляет refs, которые Flatpak считает
+неиспользуемыми в выбранной installation. Pins могут помешать очистке; команда
+не заменяет проверку конкретного EOL или pinned ref:
 
 ```bash
-flatpak pin --remove \
-  runtime/org.freedesktop.Platform.ffmpeg-full/x86_64/24.08
-
-flatpak uninstall --system \
-  org.freedesktop.Platform.ffmpeg-full//24.08
+flatpak uninstall --system --unused
+flatpak uninstall --user --unused
 ```
 
-После cleanup повторно проверь runtime inventory и запусти:
+## Проверка и rollback
+
+Общий inventory стандартных installations:
 
 ```bash
-flatpak update
+flatpak remotes --user
+flatpak remotes --system
+
+flatpak list --app \
+  --columns=application,runtime,installation
+flatpak list --runtime --all \
+  --columns=application,branch,installation
 ```
 
-Краткий результат проверенного примера:
-
-```text
-ffmpeg-full 24.08 absent
-flatpak update → Nothing to update
-```
-
-2026-10-04 на `asus-b5402` проверен только runtime maintenance path;
-permissions и остальные части guide в эту дату заново не проверялись
-(предыдущая проверка — 2026-09-22). Текущее состояние записано в
-[системном документе](../../systems/asus-b5402/applications/).
-
-## Reset / rollback
-
-Чтобы удалить локальные overrides приложения:
+Для конкретного приложения:
 
 ```bash
-flatpak override --user --reset <app-id>
+flatpak info <app-id>
+flatpak info --show-permissions <app-id>
 ```
 
-## Related docs
+Если одинаковый app ID установлен в нескольких installations, укажи
+`--user` или `--system` в `flatpak info` и `flatpak info --show-permissions`.
+При оценке итогового доступа учитывай metadata приложения и оба слоя overrides;
+portal grants хранятся отдельно. После изменения проверь, что приложение
+запускается, нужные portal-запросы и доступ к ресурсам работают, а широкие
+permissions не появились без причины.
 
-- [Flatpak на ASUS B5402](../../systems/asus-b5402/applications/) — фактическое состояние машины.
-- [Приложения по умолчанию](../../desktop/default-applications/) — MIME-ассоциации GUI-приложений.
+Чтобы отменить локальные изменения:
+
+- Удали все overrides приложения в нужном слое командой
+  `flatpak override --user --reset <app-id>` или
+  `flatpak override --system --reset <app-id>`.
+- Используй `flatpak permission-reset <app-id>` только для сброса portal
+  permission store. Эта команда не сбрасывает Flatpak overrides.
+- Для ошибочно удалённого runtime нет универсальной rollback-команды. Runtime
+  обычно устанавливается снова, когда приложение, которому он нужен,
+  устанавливают или обновляют из настроенного remote.
+
+## Связанные материалы
+
+- [ChatGPT Desktop](../chatgpt-desktop/) — локальная сборка и `extra-data`.
+- [Wayland portals](../../desktop/wayland-portals/) — настройка backends.
+- [Flatpak на ASUS B5402](../../systems/asus-b5402/applications/) — состояние системы.
+- [Using Flatpak](https://docs.flatpak.org/en/latest/using-flatpak.html) и
+  [Sandbox permissions](https://docs.flatpak.org/en/latest/sandbox-permissions.html).
+- [Flatpak Command Reference](https://docs.flatpak.org/en/latest/flatpak-command-reference.html),
+  [Flatpak Builder](https://docs.flatpak.org/en/latest/flatpak-builder-command-reference.html),
+  [`extra-data`](https://docs.flatpak.org/en/latest/module-sources.html#extra-data)
+  и [single-file bundles](https://docs.flatpak.org/en/latest/single-file-bundles.html).

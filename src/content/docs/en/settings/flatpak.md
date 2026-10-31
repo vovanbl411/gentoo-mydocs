@@ -1,199 +1,267 @@
 ---
-title: "Flatpak: GUI applications and permissions"
+title: "Flatpak: applications, permissions, and maintenance"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-10-04"
-verified_on: [asus-b5402]
+last_verified: "2026-11-01"
+verified_on: []
 ---
 
-Flatpak installs applications from Flathub in an isolated runtime. Sandbox
-permissions and portals provide access to files and desktop services; Flatseal
-can be used as an optional GUI for viewing and changing them.
+Flatpak installs and runs sandboxed applications from configured remotes, local
+sources, or bundles. Flathub is commonly used for public desktop applications.
+An application's access to resources depends on the permissions in its
+installed metadata, local overrides, and portals when the application supports
+them.
 
-```text
-Flatpak
-→ Flathub
-→ sandboxed application
-→ portals
-→ permissions
-→ optional Flatseal GUI
-```
+## Installations and remotes
 
-The local policy for the ASUS B5402 is recorded in
-[applications.md](../../systems/asus-b5402/applications/).
+Flatpak supports system installations, per-user installations, and additional
+named system installations. A system installation is available to all users on
+the machine; a user installation is available only to the current user. This
+guide covers the first two in detail.
 
-## Flathub
+Most management commands without a scope use the default system installation;
+`--user` selects the per-user installation. However, `flatpak info` and
+`flatpak list` query both standard installations without a scope, `flatpak update`
+updates both, and `flatpak uninstall` searches both for a ref. Specify
+the scope when you need to select one installation. Use
+`--installation=<name>` for a named system installation.
 
-Install `sys-apps/flatpak` in a way that matches the current Gentoo ebuild and
-profile. Do not tie this general guide to one required USE flag: they depend on
-the ebuild version and profile. Then add Flathub and check the remote:
+A remote is a source for applications and runtimes. Flathub is commonly used
+for public desktop applications, but Flatpak can also install refs from other
+configured remotes and local sources or bundles. Choose the remote scope based
+on where you plan to install applications; there is no need to add Flathub to
+both installations unless you need it in both.
 
-```bash
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak remotes
-```
-
-## Permissions model
-
-The main principle is to give an application only the permissions it needs.
-Portals let you select an individual file or directory in an application
-dialog without granting permanent access to all of `$HOME`.
-
-| Category | When it is needed |
-|----------|-------------------|
-| Filesystem | Access to `$HOME` is broad; prefer a specific directory or a portal. |
-| Wayland / X11 sockets | A native Wayland-only application may use Wayland alone. An application with an X11 fallback may need `wayland` and `fallback-x11`; an X11-only application may need X11. |
-| Devices | Allow only devices the application actually needs, such as a GPU or controller. |
-| Environment | Do not force Wayland variables through an override without a specific reason and a way to check the result. |
-
-## Optional: Flatseal
-
-Flatseal is a GUI for viewing and changing Flatpak application overrides. It is
-not required for Flatpak and does not replace understanding which access an
-application needs.
-
-## CLI overrides
-
-Use the CLI to inspect and reset overrides without Flatseal:
+User remote:
 
 ```bash
-flatpak info --show-permissions <app-id>
-flatpak override --user ...
+flatpak remote-add --user --if-not-exists flathub \
+  https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+System remote:
+
+```bash
+flatpak remote-add --system --if-not-exists flathub \
+  https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+Install and inspect an application in the same scope as its remote:
+
+```bash
+# User installation
+flatpak install --user flathub <app-id>
+flatpak info --user <app-id>
+
+# System installation
+flatpak install --system flathub <app-id>
+flatpak info --system <app-id>
+```
+
+Do not remove a remote only because no applications from it are currently
+visible. Inspect its refs and confirm it is no longer needed before removing
+it.
+
+## Permissions and portals
+
+An application's effective access is determined by several parts:
+
+| Source | What it defines |
+|--------|-----------------|
+| Manifest and installed ref metadata | The application's persistent sandbox permissions. |
+| Local overrides | Changes in the per-user or system-wide override layer. |
+| Portals | Access to individual host resources through an application request and a desktop-mediated API. |
+
+A portal can, for example, open a file chooser or a screen-capture source. It
+does not always replace a persistent filesystem permission; this depends on
+whether the application supports the required portal.
+
+Compositor and portal backend routing are covered in the
+[Wayland portals guide](../../desktop/wayland-portals/).
+
+## Inspecting permissions and overrides
+
+`flatpak info --show-permissions` shows the permissions of the installed ref.
+`flatpak override --show` displays overrides, which are a separate layer. The
+scope option for `info` selects the application installation; for `override`,
+it selects the per-user or system-wide override layer. A per-user override can
+change access for an application installed in the system scope. Check both
+override layers when diagnosing access.
+
+Check application metadata:
+
+```bash
+flatpak info --user --show-permissions <app-id>
+flatpak info --system --show-permissions <app-id>
+```
+
+Check per-user and system-wide overrides:
+
+```bash
+flatpak override --user --show <app-id>
+flatpak override --system --show <app-id>
+```
+
+Add an override only for a confirmed application-specific need:
+
+```bash
+flatpak override --user <specific-option> <app-id>
+```
+
+`--user` stores a per-user override; `--system` stores a system-wide override.
+The `--reset` option removes all overrides for that application in the selected
+layer, not only the last change:
+
+```bash
 flatpak override --user --reset <app-id>
+flatpak override --system --reset <app-id>
 ```
 
-`--user` creates a user override. Without it, `flatpak override` applies to the
-default system-wide installation. Add a specific `flatpak override --user` only
-for a confirmed need of that `<app-id>`.
+Flatseal is an optional GUI for viewing and changing overrides. It is not a
+security tool or a source of truth: use the Flatpak CLI to check installed
+metadata and overrides.
 
-## Example: Steam
+## Local builds and `extra-data`
 
-Steam is a separate example, not a baseline for every Flatpak application:
+`flatpak-builder` can export a built ref to a local OSTree repository. You can
+create a single-file bundle from that repository and install it:
 
 ```bash
-flatpak install flathub com.valvesoftware.Steam
+flatpak-builder --repo=repo build-dir manifest.yml
+flatpak build-bundle repo app.flatpak <app-id>
+flatpak install --user ./app.flatpak
 ```
 
-Steam Flatpak includes the required userspace runtime libraries in its Flatpak
-runtime, reducing the number of native multilib dependencies on the host. This
-does not define the Gentoo profile or the system ABI as a whole.
+Use `--system` for a system installation. Keep the selected scope consistent
+when installing, updating, and inspecting a locally built application.
 
-For Steam, check only the sandbox categories it actually needs: GPU, game
-controller, and required directory access. MangoHud can be added as an optional
-FPS-monitoring integration; Flatseal does not manage shader compilation.
+For a source of type `extra-data`, the ref contains the source metadata. During
+installation, Flatpak downloads the external payload, verifies its checksum,
+and runs `apply_extra` locally; the payload does not have to be present in the
+build repository. [ChatGPT Desktop](../chatgpt-desktop/) is an example of this
+workflow.
 
-## Local builds with `extra-data`
+## Updates
 
-`--user` and `--system` refer to different Flatpak installations. This
-workstation's usual policy is to install final applications in system scope.
-Some local builds with `extra-data` may need an intermediate user-scope
-installation before creating a bundle; this materializes the payload in the
-user Flatpak repo. ChatGPT Desktop is a verified example of this sequence; see
-the [separate guide](../chatgpt-desktop/). This workflow was checked on the ASUS
-B5402 on 2026-10-18; the other sections of this guide were not re-checked on
-that date.
-
-## Verification
+Update each installation separately to make the scope explicit:
 
 ```bash
-flatpak remotes
-flatpak info --show-permissions <app-id>
+flatpak update --user
+flatpak update --system
 ```
 
-Check that the application starts, uses the required display backend, and has
-only the filesystem, device, and socket permissions it needs.
+Without `--user`, `--system`, or `--installation`, `flatpak update` updates refs
+in both standard installations. An explicit option selects one installation.
 
-## Maintaining EOL runtimes and pins
+`flatpak update` updates refs from configured sources. A locally built
+application without an application remote does not automatically get a new
+upstream version from its Git repository; build a new ref or bundle and install
+it separately. See the [ChatGPT Desktop guide](../chatgpt-desktop/) for that
+application's update workflow.
 
-`flatpak update` may report that a runtime or extension branch has reached
-end-of-life (EOL). The `(pinned)` marker means protection from automatic
-removal; it does not by itself prove that an application still needs the runtime.
-`flatpak uninstall --unused` is insufficient for this case: a pin can
-prevent cleanup.
+## EOL runtimes and pins
 
-Before removal, check pins, application runtime branches, and installed runtimes:
+During an update, Flatpak may offer to remove unused EOL runtimes. Explicitly
+installed runtimes and pinned refs may remain even when Flatpak considers them
+unused; an EOL warning does not mean an application is broken. Before removal,
+select the installation and check its pins and dependencies.
 
 ```bash
+# System installation
 flatpak pin
-flatpak list --app \
-    --columns=application,runtime
-flatpak list --runtime --all \
-    --columns=application,branch,installation
+flatpak list --system --app --columns=application,runtime,installation
+flatpak list --system --runtime --all \
+  --columns=application,branch,installation
+
+# User installation
+flatpak pin --user
+flatpak list --user --app --columns=application,runtime,installation
+flatpak list --user --runtime --all \
+  --columns=application,branch,installation
 ```
 
-For an extension, also consider the application's manifest/runtime dependencies:
-the list of main runtimes does not enumerate every required extension. Do not
-automatically install branch N+1 just because the old branch is EOL: the
-application's dependencies determine the required branch.
+The `runtime` column shows an application's main runtime, but not every
+extension. Check extensions in dependency metadata or the manifest:
+`flatpak info --system --show-extensions <app-id>` lists matching extensions
+(use `--user` for a user installation). A different main runtime branch does
+not prove that an extension is unused. If you cannot determine whether it is
+used, do not remove it.
 
-If the EOL runtime is confirmed unused, remove its specific pin, then remove
-that specific branch from the correct installation. This example is for the
-default system installation; replace `<runtime-id>` and `<branch>` entirely,
-without angle brackets, and replace `x86_64` with the required architecture:
+Once confirmed unused, remove only that ref's pin and branch from the selected
+installation. If Flatpak offers to remove a dependent application, stop and
+check its dependencies again. Replace `<runtime-id>`, `<arch>`, and `<branch>`:
 
 ```bash
-flatpak pin --remove \
-  runtime/<runtime-id>/x86_64/<branch>
-
+# System installation
+flatpak pin --system --remove \
+  runtime/<runtime-id>/<arch>/<branch>
 flatpak uninstall --system \
+  <runtime-id>//<branch>
+
+# User installation
+flatpak pin --user --remove \
+  runtime/<runtime-id>/<arch>/<branch>
+flatpak uninstall --user \
   <runtime-id>//<branch>
 ```
 
-For a user installation, use `--user` when viewing/changing pins and instead
-of `--system` when uninstalling; the scope must match the diagnosis.
-If Flatpak offers to remove dependent applications, stop and check
-the dependencies again.
-
-### Verified example: ffmpeg-full 24.08
-
-This is a maintenance example from the ASUS B5402, not universal commands to copy.
-Before cleanup, the warning was:
-
-```text
-Info: (pinned) runtime org.freedesktop.Platform.ffmpeg-full branch 24.08 is end-of-life
-```
-
-Pin: `runtime/org.freedesktop.Platform.ffmpeg-full/x86_64/24.08`.
-Applications used Freedesktop 25.08/26.08 and GNOME 50;
-none used Freedesktop 24.08. After confirming that the old extension
-was no longer used, these commands were run:
+`flatpak uninstall --unused` removes refs Flatpak considers unused in the
+selected installation. Pins can prevent cleanup; this does not replace checking
+a specific EOL or pinned ref:
 
 ```bash
-flatpak pin --remove \
-  runtime/org.freedesktop.Platform.ffmpeg-full/x86_64/24.08
-
-flatpak uninstall --system \
-  org.freedesktop.Platform.ffmpeg-full//24.08
+flatpak uninstall --system --unused
+flatpak uninstall --user --unused
 ```
 
-After cleanup, check the runtime inventory again and run:
+## Verification and rollback
+
+Inventory of the standard installations:
 
 ```bash
-flatpak update
+flatpak remotes --user
+flatpak remotes --system
+
+flatpak list --app \
+  --columns=application,runtime,installation
+flatpak list --runtime --all \
+  --columns=application,branch,installation
 ```
 
-The verified example's brief result:
-
-```text
-ffmpeg-full 24.08 absent
-flatpak update → Nothing to update
-```
-
-On 2026-10-04, only the runtime maintenance path was tested on `asus-b5402`;
-permissions and the rest of the guide were not re-checked on that date
-(the previous check was on 2026-09-22). The current state is recorded in
-the [system document](../../systems/asus-b5402/applications/).
-
-## Reset / rollback
-
-Remove an application's local overrides with:
+For a specific application:
 
 ```bash
-flatpak override --user --reset <app-id>
+flatpak info <app-id>
+flatpak info --show-permissions <app-id>
 ```
 
-## Related docs
+If the same app ID is installed in multiple installations, add `--user` or
+`--system` to `flatpak info` and `flatpak info --show-permissions`. When
+assessing effective access, consider the application metadata and both override
+layers; portal grants are stored separately. After a change, check that the
+application starts, required portal requests and resource access work, and no
+broad permissions appeared without a reason.
 
-- [Flatpak on the ASUS B5402](../../systems/asus-b5402/applications/) — the actual system state.
-- [Default applications](../../desktop/default-applications/) — MIME associations for GUI applications.
+To undo local changes:
+
+- Remove all overrides for the application in the intended layer with
+  `flatpak override --user --reset <app-id>` or
+  `flatpak override --system --reset <app-id>`.
+- Use `flatpak permission-reset <app-id>` only to reset the portal permission
+  store. This command does not reset Flatpak overrides.
+- There is no universal rollback command for an accidentally removed runtime.
+  The runtime is normally installed again when an application that requires it
+  is installed or updated from a configured remote.
+
+## Related material
+
+- [ChatGPT Desktop](../chatgpt-desktop/) — local builds and `extra-data`.
+- [Wayland portals](../../desktop/wayland-portals/) — backend configuration.
+- [Flatpak on the ASUS B5402](../../systems/asus-b5402/applications/) — system state.
+- [Using Flatpak](https://docs.flatpak.org/en/latest/using-flatpak.html) and
+  [Sandbox permissions](https://docs.flatpak.org/en/latest/sandbox-permissions.html).
+- [Flatpak Command Reference](https://docs.flatpak.org/en/latest/flatpak-command-reference.html),
+  [Flatpak Builder](https://docs.flatpak.org/en/latest/flatpak-builder-command-reference.html),
+  [`extra-data`](https://docs.flatpak.org/en/latest/module-sources.html#extra-data)
+  and [single-file bundles](https://docs.flatpak.org/en/latest/single-file-bundles.html).
