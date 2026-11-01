@@ -83,10 +83,50 @@ locally built Flatpak bundle.
 
 ## KeePassXC: sync and backups
 
-The working KeePassXC database stays on local storage. Syncthing syncs it with
-Android. A separate backup workflow keeps local copies and sends them to
-Google Drive through rclone. Google Drive stores backups only.
+The working database stays in the local `~/Documents/KeePassSync/` directory
+and syncs with Android through Syncthing. Google Drive is a separate backup
+destination, not a live filesystem.
 
-The [KeePassXC and Syncthing guide](../../../settings/keepassxc-phone-sync/)
-covers sync; the [KeePassXC and rclone guide](../../../settings/keepassxc-backup/)
-covers backups.
+### ASUS B5402 backup state
+
+| Layer | Current setting |
+|-------|-----------------|
+| Live directory | `~/Documents/KeePassSync/`, mode `0700` |
+| Local copies | `~/Backups/KeePassXC/`, mode `0700` |
+| KeePassXC save backup | Backup-before-save is enabled; timestamped copies go to the local backup directory using `{DB_FILENAME}` and `{TIME:<format>}` |
+| Wrapper | `~/.local/bin/keepassxc-backup-run`, mode `0700` |
+| Rotation script | `~/.local/bin/keepassxc-backup-rotate`, mode `0700` |
+| rclone destination | `gdrive:Backups/KeePassXC/`; the remote uses the `drive` backend, `drive.file` scope, and a custom OAuth client |
+| rclone config | `~/.config/rclone/rclone.conf`, mode `0600`; credentials and tokens are not included in the documentation |
+
+The wrapper accepts exactly one top-level regular, non-symlink `*.kdbx` in the
+live directory. Zero or multiple files stop the run before a snapshot is made.
+This is a startup conflict gate; it does not resolve simultaneous edits or
+block Syncthing.
+
+Before the snapshot, the wrapper takes a non-blocking `flock` on
+`$XDG_RUNTIME_DIR/keepassxc-backup.lock` and holds it through rotation. The
+snapshot is named
+`keepassxc-snapshot-YYYY-MM-DD_HH-MM-SS.XXXXXX.kdbx`, has mode `0600`, and is
+compared with the live database byte for byte using `cmp`.
+
+After verifying the snapshot, `rclone copy` delivers top-level regular
+`*.kdbx` files from `~/Backups/KeePassXC/` to `gdrive:Backups/KeePassXC/`.
+`copy` does not delete remote files that are absent from the source; the routine
+workflow does not rotate or delete remote backups. Local rotation runs with
+`--apply` only after delivery succeeds.
+
+Rotation considers top-level regular `*.kdbx` files in the local backup
+directory and removes files aged 90 days or more by mtime. Running it manually
+without arguments performs a dry run; deletion requires `--apply`.
+
+`keepassxc-backup.service` is a user `Type=oneshot` unit;
+`keepassxc-backup.timer` is enabled and active. It runs daily at 20:00 local
+time with `Persistent=true`. `Linger=no`: the user manager does not remain
+active after the user's sessions end. This is the system's current setting,
+not a general recommendation.
+
+The [KeePassXC and rclone guide](../../../settings/keepassxc-backup/) describes
+the reproducible workflow. Syncthing settings and conflict/merge recovery
+status are in the [KeePassXC sync guide](../../../settings/keepassxc-phone-sync/);
+recovery after simultaneous edits remains PENDING.

@@ -85,12 +85,51 @@ OBS Studio, Spotify и Flatseal получены из Flathub; ChatGPT Desktop �
 
 ## KeePassXC: синхронизация и резервные копии
 
-Рабочая база KeePassXC хранится локально. Syncthing синхронизирует её с
-Android, а отдельная схема резервного копирования сохраняет локальные копии
-и отправляет их через rclone в Google Drive. Google Drive используется только
-для резервных копий.
+Рабочая база остаётся в локальном каталоге `~/Documents/KeePassSync/` и
+синхронизируется с Android через Syncthing. Google Drive используется как
+отдельный destination резервных копий, а не как live filesystem.
 
-Порядок синхронизации описан в
-[руководстве KeePassXC и Syncthing](../../../settings/keepassxc-phone-sync/),
-а резервного копирования — в
-[руководстве KeePassXC и rclone](../../../settings/keepassxc-backup/).
+### Backup на ASUS B5402
+
+| Слой | Текущая настройка |
+|------|-------------------|
+| Live-каталог | `~/Documents/KeePassSync/`, mode `0700` |
+| Локальные копии | `~/Backups/KeePassXC/`, mode `0700` |
+| KeePassXC save backup | Backup-before-save включён; timestamped копии сохраняются в локальный backup-каталог с `{DB_FILENAME}` и `{TIME:<format>}` |
+| Wrapper | `~/.local/bin/keepassxc-backup-run`, mode `0700` |
+| Rotation script | `~/.local/bin/keepassxc-backup-rotate`, mode `0700` |
+| rclone destination | `gdrive:Backups/KeePassXC/`; remote использует backend `drive`, scope `drive.file` и собственный OAuth client |
+| rclone config | `~/.config/rclone/rclone.conf`, mode `0600`; credentials и tokens в документацию не включаются |
+
+Wrapper принимает только ровно одну top-level regular non-symlink `*.kdbx` в
+live-каталоге. При нуле или нескольких файлах он останавливается до snapshot.
+Это startup conflict gate; он не разрешает одновременные изменения и не
+блокирует Syncthing.
+
+Перед snapshot wrapper захватывает non-blocking `flock` на
+`$XDG_RUNTIME_DIR/keepassxc-backup.lock` и удерживает его до завершения
+rotation. Snapshot называется
+`keepassxc-snapshot-YYYY-MM-DD_HH-MM-SS.XXXXXX.kdbx`, получает mode `0600` и
+сверяется с live-базой побайтно через `cmp`.
+
+После проверки snapshot `rclone copy` доставляет top-level regular `*.kdbx`
+из `~/Backups/KeePassXC/` в `gdrive:Backups/KeePassXC/`. `copy` не удаляет
+remote-файлы, отсутствующие в source; routine workflow не выполняет remote
+rotation или удаление. Локальная rotation запускается с `--apply` только
+после успешной доставки.
+
+Rotation рассматривает top-level regular `*.kdbx` в локальном backup-каталоге
+и удаляет по mtime файлы возрастом 90 дней и старше. Ручной запуск без
+аргументов выполняет dry-run; удаление требует `--apply`.
+
+`keepassxc-backup.service` — user `Type=oneshot`; timer `keepassxc-backup.timer`
+включён и активен. Он запускается ежедневно в 20:00 по местному времени с
+`Persistent=true`. `Linger=no`: user manager не остаётся запущенным после
+завершения пользовательских сессий. Это фактическая настройка системы, а не
+универсальная рекомендация.
+
+Полный воспроизводимый workflow описан в
+[руководстве по KeePassXC и rclone](../../../settings/keepassxc-backup/).
+Параметры Syncthing и статус conflict/merge recovery приведены в
+[руководстве по синхронизации KeePassXC](../../../settings/keepassxc-phone-sync/);
+восстановление после одновременных правок остаётся PENDING.

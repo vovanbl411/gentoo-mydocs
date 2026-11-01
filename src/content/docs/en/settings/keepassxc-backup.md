@@ -3,359 +3,197 @@ title: KeePassXC backups to Google Drive via rclone
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-30"
+last_verified: "2026-11-01"
 verified_on: [asus-b5402]
 ---
 
-This guide documents the accepted KeePassXC backup pipeline: the wrapper
-finds exactly one top-level regular, non-symlink `*.kdbx` in the dedicated
-live directory `~/Documents/KeePassSync/`, creates a verified local snapshot,
-delivers backups to Google Drive, and runs local rotation only after delivery
-succeeds. KeePassXC's built-in timestamped backups on save remain enabled.
-Rotation removes local copies aged 90 days or more by mtime; this workflow
-does not delete remote files.
-
-Daily automation on the ASUS ExpertBook B5402 uses `systemd --user`: a
-calendar timer at 20:00 local time, `Persistent=true`, and `Linger=no`. The
-snapshot does not depend on where the live database was last edited: a change
-that later arrives through Android/Syncthing does not have to pass through a
-local KeePassXC save. Normal bidirectional sync with Android through
-Syncthing and KeePassDX was accepted on 2026-09-30; real conflict recovery and
-merge remain pending. See the [separate guide](../keepassxc-phone-sync/).
-
-Before starting, the wrapper checks that the live directory contains exactly
-one matching database. If it finds zero or multiple files, it exits before
-snapshot, delivery, or rotation. This is a startup conflict gate for an extra
-file such as a Syncthing conflict copy; it is not a transactional lock on
-Syncthing. On the ASUS B5402, the snapshot, normal service run, and controlled
-conflict-gate test passed on 2026-09-29. The snapshot had mode `0600`, a current
-run mtime, and byte-identical content to the live DB; the timer was already
-enabled and active. See also [the system section](../../systems/asus-b5402/applications/).
-
-## Architecture
+KeePassXC backups pass through a local snapshot and `rclone copy` to Google
+Drive. Local rotation runs only after delivery succeeds. Google Drive stores
+closed backup copies; the working database stays on local storage.
 
 ```text
-~/Documents/KeePassSync/      live DB, mode 0600; exactly one top-level *.kdbx
-  ↓ daily wrapper: discover one DB, acquire non-blocking flock
-~/Backups/KeePassXC/           verified snapshot + KeePassXC save backups, mode 0700
-  ↓ rclone copy top-level *.kdbx
-   gdrive:Backups/KeePassXC/   delivery without remote deletion
-  ↓ only after delivery succeeds
-local 90-day rotation           --apply; files aged 90 days or more by mtime
+local live database
+→ exactly-one-database preflight
+→ verified local snapshot
+→ rclone copy to Google Drive
+→ successful delivery
+→ local retention
 ```
 
-Google Drive is a destination for backup copies, not a live filesystem. The
-KeePassXC database is opened only from the local disk; the cloud stores closed
-copies.
+KeePassXC has a separate backup-before-save option that creates a timestamped
+copy when the database is saved in the application. A scheduled snapshot is
+also needed because the live database may change through Syncthing without a
+local KeePassXC save. The startup file-count check does not resolve simultaneous
+edits; recovery from such a conflict is covered separately in the
+[phone-sync guide](../keepassxc-phone-sync/) and remains PENDING.
 
-## Prerequisites
+## Example layout and prerequisites
 
-- a working Gentoo system with a configured Portage;
-- KeePassXC installed (`app-admin/keepassxc`);
-- a Google account with sufficient Drive quota;
-- a browser for the OAuth consent — rclone opens it by itself.
+The paths below are examples, not a required layout:
 
-## Installing rclone
+| Purpose | Example |
+|---------|---------|
+| Live directory | `~/Documents/KeePassSync/` |
+| Local backups | `~/Backups/KeePassXC/` |
+| Remote directory | `gdrive:Backups/KeePassXC/` |
+
+Replace these values in commands and templates to match your layout. Automation
+requires Gentoo with `systemd --user`, KeePassXC (`app-admin/keepassxc`),
+rclone, a Google Drive account with sufficient quota, and a browser for initial
+OAuth authorization. Prepare the live directory and sync mechanism separately:
+the wrapper does not create the live directory or configure Syncthing.
+
+## Install rclone
 
 ```bash
 doas emerge --ask net-misc/rclone
 ```
 
-Pinning a specific version is not needed.
+## Google Drive and OAuth
 
-## A dedicated OAuth client in Google Cloud
+For a new long-lived unattended setup, use your own Google OAuth Desktop
+client. The shared Google Drive `client_id` built into rclone is being retired
+during 2026.
 
-rclone can work with the project's built-in client_id, but it is shared by
-all rclone users and subject to a shared rate limit. According to the rclone
-documentation, the shared Google Drive client_id is being retired and will
-stop working during 2026, so a dedicated OAuth client in a personal Google
-Cloud project under your control is needed for a new setup. It also uses a
-separate project quota.
+1. Select or create a Google Cloud project and enable the Google Drive API.
+2. Create a Desktop app OAuth client and request only the needed scope,
+   `https://www.googleapis.com/auth/drive.file`.
+3. Authorize rclone in a browser and configure a remote with your own
+   `client_id` and `client_secret`.
+4. For a long-lived timer, publish the External OAuth app as `In production`.
+   For the Drive API, refresh tokens for an External app in `Testing` expire
+   after 7 days, so this status is unsuitable for unattended backups.
 
-Steps in [Google Cloud Console](https://console.cloud.google.com/):
+Google's publication and branding requirements change. A production app needs
+a publicly accessible homepage on a verified domain that describes the app
+and links to its privacy policy. Fill out additional branding fields, including
+Terms of Service, according to Google's current requirements and rclone's
+instructions. Do not reuse branding URLs that you do not own or that do not
+describe your application.
 
-1. Create a project (for example, `rclone-backups`).
-2. Enable the **Google Drive API** (APIs & Services → Library).
-3. Configure the **OAuth consent screen**: user type *External*.
-4. Under **Data Access**, declare the minimum scope:
-   `https://www.googleapis.com/auth/drive.file`. Do not add the full `drive`
-   scope.
-5. Create an **OAuth client ID** (Credentials → Create credentials): the
-   application type is *Desktop app*.
-6. Copy the client ID and client secret — they will be needed in
-   `rclone config`.
-7. Switch the app to the publishing status *In production* (the Publish app
-   button).
+The `drive.file` scope lets the application access files and directories it
+created. rclone may not see objects created through the Drive website or
+another application. Create a dedicated backup directory with `rclone mkdir`;
+this scope does not grant access to an arbitrary existing Google Drive tree.
 
-If **Publish app** is unavailable and Google requires App domain
-information, fill in the required Branding fields: **Application home
-page**, **Privacy policy URL**, and **Authorized domain**. These fields are
-not required in every case.
-
-The OAuth branding uses a separate minimal static site for its
-[homepage](https://rclone.9fans.uk/) and
-[privacy policy](https://rclone.9fans.uk/privacy/). Its source is in the
-separate public GitHub repository
-[`vovanbl411/rclone-oauth-pages`](https://github.com/vovanbl411/rclone-oauth-pages).
-The site exists only as the public OAuth homepage/privacy surface; it does
-not proxy rclone or store KDBX files, OAuth tokens, or other backup data.
-
-Do not leave the app in the *Testing* status: for an External app in
-Testing, refresh tokens for Google API scopes expire after 7 days — that is
-unacceptable for a long-term backup. In *In production* this 7-day
-limitation does not apply. Formal OAuth verification is not required for
-personal use. *External* / *In production* is technically available to
-other Google accounts; personal use describes the operational use case, not
-an audience restriction.
-
-Use a dedicated client because rclone's shared `client_id` is being retired
-in 2026, and the project and client are under your control. The client uses
-a separate project quota.
-
-If an existing configuration was authorized while the app was in
-*Testing*, reconnect it after switching the app to *In production*:
-`rclone config reconnect gdrive:`. Then repeat the minimal transport
-validation in the next section: run `rclone lsf`, upload a test file, read
-it with `rclone cat`, and delete it with `rclone deletefile`.
-For a fresh install, no separate reconnect is needed when the initial
-authorization happens after **Publish app**.
-
-Google renames console menu items from time to time; create a Desktop OAuth
-client in a project you control and switch the app to *In production*.
-
-> **Important**: never publish the contents of `rclone.conf` and the OAuth
-> token (including the refresh token), and do not commit the client secret.
-> The client ID is not a credential at the OAuth token level, but there is
-> no reason to publish a real project identifier in this repository. The
-> examples below use placeholders.
-
-## The gdrive remote
-
-Start the interactive setup:
+Create the remote with:
 
 ```bash
 rclone config
 ```
 
-The essential part of the dialog (the order of prompts depends on the
-rclone version):
+Select the Google Drive backend, enter your own `client_id` and `client_secret`,
+choose the `drive.file` scope, and complete authorization. Prompt wording and
+order can vary between rclone versions; follow its current Google Drive guide.
 
-| Prompt | Answer |
-|--------|--------|
-| New remote → name | `gdrive` |
-| Type of storage | `drive` (Google Drive) |
-| `client_id` | `<your-client-id>` |
-| `client_secret` | `<your-client-secret>` |
-| `scope` | `drive.file` — “Access to files created by rclone only” |
-| `root_folder_id`, `service_account_file`, advanced prompts | Enter (default value) |
-| Configure this as a Shared Drive | `n` |
-| Use web browser to automatically authenticate | `y` — grant access in the browser that opens |
-
-After a successful authorization, the remote is written to the user config:
-
-File: `~/.config/rclone/rclone.conf`
-
-```ini
-[gdrive]
-type = drive
-scope = drive.file
-client_id = <your-client-id>
-client_secret = <your-client-secret>
-token = <JSON with access/refresh tokens, generated by rclone>
-```
-
-The `token` line is a live OAuth token. Check the file permissions:
+Check the config path and its permissions:
 
 ```bash
-stat -c '%a %U:%G' ~/.config/rclone/rclone.conf
+config_file="$(rclone config file | tail -n 1)"
+stat -c '%a %U:%G' "$config_file"
+# expected: 600 <user>:<user>
 ```
 
-Expected: `600 <user>:<user>`. If the permissions are wider, fix them:
+If the permissions are wider than `600`, fix them with
+`chmod 600 "$config_file"`. Do not publish `rclone.conf`, OAuth access or
+refresh tokens, `client_secret`, or database contents. Review even redacted
+configuration output before sharing it; it is not automatically safe.
+
+Create the remote directory for backups:
 
 ```bash
-chmod 600 ~/.config/rclone/rclone.conf
-```
-
-### Scope: drive.file
-
-`drive.file` allows rclone to see and modify only the files created by this
-remote; the rest of the Google Drive is invisible to it. That is enough for
-a backup destination, and the token gets a minimal blast radius: even a
-compromised token does not grant access to the other Drive files. The scope
-restricts the application, not the owner — the files remain visible in the
-Drive web interface as usual.
-
-A wider scope (`drive`, full access to the account's files) is needed only
-if rclone must work with files that already exist in Drive. This scheme
-does not need it.
-
-## The directory in Google Drive
-
-Create the namespace for backups and check that it appeared:
-
-```bash
-rclone listremotes   # expected: gdrive:
 rclone mkdir gdrive:Backups/KeePassXC
-rclone lsd gdrive:Backups   # KeePassXC appears in the directory list
 ```
 
-## Write/read/delete test
+### Validate the transport
 
-Before trusting the remote with a real database, run a test on a plain
-text file:
+This setup check uses a disposable text file. Run it deliberately after
+configuring the remote; do not use a KDBX file for the test:
 
 ```bash
-echo "rclone gdrive test" > /tmp/rclone-test.txt
-rclone lsf gdrive:Backups/KeePassXC
-rclone copyto /tmp/rclone-test.txt gdrive:Backups/KeePassXC/rclone-test.txt
-rclone cat gdrive:Backups/KeePassXC/rclone-test.txt   # rclone gdrive test
-rclone deletefile gdrive:Backups/KeePassXC/rclone-test.txt
-rm /tmp/rclone-test.txt
+test_file="$(mktemp /tmp/rclone-drive-test.XXXXXX.txt)"
+test_name="${test_file##*/}"
+printf 'rclone transport test\n' > "$test_file"
+rclone copyto "$test_file" "gdrive:Backups/KeePassXC/$test_name"
+rclone cat "gdrive:Backups/KeePassXC/$test_name"
+rclone deletefile "gdrive:Backups/KeePassXC/$test_name"
+rm -- "$test_file"
 ```
 
-`rclone cat` must return the written line, and `rclone deletefile` must
-remove the test object (`deletefile` removes one specific file; `delete`
-works on the whole path). This tests the transport, not the database.
+`rclone cat` should print the test line, and `deletefile` should remove only
+that test object. It changes remote state. Do not run it during a read-only
+documentation review or a routine backup run.
 
-## Local KeePassXC backups
+## KeePassXC backup-before-save
 
-Create the backup directory accessible only to your user:
+Create a local directory that only your user can access:
 
 ```bash
-mkdir -p ~/Backups/KeePassXC
-chmod 700 ~/Backups/KeePassXC
-stat -c '%a %U:%G %n' ~/Backups/KeePassXC
-# expected: 700 <user>:<user> /home/<user>/Backups/KeePassXC
+mkdir -p "$HOME/Backups/KeePassXC"
+chmod 700 "$HOME/Backups/KeePassXC"
 ```
 
-The `chmod` is a separate command because `mkdir -m` does not change the
-permissions of a directory that already exists: if the directory was
-created earlier with wider permissions, `mkdir -m 700 -p` will not fix
-them.
-
-In KeePassXC, enable the built-in backup before saving the database:
-**Tools → Application Settings → Basic → Backup database file before
-saving**, plus the backup destination path field (wording differs in the
-Russian localization — follow the meaning of the setting).
-
-KeePassXC supports both absolute and relative paths in the backup
-destination field. This scheme deliberately uses an explicit absolute path
-so that the destination does not depend on the working database directory.
-The filename template:
+In KeePassXC, enable the database backup before saving and set its destination.
+The path can be absolute or relative; a relative path is resolved from the
+database directory. For predictable placement, use an absolute path in your
+backup directory, for example:
 
 ```text
-/home/<user>/Backups/KeePassXC/{DB_FILENAME}-{TIME:yyyy-MM-dd_HH-mm-ss}.kdbx
+/home/<your-user>/Backups/KeePassXC/{DB_FILENAME}-{TIME:yyyy-MM-dd_HH-mm-ss}.kdbx
 ```
 
-`{DB_FILENAME}` substitutes the database file name, and `{TIME:…}` the
-timestamp of the copy in the given format.
+Replace `/home/<your-user>` with your absolute home path. `{DB_FILENAME}` is
+the database filename without its extension; `{TIME:<format>}` supplies the
+timestamp in the format you choose. After a database save, KeePassXC creates a
+separate timestamped copy. This runs on a KeePassXC save; it does not replace a
+scheduled snapshot of changes received through Syncthing.
 
-Verification: change any entry in the database and save it — a separate
-timestamped `.kdbx` appears in the directory. Database names may contain
-spaces and apostrophes, so use quoted variables in the commands:
+## Manual delivery and restore validation
+
+`rclone copy` transfers new and changed files but does not remove destination
+objects that are absent from the source. Do not use `rclone sync` for this
+workflow: it makes the destination match the source and can delete files
+removed from the source.
 
 ```bash
-ls -l ~/Backups/KeePassXC
-backup_name="database-2026-09-28_21-49-42.kdbx"   # your file name
-file "$HOME/Backups/KeePassXC/$backup_name"
-# database-2026-09-28_21-49-42.kdbx: Keepass password database 2.x KDBX
+rclone copy \
+  "$HOME/Backups/KeePassXC" \
+  "gdrive:Backups/KeePassXC" \
+  --include '/*.kdbx' \
+  --max-depth 1
 ```
 
-## Manual delivery to Google Drive
-
-The whole directory — only new and modified files are transferred, nothing
-is deleted:
+For one file, use `rclone copyto`:
 
 ```bash
-rclone copy ~/Backups/KeePassXC gdrive:Backups/KeePassXC
+backup_file="$HOME/Backups/KeePassXC/<backup-file>.kdbx"
+rclone copyto "$backup_file" "gdrive:Backups/KeePassXC/${backup_file##*/}"
 ```
 
-One specific backup under the same name:
+The routine workflow does not delete remote backups or rotate them. This is a
+retention policy, not a guarantee that Google Drive objects are immutable;
+other tools or users can still change or delete them.
+
+To validate a restore, select a backup and download it to a separate file:
 
 ```bash
-backup_name="database-2026-09-28_21-49-42.kdbx"   # your file name
-rclone copyto \
-  "$HOME/Backups/KeePassXC/$backup_name" \
-  "gdrive:Backups/KeePassXC/$backup_name"
+backup_name='<chosen-backup>.kdbx'
+restore_file="$(mktemp "$HOME/keepassxc-restore.XXXXXX.kdbx")"
+rclone copyto "gdrive:Backups/KeePassXC/$backup_name" "$restore_file"
 ```
 
-`rclone copy`/`copyto` do not delete files in the destination: routine
-delivery does not touch destination-only copies, and timestamped file names
-keep the old versions. Remote deletion and rotation are deliberately not
-performed right now — this is the operational policy of the scheme, not a
-technical property of the storage: the Google Drive remote can modify and
-delete the objects it created.
+Open the temporary file in KeePassXC and check that it unlocks and contains the
+expected data. Only then decide whether to replace the live database; do not
+overwrite it as the first step. Restoring a backup does not resolve a Syncthing
+conflict or merge case; use the separate phone-sync procedure for that.
 
-## Verification: restoring from the cloud
+## Local rotation
 
-Download the remote copy to a temporary file and compare it with the local
-one:
+The example below keeps files for 90 days by mtime. It considers only top-level
+regular `*.kdbx` files. Without an argument, the script lists candidates and
+does not delete them; deletion requires an explicit `--apply`.
 
-```bash
-backup_name="database-2026-09-28_21-49-42.kdbx"   # your file name
-verify_file=$(mktemp /tmp/keepassxc-verify.XXXXXX.kdbx)
-rclone copyto "gdrive:Backups/KeePassXC/$backup_name" "$verify_file"
-cmp -s "$HOME/Backups/KeePassXC/$backup_name" "$verify_file" \
-  && echo "cmp: PASS"
-sha256sum "$HOME/Backups/KeePassXC/$backup_name" "$verify_file"
-rm "$verify_file"
-```
-
-The PASS criteria: the sizes are equal, `cmp` prints `cmp: PASS`, and the
-two `sha256sum` lines are identical. The temporary file is removed after the
-check; the local copy and the remote are not modified by the check.
-
-Repeat the check after the first delivery and after any changes to the
-remote or the rclone configuration. Hash values are unique to each
-database — there is no reason to copy them into documentation or notes.
-
-## Retention
-
-The decisions made:
-
-- local rotation keeps files younger than 90 days; copies aged 90 days or
-  more are removed by mtime;
-- Google Drive: delivery without deletion; no remote rotation.
-
-Implementation status as of 2026-09-29:
-
-- production rotation is implemented as
-  `~/.local/bin/keepassxc-backup-rotate` and was accepted on 2026-09-29
-  (PASS);
-- retention is 90 days by mtime: only top-level regular files matching
-  `*.kdbx` in `~/Backups/KeePassXC/` are considered; files aged 90 days or
-  more are expired;
-- running without arguments performs a dry-run; deletion requires the
-  explicit `--apply` argument;
-- before processing, the script checks that `HOME` is set, the directory
-  exists and is not a symlink, its owner and mode are correct (`0700`), the
-  cutoff was calculated, and the directory scan succeeded. A failed check
-  prevents deletion;
-- the first invocation is safe and deletes nothing. Running with `--apply`
-  actually deletes expired local KDBX files found by the scan;
-- controlled production acceptance confirmed the rotation behavior: dry-run
-  preserved the expired test KDBX, and `--apply` deleted only that file. The
-  non-KDBX control and production KDBX remained; the real database hash
-  matched before and after;
-- the wrapper `~/.local/bin/keepassxc-backup-run`, user service, and
-  calendar timer perform a daily snapshot, delivery, and local rotation. The
-  wrapper validates the live database and creates a snapshot before `rclone
-  copy`; rotation runs only after delivery succeeds. Configuration is below.
-
-Google Drive remains the destination for backup copies. This workflow does
-not delete remote files or rotate them. If a transfer partially succeeds and
-then fails, local rotation is skipped; a later successful `rclone copy` can
-copy files that are still missing. If delivery succeeds but rotation fails,
-the remote copies have already been delivered and old local copies may remain.
-
-> **Important**: remote deletion is deliberately absent, but Google Drive is
-> not immutable storage. This automation does not prevent objects from being
-> changed or deleted by other means.
-
-### Installing and running local rotation
-
-Save the following script as
-`~/.local/bin/keepassxc-backup-rotate`:
+Save as `~/.local/bin/keepassxc-backup-rotate`:
 
 ```bash
 #!/usr/bin/env bash
@@ -378,19 +216,10 @@ if (($# > 1)); then
 fi
 
 case "${1:-}" in
-    "")
-        ;;
-    --apply)
-        apply=true
-        ;;
-    -h|--help)
-        usage
-        exit 0
-        ;;
-    *)
-        usage >&2
-        exit 2
-        ;;
+    "") ;;
+    --apply) apply=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
 esac
 
 fail() {
@@ -400,16 +229,13 @@ fail() {
 
 [[ -d "$backup_dir" ]] || fail "backup directory does not exist"
 [[ ! -L "$backup_dir" ]] || fail "backup directory must not be a symlink"
-
 [[ "$(stat -c '%u' -- "$backup_dir")" == "$(id -u)" ]] \
     || fail "backup directory is not owned by the current user"
-
 [[ "$(stat -c '%a' -- "$backup_dir")" == "700" ]] \
     || fail "backup directory mode is not 700"
 
 cutoff="$(date -d "${retention_days} days ago" '+%Y-%m-%d %H:%M:%S')" \
     || fail "cannot calculate retention cutoff"
-
 [[ -n "$cutoff" ]] || fail "retention cutoff is empty"
 
 candidate_list="$(mktemp)"
@@ -426,18 +252,9 @@ then
 fi
 
 mapfile -d '' -t candidates < "$candidate_list"
-
 printf 'Backup directory: %s\n' "$backup_dir"
 printf 'Retention: %d days\n' "$retention_days"
-printf 'Cutoff: %s\n' "$cutoff"
 printf 'Candidates: %d\n' "${#candidates[@]}"
-
-i=0
-for file in "${candidates[@]}"; do
-    ((i += 1))
-    printf '#%d ' "$i"
-    stat -c 'mtime=%y size=%s bytes' -- "$file"
-done
 
 if ! $apply; then
     printf 'DRY-RUN: no files deleted\n'
@@ -450,70 +267,47 @@ if ((${#candidates[@]} == 0)); then
 fi
 
 rm -- "${candidates[@]}"
-
 for file in "${candidates[@]}"; do
     [[ ! -e "$file" ]] || fail "candidate still exists after deletion"
 done
-
 printf 'PASS: deleted %d expired backup(s)\n' "${#candidates[@]}"
 ```
 
-Create the user command directory and set the script mode:
+Set the mode and inspect the dry run first:
 
 ```bash
-mkdir -p ~/.local/bin
 chmod 700 ~/.local/bin/keepassxc-backup-rotate
+~/.local/bin/keepassxc-backup-rotate
 ```
 
-Commands:
+Only apply deletion after reviewing the candidates:
 
 ```bash
-~/.local/bin/keepassxc-backup-rotate
 ~/.local/bin/keepassxc-backup-rotate --apply
 ```
 
-The first invocation prints the candidate count and each candidate's mtime
-and size, but deletes nothing. The second performs the same checks and
-deletes the expired local `.kdbx` files it finds.
+## Scheduled snapshot, delivery, and systemd
 
-## Daily snapshot, delivery, and local rotation
+The wrapper below uses the example paths in the table above. Edit `live_dir`,
+`backup_dir`, and `remote` before installing it. It requires exactly one
+top-level regular, non-symlink `*.kdbx` in the live directory. Zero or multiple
+files abort before snapshot, delivery, or rotation. Do not automatically delete
+an extra database; first find out why it appeared.
 
-The wrapper first finds exactly one top-level regular, non-symlink `*.kdbx`
-in `~/Documents/KeePassSync/`. It then acquires a non-blocking lock and
-creates a snapshot in `~/Backups/KeePassXC/`. This daily snapshot captures
-changes regardless of where they were made: a later Android/Syncthing change
-does not first have to pass through a KeePassXC save on this machine.
+This startup conflict gate detects an ambiguous file set, but it does not
+resolve simultaneous KeePassXC and Syncthing edits or act as a transactional
+lock on Syncthing. Only one wrapper run can proceed at a time: a non-blocking
+`flock` is held from snapshot through rotation. If the lock is already held,
+the new run is skipped.
 
-The snapshot uses the generic name format
-`keepassxc-snapshot-YYYY-MM-DD_HH-MM-SS.XXXXXX.kdbx`; its mode is `0600` and
-its mtime is current. The wrapper checks byte identity with `cmp`. If copying
-or verification fails, it removes the incomplete snapshot and stops before
-delivery. A verified snapshot remains in the backup directory even if the
-subsequent delivery fails.
+The wrapper creates a local snapshot with mode `0600` and verifies it byte for
+byte with `cmp`; it removes an incomplete snapshot if copying or verification
+fails. After verification, it runs `rclone copy` for top-level `*.kdbx` files
+only. A delivery error stops the run and skips rotation; the verified snapshot
+stays local for the next attempt. There is no automatic retry loop. Local
+rotation with `--apply` runs only after successful delivery.
 
-If the startup precheck finds anything other than exactly one top-level
-regular, non-symlink `*.kdbx`, the wrapper exits with an error before snapshot,
-delivery, or rotation. This startup conflict gate catches an unexpected
-additional database, such as a Syncthing conflict copy; it does not block or
-serialize Syncthing itself.
-
-One non-blocking `flock` on `$XDG_RUNTIME_DIR/keepassxc-backup.lock` is held
-from before snapshot creation through the end of rotation. File descriptor 9
-stays open for the entire workflow. A concurrent invocation prints `SKIP` and
-exits with code `0` without starting another workflow.
-
-After snapshot verification, `rclone copy` delivers only top-level regular
-`*.kdbx` files from `~/Backups/KeePassXC/` to `gdrive:Backups/KeePassXC/`.
-`copy` is used because delivery must not delete remote files; `rclone sync` and
-remote rotation are not used. If delivery returns an error, the wrapper exits
-and skips local rotation. The verified snapshot stays local for the next
-successful delivery. There is no automatic retry loop. Only successful
-delivery allows `keepassxc-backup-rotate --apply` to run.
-
-Save the wrapper as `~/.local/bin/keepassxc-backup-run` with mode `0700`. It
-requires `HOME` and `XDG_RUNTIME_DIR`, the `rclone` and `flock` commands, both
-directories, an executable rotation script, and exactly one top-level regular,
-non-symlink live `*.kdbx`.
+Save as `~/.local/bin/keepassxc-backup-run`:
 
 ```bash
 #!/usr/bin/env bash
@@ -523,6 +317,7 @@ umask 077
 : "${HOME:?HOME must be set}"
 : "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}"
 
+# Example values: edit these paths for your layout.
 readonly live_dir="$HOME/Documents/KeePassSync"
 readonly backup_dir="$HOME/Backups/KeePassXC"
 readonly remote='gdrive:Backups/KeePassXC'
@@ -564,7 +359,6 @@ cleanup_incomplete_snapshot() {
 }
 trap cleanup_incomplete_snapshot EXIT
 
-printf 'STAGE: local snapshot\n'
 snapshot_time="$(date '+%F_%H-%M-%S')"
 if ! snapshot_path="$(mktemp "$backup_dir/keepassxc-snapshot-${snapshot_time}.XXXXXX.kdbx")"; then
     printf 'FAIL: cannot create local snapshot\n' >&2
@@ -574,12 +368,8 @@ if ! cp -- "$live_db" "$snapshot_path"; then
     printf 'FAIL: cannot copy live database to snapshot\n' >&2
     exit 1
 fi
-if ! chmod 600 -- "$snapshot_path"; then
-    printf 'FAIL: cannot set snapshot mode\n' >&2
-    exit 1
-fi
-if ! touch -- "$snapshot_path"; then
-    printf 'FAIL: cannot update snapshot mtime\n' >&2
+if ! chmod 600 -- "$snapshot_path" || ! touch -- "$snapshot_path"; then
+    printf 'FAIL: cannot secure snapshot\n' >&2
     exit 1
 fi
 if ! cmp -s -- "$live_db" "$snapshot_path"; then
@@ -587,9 +377,7 @@ if ! cmp -s -- "$live_db" "$snapshot_path"; then
     exit 1
 fi
 snapshot_verified=true
-printf 'PASS: local snapshot\n'
 
-printf 'STAGE: delivery\n'
 if ! rclone copy \
     "$backup_dir" \
     "$remote" \
@@ -599,17 +387,14 @@ then
     printf 'FAIL: delivery failed; rotation skipped\n' >&2
     exit 1
 fi
-printf 'PASS: delivery\n'
 
-printf 'STAGE: local rotation\n'
 "$rotate" --apply
-printf 'PASS: local rotation\n'
 ```
 
-Save the user service as
-`~/.config/systemd/user/keepassxc-backup.service` (mode `0644`):
+Set the wrapper mode to `0700` and create the user service:
 
 ```ini
+# ~/.config/systemd/user/keepassxc-backup.service
 [Unit]
 Description=Deliver KeePassXC backups and rotate local history
 
@@ -618,10 +403,11 @@ Type=oneshot
 ExecStart=%h/.local/bin/keepassxc-backup-run
 ```
 
-Save the user timer as
-`~/.config/systemd/user/keepassxc-backup.timer` (mode `0644`):
+This example timer runs the service daily at 20:00 local time. Choose a
+schedule that works for you:
 
 ```ini
+# ~/.config/systemd/user/keepassxc-backup.timer
 [Unit]
 Description=Daily KeePassXC backup delivery
 
@@ -634,7 +420,7 @@ Unit=keepassxc-backup.service
 WantedBy=timers.target
 ```
 
-Set the modes, reload the user units, and enable the timer:
+Create the unit directories, set permissions, and enable the chosen timer:
 
 ```bash
 mkdir -p ~/.local/bin ~/.config/systemd/user
@@ -645,87 +431,90 @@ systemctl --user daemon-reload
 systemctl --user enable --now keepassxc-backup.timer
 ```
 
-With `Persistent=true`, the timer catches up a missed calendar event when the
-user manager becomes active again. This machine has `Linger=no`, so there is no
-separate background run while the user manager is inactive; a missed event is
-usually handled at the next login/session. `Persistent` is not an application
-retry mechanism: if the service has run and failed, it is not retried
-automatically. The next attempt is the next scheduled run or a manual start.
+For a calendar timer, `Persistent=true` causes a missed service activation to
+run when the user manager becomes active again, if at least one event was
+missed while it was inactive. It does not retry a service that already ran and
+failed; the next attempt is the next scheduled run or a manual start.
 
-The service uses `Type=oneshot`. After success it normally shows
-`inactive (dead)`, which is the expected completed state. Check
-`Result=success` and the journal. Inspection commands:
+`Linger` controls whether the user manager starts at boot and remains active
+after logout. This affects whether user services can run without an active
+session. Choose the setting based on system requirements; `Linger=no` is not a
+universal recommendation for a backup timer. Check the schedule and state with:
 
 ```bash
 systemctl --user status keepassxc-backup.timer
 systemctl --user list-timers --all keepassxc-backup.timer
 systemctl --user status keepassxc-backup.service
-journalctl --user -u keepassxc-backup.service -n 50 --no-pager
+loginctl show-user "$USER" -p Linger
+journalctl --user -u keepassxc-backup.service -n 30 --no-pager
 ```
 
-To start the workflow manually:
+A successful `Type=oneshot` service normally shows `inactive (dead)` after
+completion. Check its result and journal entries. Do not start the service
+again until you understand the cause of a failure.
+
+## Troubleshooting
+
+### The wrapper reports that the live database is missing or there is more than one
+
+**Symptom:** the wrapper stops before creating a snapshot.
+
+**Cause:** it requires exactly one top-level regular, non-symlink `*.kdbx`.
+
+**Action:** inspect the live directory and determine why the database is missing
+or an extra file appeared. Do not automatically remove a conflict copy or
+select it as the live database without checking it.
+
+### Google Drive delivery fails
+
+When `rclone copy` fails, local rotation does not run and the snapshot remains
+in the backup directory. Check the remote name and path, OAuth authorization,
+network, and quota/API errors. If rclone reports an expired or invalid token,
+reauthorize with `rclone config reconnect gdrive:`. After fixing the cause, the
+next successful `rclone copy` can deliver the remaining files.
+
+### The timer did not run
+
+First check the unit state, next timer events, and Linger:
 
 ```bash
-systemctl --user start keepassxc-backup.service
+systemctl --user status keepassxc-backup.timer
+systemctl --user list-timers --all
+loginctl show-user "$USER" -p Linger
 ```
 
-Acceptance on ASUS B5402 passed on 2026-09-29: the service completed with
-`Result=success` and `ExecMainStatus=0`; the journal confirmed snapshot →
-delivery → rotation. The local KDBX count increased from 2 to 3; the new
-snapshot had mode `0600`, the current run's mtime, and byte-identical content
-to the live DB. The remote object count increased from 1 to 3. A controlled
-test with a second database confirmed that the conflict gate stops the
-workflow before snapshot, delivery, or rotation. The timer remained enabled
-and `active (waiting)` on its daily 20:00 schedule.
+Do not begin by enabling or starting the timer. First find out why the schedule
+did not run and whether the user manager was active.
 
-## What is deliberately not used
+### The rclone config permissions are too broad
 
-| Approach | Why it is not used |
-|----------|--------------------|
-| `rclone mount`, FUSE, VFS cache | Google Drive is not a live filesystem for an open database: the cache layer and desynchronization add a failure mode that does not exist when copying closed files. |
-| A permanently mounted Drive | Same, plus the database must not be opened from a network “disk”. |
-| `rclone sync` | `sync` deletes destination files that are missing at the source — it removes old remote copies and breaks the delivery-without-deletion scheme. |
-| Git/GitHub as live KDBX sync | A binary secret in a VCS widens the propagation surface and provides no version history inside the database. |
+Check the actual path with `rclone config file` and its permissions with
+`stat`. If the config contains credentials, only its owner should be able to
+read it (`0600`). Do not publish its contents.
 
-## Troubleshooting and rollback
+## Disable backup automation
 
-- rclone reports an expired or invalid token — re-issue the authorization:
-  `rclone config reconnect gdrive:`.
-- `429` responses (rate limit) mean the Google Drive API quota/rate limit
-  has been hit and can occur for various reasons. Check the rclone error
-  text, the project quotas in the Cloud Console, and that the remote uses
-  your own OAuth client rather than the shared built-in client_id.
-- `rclone.conf` permissions wider than `600` — fix them:
-  `chmod 600 ~/.config/rclone/rclone.conf`.
+To stop the schedule, disable the user timer:
 
-Rollback:
+```bash
+systemctl --user disable --now keepassxc-backup.timer
+```
 
-- in KeePassXC, turn off the automatic backup if it is no longer needed;
-  the local `~/Backups/KeePassXC` directory can be removed separately if
-  you want;
-- remove the `gdrive` remote from the local rclone configuration
-  (`rclone config delete gdrive`) only if you really do not need it —
-  removing the remote from the configuration does not touch the files in
-  Google Drive;
-- the backup files in `gdrive:Backups/KeePassXC/` stay in Drive until you
-  decide to delete them separately; the regular rollback of the setup does
-  not delete them.
+Turn off KeePassXC's backup-before-save separately if you no longer need it.
+Removing the `gdrive` remote from the local config with
+`rclone config delete gdrive` does not delete files from Google Drive. Local
+and remote backups remain until you decide to remove them separately.
 
 ## Related docs
 
-- [KeePassXC phone sync with Android via Syncthing](../keepassxc-phone-sync/) — live sync and conflict recovery status.
-- [ASUS B5402 applications](../../systems/asus-b5402/applications/) — the verified machine state.
-- [KeePassXC Quick Unlock via polkit](../../troubleshooting/keepassxc-quick-unlock-polkit/) — fingerprint database unlock.
+- [KeePassXC phone sync with Android via Syncthing](../keepassxc-phone-sync/) — live sync and separate conflict recovery.
+- [Applications on ASUS ExpertBook B5402](../../systems/asus-b5402/applications/) — the reference system's actual backup settings.
 
 ## References
 
-- [rclone: Google Drive](https://rclone.org/drive/) — the backend, scopes,
-  your own client_id; the shared client_id retirement during 2026.
-- [rclone docs](https://rclone.org/docs/) — the `copy`, `copyto`, `mkdir`,
-  `deletefile`, `config` commands.
-- [Google: OAuth 2.0](https://developers.google.com/identity/protocols/oauth2) —
-  refresh token expiration: Testing — 7 days, In production — no such
-  limitation.
-- [rclone OAuth branding site source](https://github.com/vovanbl411/rclone-oauth-pages) — source for the static OAuth homepage/privacy site.
-- [net-misc/rclone](https://packages.gentoo.org/packages/net-misc/rclone) — the Gentoo package.
-- [KeePassXC](https://github.com/keepassxreboot/keepassxc) — the upstream project.
+- [rclone: Google Drive](https://rclone.org/drive/) — OAuth client, scopes, and the Drive backend.
+- [rclone commands](https://rclone.org/commands/) — `copy`, `copyto`, `sync`, and remote configuration semantics.
+- [Google OAuth 2.0: refresh token expiration](https://developers.google.com/identity/protocols/oauth2) — limitations on `Testing` status.
+- [Google OAuth 2.0 policies](https://developers.google.com/identity/protocols/oauth2/policies) — homepage and branding requirements for production apps.
+- [KeePassXC User Guide](https://keepassxc.org/docs/KeePassXC_UserGuide) — backup-before-save and filename placeholders.
+- [systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html) and [loginctl](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html) — `Persistent` and Linger.
