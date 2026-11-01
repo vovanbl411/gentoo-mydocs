@@ -1,8 +1,8 @@
 ---
 title: "Docker и Libvirt: диагностика forwarding через nftables"
 kind: troubleshooting
-scope: mixed
-status: draft
+scope: general
+status: current
 last_verified: "2026-10-31"
 verified_on: [asus-b5402]
 ---
@@ -39,13 +39,6 @@ ip6tables --version
 Docker 29 и выбирается явно. Вывод `iptables --version` с `nf_tables` означает
 iptables frontend поверх nftables, а не native Docker backend.
 
-На ASUS B5402 установлен Docker client 29.9.0, но `docker.service` и
-`docker.socket` сейчас не запущены, поэтому активный backend нельзя получить
-через `docker info`. `/etc/docker/daemon.json` отсутствует, unit не задаёт
-перечисленные параметры, а `Environment` пуст; при следующем запуске ожидается
-Docker default `iptables`, но это не подтверждение работающего сейчас backend.
-`iptables` и `ip6tables` — версии 1.8.13 с реализацией `legacy`.
-
 ## 4. Причина
 
 Разделяй этапы packet path:
@@ -60,19 +53,6 @@ Docker default `iptables`, но это не подтверждение рабо�
 - Настройки сети Libvirt задают виртуальный интерфейс и маршрут, а для NAT
   сети — правила NAT. Они не заменяют Docker rules и наоборот.
 
-Предыдущая версия документа связывала исходный симптом с forwarding firewall
-path между правилами Docker и Libvirt, но доступные сейчас данные не позволяют
-подтвердить конкретную chain или точную причину блокировки. На ASUS B5402 сейчас
-оба forwarding sysctl равны `0`, а
-iptables `FORWARD` имеет policy `ACCEPT` и содержит только правила NetBird;
-`DOCKER-USER` и Docker chains отсутствуют. Live nftables ruleset содержит
-локальные таблицы `ip nat`, `ip gentoo_bridge_libvirt` и `ip tailscale_nat`, но
-не содержит Docker tables или отдельных Libvirt-generated tables. В `ip nat`
-есть masquerade для VM. Единственная base chain на hook `forward` —
-`gentoo_bridge_libvirt/bypass_docker` с priority `-10` и policy `accept`;
-counters в ней не заданы. Поэтому прежний симптом нельзя сейчас приписать
-активному Docker `drop`.
-
 ## 5. Исправление
 
 Сначала установи backend и точку `drop`, затем выбирай решение для этого backend.
@@ -81,18 +61,12 @@ counters в ней не заданы. Поэтому прежний симпто
   `DOCKER-USER`, затем через Docker-managed forwarding chains. `DOCKER-USER` —
   место для пользовательского правила, которое должно выполняться до правил
   Docker. Подбирай правило только после проверки интерфейсов, адресов и
-  направления проблемного пакета. Для ASUS B5402 конкретное правило здесь не
-  приведено: работающий Docker path сейчас недоступен для проверки.
+  направления проблемного пакета.
 - При native backend `nftables` цепочки `DOCKER-USER` нет. `accept` в ранней
   отдельной base chain завершает только эту chain; более поздняя base chain
   всё ещё может отбросить пакет. Используй только механизм, который Docker
   документирует для подтверждённого native-backend случая; не переноси сюда
   iptables rule.
-
-Текущий `/etc/nftables/rules/libvirt_fix.nft` на ASUS B5402 содержит
-`priority -10 accept`. Это не отменяет более поздний Docker `drop` и не
-является подтверждённым исправлением. Файл входит в локальный ruleset, но его
-наличие не доказывает, что forwarding сейчас работает.
 
 ## 6. Проверка
 
@@ -121,11 +95,6 @@ doas nft list ruleset
 Диагностические команды выше не меняют систему. Если позднее будет применено
 подтверждённое правило, откати только это правило тем же backend и восстанови
 только изменённый source file из резервной копии.
-
-На ASUS B5402 source ruleset загружает активный `nftables.service` из
-`/etc/nftables/rules/main.nft`; это machine-specific реализация, а не общий
-Gentoo service contract. Перед восстановлением проверь синтаксис, затем
-используй unit, описанный на [системной странице](../../systems/asus-b5402/networking/networkmanager-and-libvirt/).
 
 ## Связанные материалы
 
