@@ -3,20 +3,19 @@ title: "Firefox: native Gentoo/Wayland application"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-09-22"
+last_verified: "2026-11-01"
 verified_on: [asus-b5402]
 ---
 
-Firefox в Gentoo можно собрать Clang'ом, при необходимости с PGO, и запустить
-как Wayland-приложение с аппаратным ускорением. `profile-sync-daemon` остаётся
-необязательной оптимизацией профиля:
+USE-флаги задают возможности, включённые в сборку Firefox. Wayland, графику и
+аудио проверяй отдельно в работающем браузере. `profile-sync-daemon` можно
+подключить, если нужна рабочая копия профиля в памяти:
 
 ```text
-Firefox from Gentoo
-→ Clang
-→ optional PGO
-→ Wayland
-→ hardware acceleration
+текущий ebuild
+→ выбранные USE-возможности
+→ сборка
+→ проверка runtime
 → optional profile-sync-daemon
 ```
 
@@ -31,79 +30,67 @@ USE-флаги определяют возможности собранного 
 
 | USE-флаг | Назначение |
 |----------|------------|
-| `clang` | Собирает Firefox LLVM/Clang toolchain. |
-| `pgo` | Строит оптимизированный бинарный файл по результатам профилирования и заметно увеличивает время сборки. |
-| `jumbo-build` | Относится к процессу сборки: объединяет исходные файлы для компиляции. Это не самостоятельное обещание ускорения Firefox при работе. |
-| `hwaccel` | Добавляет поддержку аппаратного ускорения; её работа зависит также от драйвера, Mesa, VA-API и runtime. |
-| `wayland` | Добавляет Wayland backend. |
-| `pulseaudio` | Добавляет Firefox audio backend через libpulse/apulse. PipeWire может обслуживать его через PulseAudio-compatible runtime. |
-| `system-pipewire` | Использует системную `media-video/pipewire` для WebRTC и screencast вместо bundled library. |
-| `system-*` libraries | Используют системные библиотеки, когда это поддерживает ebuild: например, AV1, HarfBuzz, ICU, JPEG, libevent, libvpx, PNG и WebP. |
+| `clang` | Собирает Firefox с LLVM/Clang. |
+| `pgo` | Включает Profile-Guided Optimization во время сборки, увеличивает её длительность и требует `jumbo-build`. |
+| `jumbo-build` | Меняет ход сборки, объединяя исходные файлы для компиляции; сам по себе не обещает ускорения Firefox при работе. |
+| `hwaccel` | Добавляет настройки Gentoo, которые принудительно включают аппаратный рендеринг. Фактическое состояние зависит от Firefox, Mesa и графического стека. |
+| `wayland` | Добавляет native Wayland backend; текущий ebuild также требует `dbus`. |
+| `pulseaudio` | Выбирает обычный аудиобэкенд Firefox через `libpulse` или `apulse`. PipeWire может предоставить `libpulse` совместимый интерфейс. |
+| `system-pipewire` | Использует системную `media-video/pipewire` для WebRTC и screencast. Этот флаг не выбирает обычный вывод звука Firefox. |
+| `system-*` | Набор и defaults зависят от текущего ebuild; смотри его перед выбором системных библиотек. |
 | `wasm-sandbox` | Включает RLBox/WebAssembly sandbox для поддерживаемых сторонних библиотек. |
-| `wifi`, `jpegxl`, `telemetry` | Не являются универсальной политикой: включай или отключай их по требуемым возможностям и после проверки текущего ebuild. |
+| `-telemetry` | Отключает Mozilla build/data-reporting options и устанавливает Gentoo prefs для telemetry. Это не гарантирует отсутствие любых сетевых запросов. |
 
-`USE=-telemetry` собирает Firefox с отключёнными Mozilla
-data-reporting/telemetry build options. Это не следует трактовать как
-абсолютную гарантию отсутствия любых сетевых служебных запросов браузера.
+Перед изменением USE проверь доступные флаги и план Portage для текущего дерева:
+
+```bash
+emerge --pretend --verbose www-client/firefox
+```
+
+В проверенном ebuild действуют условия `|| ( X wayland )`,
+`pgo? ( jumbo-build )`, `wayland? ( dbus )` и `wifi? ( dbus )`. Они могут
+меняться вместе с ebuild.
 
 ## Wayland and acceleration
 
-Для native Wayland Firefox достаточно `USE=wayland`. `USE=-X` имеет смысл
-только в сознательно выбранной pure Wayland-системе, где не нужен X11 backend;
-это не обязательное условие Wayland Firefox.
+`USE=wayland` добавляет native Wayland backend. Текущий ebuild требует хотя бы
+один backend: `X` или `wayland`. `USE=-X` отключает X11 backend и подходит для
+сборки Firefox без X11; используй его только при включённом `wayland`. Для
+native Wayland этот флаг не обязателен.
 
-`USE=hwaccel` лишь добавляет build support. Проверь отдельно runtime: драйвер
-ядра, Mesa, VA-API и настройки Firefox. `USE=pulseaudio` описывает Firefox
-audio backend через libpulse/apulse, а runtime PipeWire может предоставить ему
-PulseAudio-compatible layer. `USE=system-pipewire` отдельно выбирает системную
-`media-video/pipewire` для WebRTC и screencast вместо bundled library.
+При `USE=hwaccel` ebuild Gentoo устанавливает preferences, которые
+принудительно включают аппаратный рендеринг. Это настройка сборки, а не
+гарантия, что Firefox действительно использует GPU. Проверь результат в
+Firefox: **Справка → Информация для решения проблем** (`about:support`).
+Посмотри `Window Protocol`,
+`Compositing`, состояние graphics/WebRender и, если нужно, audio/media.
 
 Ассоциации Firefox для HTTP(S), HTML и PDF настраиваются через
 [приложения по умолчанию (XDG MIME)](../../desktop/default-applications/).
 
-## Example package.use
-
-Это пример набора возможностей, а не универсальная рекомендуемая policy.
-Сверь флаги с текущим ebuild и выбери только необходимые:
-
-Файл: `/etc/portage/package.use/40-multimedia`
-
-```makefile
-media-libs/libpng          apng
-media-libs/libvpx          postproc
-www-client/firefox         clang pgo jumbo-build hwaccel wayland pulseaudio openh264 system-pipewire wasm-sandbox system-av1 system-harfbuzz system-icu system-jpeg system-libevent system-libvpx system-webp system-png -telemetry -wifi -jpegxl
-```
-
-Если X11 backend действительно не нужен, добавь `-X` отдельным осознанным
-решением после проверки зависимостей приложений.
-
 ## Optional: profile-sync-daemon
 
-`profile-sync-daemon` временно размещает профиль браузера в tmpfs или overlay,
-а persistent state синхронизирует обратно. Это уменьшает записи в постоянное
-хранилище во время сессии, но требует понимать его расход памяти и поведение
-синхронизации при завершении работы или уходе в сон.
+`profile-sync-daemon` — необязательный механизм для рабочей копии профиля:
+постоянный профиль Firefox ↔ PSD ↔ tmpfs или overlayfs. Во время сессии рабочая
+копия находится в памяти и может уменьшить число записей в постоянный профиль;
+практическая польза зависит от нагрузки. SSD сам по себе не делает PSD
+необходимым.
 
-Файл: `~/.config/psd/psd.conf`
-
-```bash
-# Использовать Overlayfs
-USE_OVERLAYFS="yes"
-# Синхронизация при уходе в сон
-USE_SUSPSYNC="yes"
-# Только необходимый браузер
-BROWSERS=(firefox)
-```
+Перед первым запуском сделай резервную копию профиля. В текущем конфиге PSD
+добавь Firefox в список браузеров. Overlayfs — отдельный режим, а
+`USE_SUSPSYNC` задаёт синхронизацию при suspend. Проверь синтаксис и остальные
+параметры в [документации upstream](https://github.com/graysky2/profile-sync-daemon).
 
 ## Verification
 
 ```bash
-systemctl --user status psd.service
+systemctl --user status psd.service --no-pager
 ```
 
-Проверь в Firefox выбранный Wayland backend, доступность аппаратного ускорения
-и работу аудио/WebRTC в используемом runtime. Для PSD проверь статус
-пользовательского unit и ожидаемую точку монтирования его профиля.
+Проверяй Firefox через **Справка → Информация для решения проблем**
+(`about:support`): `Window Protocol`, `Compositing`, graphics/WebRender и при
+необходимости audio/media. Команда `systemctl` нужна только если ты используешь
+PSD; проверка build flags сама по себе не показывает runtime-состояние.
 
 ## Related docs
 

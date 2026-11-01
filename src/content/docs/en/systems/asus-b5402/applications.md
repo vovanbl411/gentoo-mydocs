@@ -22,13 +22,33 @@ integration matters.
   enabled.
 - **Vicinae** — `gui-apps/vicinae` from
   [vicinae-overlay](https://github.com/vovanbl411/vicinae-overlay).
-- **Firefox** — `www-client/firefox`; USE flags `wayland`, `pgo`, and
-  `hwaccel` are enabled. The `hwaccel` flag adds hardware-acceleration support
-  at build time. `profile-sync-daemon` is configured to use overlayfs for the
-  Firefox profile; see the [Firefox guide](../../../settings/firefox/).
+- **Firefox** — `www-client/firefox`; current package policy and
+  `profile-sync-daemon` state are described below. See the [Firefox
+  guide](../../../settings/firefox/) for general setup.
 - **KeePassXC** — `app-admin/keepassxc`; the working database stays on local
   storage, with sync and backup architecture described below.
 - **Thunderbird** — `mail-client/thunderbird`; current state is described below.
+
+### Firefox
+
+- The build uses Clang (`clang`) and the native Wayland backend (`wayland`);
+  the X11 backend is disabled (`-X`). The ebuild requires at least one backend:
+  `X` or `wayland`.
+- PGO (`pgo`) is enabled, along with the `jumbo-build` required by the ebuild.
+- `hwaccel` installs Gentoo preferences that force-enable hardware-accelerated
+  rendering. Check the actual graphics state separately in Firefox under **Help →
+  Troubleshooting Information** (`about:support`).
+- `pulseaudio` selects Firefox's audio backend through `libpulse`/`apulse`;
+  `system-pipewire` uses the system PipeWire library for WebRTC and screencast,
+  but does not select ordinary audio output.
+- `-telemetry` disables Mozilla build/data-reporting options and installs
+  Gentoo telemetry preferences; it does not guarantee the absence of all
+  network requests. `wasm-sandbox` is enabled.
+- Heavy Firefox builds receive `p-cores ssd` through
+  `/etc/portage/package.env/10-performance`. See the [Toolchain
+  section](../system/boot-and-portage/#toolchain) for these package environments.
+- `profile-sync-daemon` is installed. Firefox is listed in `BROWSERS`, with
+  overlayfs and sync on suspend enabled. The `psd.service` user unit is enabled.
 
 ### Thunderbird
 
