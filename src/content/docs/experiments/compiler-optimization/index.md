@@ -3,20 +3,20 @@ title: Эксперименты compiler optimization
 kind: reference
 scope: system
 status: current
-last_verified: null
+last_verified: "2026-11-01"
 verified_on: [asus-b5402]
 ---
 
-Здесь собраны завершённые empirical experiments по compiler/CPU optimization
-policy. Каждое сравнение хранит вопрос, методику, результаты, ограничения и
-подробную evidence на одной странице.
+Страницы экспериментов — исторические записи с условиями, результатами и
+ограничениями измерений. Таблица кратко показывает решения, принятые по этим
+данным для ASUS B5402 и `gentoo-builder-01`; текущую конфигурацию см. в
+системных документах.
 
-| Эксперимент | Главный вопрос | Принятое production decision |
-|-------------|----------------|-----------------------------|
-| [Global `-O2` vs `-O3`](./o2-vs-o3/) | Нужен ли global `-O3`? | Global `-O2`; ThinLTO где поддерживается; selective `-O3` только после package-specific benchmark. По B1–B4 selective rules не созданы. |
-| [`alderlake` vs `x86-64-v3`](./alderlake-vs-x86-64-v3/) | Насколько значима runtime penalty portable `x86-64-v3` для binpkg отдельного build host? | ASUS B5402 остаётся на `-march=alderlake`; `gentoo-builder-01` использует portable `-march=x86-64-v3` для userspace binpkg. |
+| Эксперимент | Что проверяли | Принятое решение |
+|-------------|---------------|------------------|
+| [Global `-O2` vs `-O3`](./o2-vs-o3/) | Нужен ли глобальный `-O3`? | Глобальный `-O2`; ThinLTO — если это допускает политика пакета/ebuild. Selective `-O3` — только после отдельного benchmark со значимым и воспроизводимым практическим выигрышем. По B1–B4 selective rules не созданы. |
+| [`alderlake` vs `x86-64-v3`](./alderlake-vs-x86-64-v3/) | Есть ли практически значимая runtime-регрессия у `x86-64-v3` в проверенных workloads? | Workstation userspace — `-march=alderlake`; portable userspace binpkg builder — `-march=x86-64-v3`. В проверенных workloads практически значимой runtime-регрессии V3 не обнаружено. Это поддерживает policy builder в пределах измерений, но не доказывает эквивалентность targets и не даёт основания менять target workstation. |
 
-Эти записи объясняют измеренные основания и границы решений. Текущая
-конфигурация и эксплуатация остаются в документации
-[workstation](../../systems/asus-b5402/system/boot-and-portage/) и
+Текущая реализация описана в системных документах: [CPU workstation](../../systems/asus-b5402/hardware/cpu-optimization/),
+[Portage workstation](../../systems/asus-b5402/system/boot-and-portage/) и
 [builder](../../systems/gentoo-builder-01/).
