@@ -2,14 +2,14 @@
 title: "Intel graphics stack on Gentoo: i915, Xe and Mesa"
 kind: guide
 scope: general
-status: draft
-last_verified: "2026-09-27"
+status: current
+last_verified: "2026-11-01"
 verified_on: [asus-b5402]
 ---
 
 This guide explains how to distinguish Intel graphics stack build settings
 from the GPU's actual state, and how to prepare a verifiable switch from
-`i915` to `xe` when it applies to device. A working system does not
+`i915` to `xe` when it applies to the device. A working system does not
 require the switch, and it does not guarantee better speed or smoothness.
 
 ## 1. What makes up the Intel graphics stack
