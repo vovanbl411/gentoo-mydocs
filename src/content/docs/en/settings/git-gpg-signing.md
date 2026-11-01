@@ -3,52 +3,53 @@ title: Signing Git commits with GPG
 kind: guide
 scope: general
 status: current
-last_verified: null
+last_verified: "2026-11-01"
 verified_on: []
 ---
 
-To sign new commits and get `Verified` on a forge, configure your Git identity,
-select a GPG signing key, and add its public part to your account.
-The committer email must match an email in a key UID and belong to the account.
+This setup signs new commits with OpenPGP/GnuPG. To get `Verified` on GitHub
+or GitLab, the forge's requirements for the public key, committer email, and
+account must also be met.
 
 This guide is for Linux with Git and GnuPG installed, an available secret
-signing key, and working pinentry for entering the passphrase.
-Key creation is covered by the official instructions at the end of this page.
-The keyboxd section applies only when using that GnuPG component.
+signing key, and working pinentry for entering the passphrase. Key creation is
+covered by the official instructions at the end of this page. The keyboxd
+section applies only when GnuPG uses that component.
 
-All names, emails, numeric IDs, and fingerprints below are fictional examples.
-Replace them with your own values. In commands, `<fingerprint>` and `<PID>`
-are placeholders: replace them entirely, including the angle brackets.
+All names, email addresses, numeric IDs, and fingerprints in the examples are
+fictional. Replace them with your own values. In commands, `<fingerprint>` and
+`<PID>` are placeholders; replace them entirely, including the angle brackets.
 
 > **Important**: you can publish the public key. Never upload the private key
-> or GPG passphrase to GitHub/GitLab or publish them; the private key stays
-> on the local system. The export below outputs only the public part.
+> or GPG passphrase to GitHub/GitLab or publish them; the private key stays on
+> the local system. The export command below outputs only the public part.
 
 ## 1. What is signed
 
-- Git creates a commit and records the author/committer identity.
-- GPG cryptographically signs the commit contents, including those fields.
-- GitHub, GitLab, or another forge verifies the signature and associates it
-  with an account according to its own rules.
+- Git records the author and committer identities in a commit. They may differ,
+  for example when applying someone else's patch.
+- When creating a signed commit, the committer creates the signature. It covers
+  the commit, including its author and committer fields.
+- Local verification confirms that the commit signature is cryptographically
+  valid for the corresponding key. It does not identify a GitHub/GitLab account
+  by itself or confirm the consent of an author who differs from the committer.
 
-The email matching model:
+The forge matches identities like this:
 
 ```text
-Git commit email
+Git committer email
         ↓
-GPG UID email
+email in the OpenPGP key UID
         ↓
-forge account email
+verified email and forge account rules
 ```
 
-A cryptographically valid signature confirms signing by that key.
-The `Verified` status also depends on the forge's rules. For GitHub and GitLab,
-the **committer** email matters: it must appear in a UID of the uploaded
-public key and be verified on the account. For a private email, use
-the address issued by the forge itself in your account settings; the GitHub
-example below does not apply to GitLab.
-See the [GitHub rules](https://docs.github.com/en/authentication/troubleshooting-commit-signature-verification/using-a-verified-email-address-in-your-gpg-key)
-and [GitLab rules](https://docs.gitlab.com/user/project/repository/signed_commits/gpg/).
+GitHub and GitLab check the committer email according to their own rules. A
+local `Good signature` does not guarantee `Verified` on a forge: the public
+key, committer email, and the account's verified email must match its rules.
+See the [GitHub](https://docs.github.com/en/authentication/troubleshooting-commit-signature-verification/using-a-verified-email-address-in-your-gpg-key)
+and [GitLab](https://docs.gitlab.com/user/project/repository/signed_commits/gpg/)
+documentation.
 
 ## 2. Basic Git configuration
 
@@ -64,7 +65,12 @@ File: `~/.gitconfig`.
     gpgsign = true
 ```
 
-You can write the same settings with commands:
+The fingerprint is fictional. The address `123456+example@users.noreply.github.com`
+shows the GitHub noreply format and is GitHub-specific. For GitLab, use the
+account's verified email. If you do not want to expose your regular address,
+you can use the GitLab private commit email issued for your account.
+
+You can set the same values with commands:
 
 ```bash
 git config --global user.name 'Example User'
@@ -73,26 +79,41 @@ git config --global user.signingkey '0123456789ABCDEF0123456789ABCDEF01234567'
 git config --global commit.gpgsign true
 ```
 
-Global config is a basic example, not a required choice. For one repository,
-run the commands inside it with `--local` instead of `--global`.
-Before editing, save the previous values so you can restore them if needed.
-`commit.gpgsign = true` enables signing new commits by default.
+Global configuration is an example, not a required scope. For one repository,
+run the commands inside it with `--local`. Repository-local configuration can
+override global values; check the effective settings from the target repository
+with `git config --show-origin`.
 
-The example assumes OpenPGP, Git's default format. If SSH/X.509 signing was
-configured previously, set `gpg.format = openpgp` in the selected scope.
-If Git invokes a different executable, check `gpg.program`.
-The options are documented in [git-config](https://git-scm.com/docs/git-config).
+A full fingerprint helps select the intended key precisely. Git also accepts
+other key identifiers supported by GnuPG. Do not copy real fingerprints from
+other people's configurations or examples.
+
+Git defaults to `gpg.format = openpgp`, so you do not need to set it explicitly
+for a standard OpenPGP setup. Set it in the relevant scope if a different format,
+such as SSH or X.509, was configured previously:
+
+```ini
+[gpg]
+    format = openpgp
+```
+
+`gpg.program` is a legacy alias for `gpg.openpgp.program`. You normally do not
+need to change it; check it if Git should call a different compatible program.
+See [git-config](https://git-scm.com/docs/git-config).
+
+`commit.gpgsign = true` enables signing for new commits created after the
+setting takes effect. It does not rewrite existing history.
 
 ## 3. Multiple UIDs on a personal key
 
-One personal GPG key can have multiple UIDs:
+One personal OpenPGP key can have multiple UIDs with different email addresses:
 
 ```text
 Example User <user@example.com>
 Example User <123456+example@users.noreply.github.com>
 ```
 
-To add a second email:
+The second address is a GitHub-specific noreply email. To add a UID:
 
 ```bash
 gpg --edit-key <fingerprint>
@@ -106,37 +127,31 @@ gpg> adduid
 gpg> save
 ```
 
-In place of `...`, answer GPG's prompts: the name `Example User`, the new email
-`123456+example@users.noreply.github.com`, an optional comment,
-UID confirmation, and the passphrase if requested.
-After saving, check the UIDs and export the updated public key:
+In place of `...`, answer GPG's prompts: enter a name, the new email, and an
+optional comment, then confirm the UID. After saving, check the UIDs and export
+the updated public key:
 
 ```bash
 gpg --list-keys <fingerprint>
 gpg --armor --export <fingerprint>
 ```
 
-Re-upload/update the public part of the key in the GPG keys settings of every
-forge where the new identity is needed. While a forge stores the old copy,
-it cannot see the new UID. If the service does not allow editing a key,
-replace the uploaded public copy according to its instructions; GitLab
-requires removing and adding it again.
-See [adding a UID in GitHub Docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/associating-an-email-with-your-gpg-key)
-and [managing GPG keys in GitLab](https://docs.gitlab.com/user/project/repository/signed_commits/gpg/#add-a-gpg-key-to-your-account).
+Update the public copy of the key on each forge where you need the new identity.
+Until the forge has the updated copy, it cannot see the added UID. GitLab does
+not let you edit an uploaded key; remove it from the account and add the updated
+copy. See [adding a UID on GitHub](https://docs.github.com/en/authentication/managing-commit-signature-verification/associating-an-email-with-your-gpg-key)
+and [managing GPG keys on GitLab](https://docs.gitlab.com/user/project/repository/signed_commits/gpg/).
 
 ## 4. Personal and work identities
 
-- For multiple personal GitHub/GitLab identities, one personal key with
-  multiple UIDs can be a reasonable, simple solution. Check key registration
-  rules for each account/forge.
-- For a separate employer / corporate identity, a separate signing key is
-  usually easier to manage: expiration, revocation, and changing jobs do not
-  affect the personal key. Follow your employer's requirements.
+- Multiple personal email addresses in one key let you use one identity with
+  different addresses. This is not a security problem by itself; check key
+  registration rules for each account and forge.
+- A separate key for a corporate identity can make expiration, revocation, and
+  job changes easier to manage. This is a recommendation, not a universal
+  requirement; follow your organization's rules.
 
-This is a recommendation for separating the lifecycles of personal and work
-identities. Multiple UIDs on one key do not by themselves make it unsafe.
-
-## 5. Selecting the work identity automatically with includeIf
+## 5. Selecting a work identity with includeIf
 
 File: `~/.gitconfig`.
 
@@ -162,50 +177,61 @@ File: `~/.gitconfig-work`.
     signingkey = WORK_KEY_FINGERPRINT
 ```
 
-Replace `PERSONAL_KEY_FINGERPRINT` and `WORK_KEY_FINGERPRINT` with the full
-fingerprints of the corresponding keys. Place `includeIf` after the base values.
-Git automatically applies the work identity to ordinary repositories inside
-`~/work/`, including nested directories; signing remains enabled.
+Replace `PERSONAL_KEY_FINGERPRINT` and `WORK_KEY_FINGERPRINT` with the
+fingerprints of the corresponding keys. The `gitdir:` condition matches the
+pattern against the location of the Git directory. In this example, the
+trailing `/` extends the match to Git directories inside `~/work/` and its
+subdirectories. Git inserts included values where the directive appears, so
+place `includeIf` after the base values.
 
-The condition checks the Git directory location, so for a linked worktree
-it uses the administrative directory path in the main repository. Local
-repository settings can override the included values: check the effective
-config inside the target repository.
-See [conditional includes](https://git-scm.com/docs/git-config#_conditional_includes).
-To roll back, remove this `includeIf` and restore the previous identity.
+The target repository's local config can override included values. Check the
+effective settings from that repository with `git config --show-origin`. To
+roll back, remove the `includeIf` directive and restore the previous identity.
+See
+[conditional includes in Git](https://git-scm.com/docs/git-config#_conditional_includes).
 
-## 6. Verified, Unverified, and bad_email
+## 6. GitHub and GitLab statuses, and `bad_email`
 
-A typical mismatch:
+Without GitHub Vigilant Mode:
 
-```text
-commit email: 123456+example@users.noreply.github.com
-GPG UID:     Example User <user@example.com>
-```
+- `Verified` means the commit is signed and the signature was verified.
+- `Unverified` means the commit is signed but the signature could not be
+  verified.
+- Unsigned commits have no verification status.
 
-The signature exists and can be cryptographically valid, but the forge
-cannot match the committer email to a key UID. The GitHub REST API reports
-a committer email missing from the key identities as `bad_email`;
-this is not a universal error name across forges.
-See [verification reasons in the GitHub API](https://docs.github.com/en/rest/commits/commits#get-a-commit).
+With Vigilant Mode enabled, GitHub also shows `Partially verified`. This can
+happen when a signature is cryptographically verified but an author who differs
+from the committer has enabled Vigilant Mode: the committer's signature does not
+confirm that author's consent. See GitHub's documentation on
+[verification statuses](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification)
+and [Vigilant Mode](https://docs.github.com/en/authentication/managing-commit-signature-verification/displaying-verification-statuses-for-all-of-your-commits).
 
-Check the key, the source of the current setting, and the last commit's fields:
+The GitHub REST API uses `bad_email` when the commit's committer email is not
+included in the identities of the PGP key that signed the commit. This is a
+GitHub-specific API reason, not a general GPG, Git, or GitLab error. Other
+GitHub reasons include an unverified account email or no associated user. See
+[verification reasons in the GitHub REST API](https://docs.github.com/en/rest/commits/commits#list-commits).
 
-```bash
-gpg --list-keys <fingerprint>
-git config --show-origin --get user.email
-git log -1 --format='author:    %an <%ae>%ncommitter: %cn <%ce>'
-```
+For GitLab to mark a commit as verified:
 
-The name can differ; the email matters for this mismatch. The current
-`user.email` does not change an existing commit. Add the required UID and update
-the public key on the forge, or choose an already matched email for new commits.
-If the email is in a UID but is not verified on the account, fix that in the
-forge settings.
+- The public key must be uploaded to the GitLab account.
+- An email in the key's UID must match a verified email on the account.
+- The commit's committer email must match that verified email.
+- A revoked UID cannot be used for verification; GitLab ignores its email.
+
+To avoid exposing your regular email in commits, GitLab lets you use the
+[private commit email](https://docs.gitlab.com/user/project/repository/signed_commits/gpg/)
+issued for your account. Do not substitute a GitHub noreply address.
 
 ## 7. keyboxd and stale locks
 
-A characteristic failure pattern:
+This section applies only when GnuPG uses keyboxd, enabled by the
+`use-keyboxd` option in `common.conf`. The path
+`~/.gnupg/public-keys.d/pubring.db.lock` belongs to the keyboxd database layout
+with the default GnuPG home. Paths may differ with another `GNUPGHOME`, backend,
+or version.
+
+A characteristic error is:
 
 ```text
 gpg: database_open ... waiting for lock (held by <PID>)
@@ -213,13 +239,8 @@ gpg: keydb_search failed: Connection timed out
 gpg: signing failed: Connection timed out
 ```
 
-keyboxd protects the key database with a lock file. If a process exits
-incorrectly, a stale lock can remain and block the next process.
-A timeout alone does not prove a stale lock: establish the owner first.
-The paths below assume the default GnuPG home `~/.gnupg`; for a different
-`GNUPGHOME`, use the corresponding paths.
-
-First collect evidence, substituting the PID from the message / lock file:
+A timeout alone does not prove that the lock is stale. Establish the owner
+first. Substitute the PID from the message or lock file:
 
 ```bash
 ps -o pid,ppid,user,stat,lstart,etime,cmd -p <PID>
@@ -228,90 +249,84 @@ cat ~/.gnupg/public-keys.d/pubring.db.lock 2>/dev/null
 ls -la ~/.gnupg/public-keys.d/
 ```
 
-> **Important**: do not start by using `rm` on lock files or use `kill -9`
-> without establishing the lock owner. Removing an active lock can disrupt
-> database operations.
+Compare the PID and hostname in the lock file with processes in the relevant
+host and PID namespace. A PID missing from the current machine is not enough if
+another host or namespace may have used the directory. The PID may have been
+reused, so check the process owner, command, and start time. If an operation is
+still running, wait for it to finish.
 
-Check the PID and hostname in the lock file. A missing PID on the current
-machine is insufficient if another host or PID namespace uses the directory.
-If the process exists, check its owner, command, and start time;
-the PID may have been reused. If an operation is active, wait for it to finish.
+> **Important**: do not start by removing lock files with `rm` or using
+> `kill -9` before identifying the lock owner; removing an active lock can
+> disrupt database operations. Bulk deletion of `.#lk*` files is not a routine
+> fix either.
 
-Only when the PID from `pubring.db.lock` no longer exists in the relevant
-environment, the lock is proven stale, and the database is not in use, run:
+`gpgconf --kill keyboxd` is not part of ordinary stale-lock recovery. If
+separate diagnosis shows that you must stop a running keyboxd before unlocking,
+first make sure no operation is active and no other client will start the daemon
+concurrently:
 
 ```bash
 gpgconf --kill keyboxd
+```
+
+If manual removal of a proven stale lock is necessary and the protected file is
+not in use, run only the supported unlock command:
+
+```bash
 gpgconf --unlock pubring.db
 ```
 
-Before unlocking, check the process list again: keyboxd must be stopped,
-and other clients must not launch it concurrently. The next normal GPG
-operation, such as `gpg --list-keys <fingerprint>`, automatically starts
-keyboxd again with the default autostart enabled. Then repeat the signing
-check from the next section.
-The supported command is documented in [gpgconf](https://gnupg.org/documentation/manuals/gnupg26/gpgconf.1.html).
+`gpgconf --unlock` removes a stale lock for the named file. It is usually
+unnecessary because GnuPG can detect and remove stale locks itself. Before
+unlocking, make sure the protected file is not in use. See the [gpgconf manual](https://gnupg.org/documentation/manuals/gnupg26/gpgconf.1.html)
+and the [GnuPG upstream README](https://github.com/gpg/gnupg/blob/master/README).
 
-The `.#lk*` files are temporary lock files used by the dotlock mechanism;
-old instances can sometimes remain after incorrect cleanup. They are neither
-`pubring.db` nor keys. Bulk deletion of `.#lk*` is not a routine procedure;
-use the supported unlock command after diagnosis. If the timeout persists,
-collect evidence again; do not delete the database or keys.
-The mechanism is described in [upstream dotlock.c](https://github.com/gpg/gnupg/blob/master/common/dotlock.c).
+## 8. Verifying the result
 
-## 8. Validating the result
+Run these checks in the target repository:
 
-Run the checks in the target repository as an ordinary user:
-
-- [ ] The secret key is available for signing:
-
-  ```bash
-  gpg --list-secret-keys <fingerprint>
-  ```
-
-- [ ] The effective settings select the required email, key, and OpenPGP format:
+- Confirm the expected email, key, and signing settings. This command prints
+  Git config values; review its output before sharing it:
 
   ```bash
   git config --show-origin --get-regexp \
     '^(user\.email|user\.signingkey|commit\.gpgsign|gpg\.program|gpg\.format)$'
   ```
 
-  Missing `gpg.program` and `gpg.format` entries are normal with default values.
-
-- [ ] A test signature succeeds; enter the passphrase in pinentry if requested:
+- Confirm that the secret key is available for signing:
 
   ```bash
-  printf 'GPG signing test\n' |
-      gpg --armor --detach-sign \
-          --local-user <fingerprint> \
-          >/dev/null
+  gpg --list-secret-keys <fingerprint>
   ```
 
-- [ ] The last commit is signed and local verification succeeds:
+- Verify an existing signed commit locally:
 
   ```bash
   git log --show-signature -1
   ```
 
-  Expect `Good signature`. A warning about trust in the key owner is a separate
-  aspect of GPG's local trust model.
+  For a signed `HEAD`, you can also run `git verify-commit HEAD`. An expected
+  `Good signature` confirms local GnuPG's cryptographic check. A warning about
+  trust in the key owner concerns GnuPG's local trust model and does not set
+  the GitHub/GitLab status.
 
-- [ ] After the next signed commit and push, the forge shows `Verified` if the
-  email/key/account identities match, the public key is uploaded, the key
-  is valid, and the forge's other requirements are met.
+- After your next regular signed commit and push, check its status on the
+  selected forge. You do not need to create a commit just to validate this guide.
 
-Do not rewrite existing Git history just to fix old `Unverified` commits
-without a separate requirement. To undo signing configuration, restore
-the previous Git config values in the same scope; no key deletion is needed.
+Do not rewrite existing history just to fix old commits marked `Unverified`
+without a separate requirement. To undo the signing setup, restore the previous
+Git config values in the same scope; there is no need to delete the key.
 
-## 9. Official sources and verification limits
-
-The technical rules were checked against official documentation on 2026-10-04.
-No commands were run against a live keyring; `last_verified: null` and
-`verified_on: []` do not claim testing on the reference system.
+## 9. Official references
 
 - [Git: git-config](https://git-scm.com/docs/git-config).
-- [GitHub: generating a GPG key](https://docs.github.com/en/authentication/managing-commit-signature-verification/generating-a-new-gpg-key).
-- [GitHub: adding a public key to an account](https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account).
-- [GitLab: GPG signing](https://docs.gitlab.com/user/project/repository/signed_commits/gpg/).
-- [GnuPG: gpgconf, including kill and unlock](https://gnupg.org/documentation/manuals/gnupg26/gpgconf.1.html).
+- [GitHub: generating a new GPG key](https://docs.github.com/en/authentication/managing-commit-signature-verification/generating-a-new-gpg-key).
+- [GitHub: verified email in a GPG key](https://docs.github.com/en/authentication/troubleshooting-commit-signature-verification/using-a-verified-email-address-in-your-gpg-key).
+- [GitHub: adding a GPG key](https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account).
+- [GitHub: commit signature verification statuses](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification).
+- [GitHub: Vigilant Mode](https://docs.github.com/en/authentication/managing-commit-signature-verification/displaying-verification-statuses-for-all-of-your-commits).
+- [GitHub REST API: verification reasons](https://docs.github.com/en/rest/commits/commits#list-commits).
+- [GitLab: GPG commit signing](https://docs.gitlab.com/user/project/repository/signed_commits/gpg/).
+- [GnuPG: configuration files](https://gnupg.org/documentation/manuals/gnupg/GPG-Configuration.html).
+- [GnuPG: gpgconf](https://gnupg.org/documentation/manuals/gnupg26/gpgconf.1.html).
+- [GnuPG upstream README](https://github.com/gpg/gnupg/blob/master/README).
