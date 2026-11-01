@@ -2,9 +2,9 @@
 title: USBGuard on Gentoo Linux
 kind: guide
 scope: general
-status: draft
-last_verified: null
-verified_on: []
+status: current
+last_verified: "2026-11-01"
+verified_on: [asus-b5402]
 ---
 
 USBGuard applies a policy to USB devices: it allows, blocks or rejects them.
