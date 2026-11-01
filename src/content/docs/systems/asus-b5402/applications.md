@@ -98,10 +98,16 @@ OBS Studio, Spotify и Flatseal получены из Flathub; ChatGPT Desktop �
   `~/.local/share/applications/perplexity.desktop`; для ссылок приложения
   зарегистрирована схема `perplexity-app://`. Подробности — в
   [руководстве Perplexity](../../../settings/perplexity/).
-- Для r2modman используется локальный AppImage. Для интеграции со Steam
-  Flatpak есть скрипт-обёртка `~/.local/bin/steam.sh`, который передаёт
-  аргументы команде `flatpak run com.valvesoftware.Steam`. Подробнее —
-  [r2modman и Steam Flatpak](../../../settings/r2modman/).
+- Для r2modman установлен локальный host AppImage; Steam — системный Flatpak
+  `com.valvesoftware.Steam`. Исполняемый файл `~/.local/bin/steam.sh` запускает
+  `flatpak run com.valvesoftware.Steam "$@"`; это обычный файл, не symlink.
+- Каталог данных Steam Flatpak существует по пути
+  `~/.var/app/com.valvesoftware.Steam/.local/share/Steam`.
+- Для `com.valvesoftware.Steam` настроены overrides на
+  `~/.config/r2modmanPlus-local`: per-user override разрешает доступ к каталогу,
+  system-wide override предоставляет read-only доступ.
+- Подробности общей интеграции — в
+  [руководстве r2modman и Steam Flatpak](../../../settings/r2modman/).
 
 ## KeePassXC: синхронизация и резервные копии
 

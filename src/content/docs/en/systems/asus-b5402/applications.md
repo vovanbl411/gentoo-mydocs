@@ -96,9 +96,16 @@ locally built Flatpak bundle.
   `~/.local/share/applications/perplexity.desktop`; the `perplexity-app://`
   scheme is registered for application links. See the
   [Perplexity guide](../../../settings/perplexity/).
-- r2modman uses a local AppImage. A `~/.local/bin/steam.sh` wrapper is available
-  for Steam Flatpak integration and forwards arguments to
-  `flatpak run com.valvesoftware.Steam`. See the
+- A local host AppImage is installed for r2modman; Steam is the system Flatpak
+  `com.valvesoftware.Steam`. The executable `~/.local/bin/steam.sh` runs
+  `flatpak run com.valvesoftware.Steam "$@"`; it is a regular file, not a
+  symlink.
+- The Steam Flatpak data directory exists at
+  `~/.var/app/com.valvesoftware.Steam/.local/share/Steam`.
+- Overrides are configured for `com.valvesoftware.Steam` on
+  `~/.config/r2modmanPlus-local`: the per-user override grants access to the
+  directory, and the system-wide override grants read-only access.
+- General integration details are in the
   [r2modman and Steam Flatpak guide](../../../settings/r2modman/).
 
 ## KeePassXC: sync and backups
