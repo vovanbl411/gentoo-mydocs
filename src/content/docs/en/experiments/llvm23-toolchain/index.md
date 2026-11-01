@@ -9,29 +9,32 @@ sidebar:
   order: 1
 ---
 
-**Experiment A — LLVM 23 compatibility: COMPLETE. A1–A4: PASS.**
-The question was whether Clang/LLD 22 could be replaced with 23 while retaining
-the GNU runtime stack: `libstdc++ + libgcc/libgcc_s`. This worked for the selected
-packages; Mesa was checked through a binpkg build, without installation or a
-runtime test.
+Experiment A showed that Clang/LLD 23 could build the tested packages while
+retaining the GNU runtime stack. For Mesa, only a binpkg build was confirmed:
+the installed package was not replaced, and runtime behavior was not tested.
 
-The experiment did not prove:
+The current workstation policy keeps userspace on LLVM slot 22: Clang/Clang++,
+LLD, `-O2`, ThinLTO where package/ebuild policy allows it, and the GNU runtime
+ABI. A global LLVM 23 userspace rollout has not been adopted. The workstation
+kernel is built separately on `gentoo-builder-01` with LLVM 23 in the
+`workstation-kernel` package environment and packaged as a GPKG; it is not
+installed on the builder.
+See the [toolchain documentation](../../systems/asus-b5402/system/boot-and-portage/#toolchain)
+and [kernel build procedure](../../systems/asus-b5402/system/boot-and-portage/#kernel-update-build-a-gpkg-on-the-builder).
+
+A1–A4 provide compatibility evidence for the tested packages only. They did
+not prove:
 
 - a performance advantage of LLVM 23 over LLVM 22;
-- compatibility of the entire `@world` or the absence of package-specific exceptions;
-- a need for a global LLVM 23 userspace rollout.
+- compatibility of the entire `@world` or the absence of package-specific incompatibilities;
+- the safety of an automatic global LLVM 23 userspace migration;
+- a need to replace the current userspace toolchain;
+- correctness of `compiler-rt + libunwind`;
+- correctness of a `libc++` migration.
 
-According to the [current system documentation](../../systems/asus-b5402/system/boot-and-portage/#toolchain)
-and [CHECKPOINT](https://github.com/vovanbl411/gentoo-mydocs/blob/main/CHECKPOINT.md)
-(records as of 2026-10-10), the primary production userspace toolchain is
-**LLVM/Clang/LLD 22**, with global **`-O2` + ThinLTO** and the GNU runtime ABI.
-LLVM 23.1.1 is deliberately used for the kernel through `env/kernel-llvm`;
-migration of the remaining packages to LLVM 23 has not started. Passing A1–A4
-does not mean adopting LLVM 23 as the global userspace toolchain.
-
-The optimization-policy study (Experiment B) led to adopting global `-O2` in
-production; selective `-O3` requires benchmark evidence. This is a separate
-decision, not a result of comparing LLVM versions.
+Experiment B separately compared optimization levels, not LLVM versions.
+Production uses global `-O2` with ThinLTO where package/ebuild policy allows
+it; selective `-O3` requires package-specific benchmark evidence.
 
 ## What changed and why the tests were separated
 

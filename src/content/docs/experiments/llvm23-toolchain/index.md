@@ -9,28 +9,31 @@ sidebar:
   order: 1
 ---
 
-**Experiment A — LLVM 23 compatibility: COMPLETE. A1–A4: PASS.**
-Проверяли, можно ли заменить Clang/LLD 22 на 23, сохранив GNU runtime stack:
-`libstdc++ + libgcc/libgcc_s`. На выбранных пакетах такая сборка работала;
-для Mesa проверена сборка binpkg, без установки и runtime-теста.
+Experiment A показал, что Clang/LLD 23 смогли собрать проверенные пакеты,
+сохранив GNU runtime stack. Для Mesa подтверждена только сборка binpkg:
+установленный пакет не заменяли, runtime-поведение не проверяли.
 
-Эксперимент не доказал:
+Текущая политика workstation оставляет userspace на LLVM slot 22:
+Clang/Clang++, LLD, `-O2`, ThinLTO там, где его разрешает package/ebuild
+policy, и GNU runtime ABI. Глобальный userspace rollout LLVM 23 не принят.
+Ядро workstation отдельно собирается на `gentoo-builder-01` с LLVM 23 в
+package environment `workstation-kernel` и упаковывается в GPKG; на builder
+его не устанавливают. Подробнее — в [документе о toolchain](../../systems/asus-b5402/system/boot-and-portage/#toolchain)
+и [описании сборки ядра](../../systems/asus-b5402/system/boot-and-portage/#обновление-ядра-сборка-gpkg-на-builder).
+
+A1–A4 подтверждают совместимость только проверенных пакетов. Они не доказали:
 
 - преимущество LLVM 23 по производительности перед LLVM 22;
-- совместимость всего `@world` и отсутствие package-specific исключений;
-- необходимость глобального userspace rollout LLVM 23.
+- совместимость всего `@world` или отсутствие package-specific несовместимостей;
+- безопасность автоматической глобальной миграции userspace на LLVM 23;
+- необходимость заменять текущий userspace toolchain;
+- корректность связки `compiler-rt + libunwind`;
+- корректность перехода на `libc++`.
 
-По [актуальной системной документации](../../systems/asus-b5402/system/boot-and-portage/#toolchain)
-и [CHECKPOINT](https://github.com/vovanbl411/gentoo-mydocs/blob/main/CHECKPOINT.md)
-(записи на 2026-10-10), основной production userspace toolchain —
-**LLVM/Clang/LLD 22**, глобально **`-O2` + ThinLTO**, GNU runtime ABI.
-LLVM 23.1.1 намеренно используется для ядра через `env/kernel-llvm`;
-перевод остальных пакетов на LLVM 23 не начат. Успех A1–A4 не означает
-принятия LLVM 23 как глобального userspace toolchain.
-
-Из исследования optimization policy (Experiment B) в production принято
-глобальное `-O2`; selective `-O3` допускается только при benchmark evidence.
-Это отдельное решение, а не результат сравнения версий LLVM.
+Experiment B отдельно сравнивал уровни оптимизации, а не версии LLVM. В
+production принято глобальное `-O2` с ThinLTO там, где это допускает
+package/ebuild policy; selective `-O3` требует package-specific benchmark
+evidence.
 
 ## Что меняли и почему разделили проверки
 
