@@ -2,27 +2,40 @@
 title: Gentoo Linux Documentation
 kind: reference
 scope: repository
-status: draft
-last_verified: null
+status: current
+last_verified: "2026-11-01"
 verified_on: []
 ---
 
-Practical documentation on setting up and running Gentoo Linux: systemd
-and the hardened profile, an LLVM toolchain, Pure Wayland on Umbriel (Niri as a fallback),
-systemd-boot + UKI, Btrfs + Snapper, Secure Boot and TPM 2.0. The
-examples are based on a real reference system, an ASUS ExpertBook B5402.
+Practical Gentoo Linux documentation with reusable guides, the documented
+state of the ASUS ExpertBook B5402 reference workstation, troubleshooting for
+specific problems, and experiment results. Main topics include hardened/systemd
+Gentoo, compiler toolchains, a Wayland desktop, systemd-boot and UKI, Btrfs and
+Snapper, Secure Boot, and TPM 2.0.
+
+## What you'll find
+
+- **General guides** — reusable instructions; configuration examples may need
+  adapting to different hardware and workloads.
+- **ASUS B5402 state** — configuration and decisions for one specific
+  workstation, documented in the [system section](./systems/asus-b5402/).
+- **Troubleshooting** — diagnosis and recovery for specific problems.
+- **Experiments** — measurements and test results behind selected decisions.
+  These records may describe past states and may not match the current system
+  configuration.
 
 ## Where to start
 
-- [Manual Gentoo amd64 installation](./installation/gentoo-installation/) — from the LiveCD to a successful first boot from the target disk; the verified path is BIOS + GPT + GRUB, UEFI is unverified.
-- [Base system configuration after installation](./installation/base-system/) — Portage and the LLVM toolchain.
+- [Manual Gentoo amd64 installation](./installation/gentoo-installation/) —
+  the verified path here is BIOS + GPT + GRUB; the UEFI path is not verified
+  in this guide.
+- [Base system configuration](./installation/base-system/) — a Portage and
+  toolchain example to adapt to your system.
+- [Umbriel and Noctalia](./desktop/umbriel/) — the current Wayland desktop;
+  [Niri](./desktop/niri/) remains the fallback session.
+- [ASUS ExpertBook B5402](./systems/asus-b5402/) — the documented current state
+  of the reference workstation.
 
-- [Umbriel and Noctalia](./desktop/umbriel/) — desktop installation and startup.
-- [Niri](./desktop/niri/) — fallback session.
-
-## Other materials
-
-The guide sections, the reference system state, troubleshooting notes
-and experiments all live here — use the navigation on the left.
-Repository-level materials (policy, contributing, archive) remain only
-in [the GitHub repository](https://github.com/vovanbl411/gentoo-mydocs).
+The policy, contributing guide, and archive are in the
+[GitHub repository](https://github.com/vovanbl411/gentoo-mydocs), not on the
+documentation site.
