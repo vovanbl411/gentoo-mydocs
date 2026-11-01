@@ -28,9 +28,31 @@ verified_on: [asus-b5402]
   `overlayfs`; подробности — в [руководстве Firefox](../../../settings/firefox/).
 - **KeePassXC** — `app-admin/keepassxc`; рабочая база хранится локально,
   архитектура синхронизации и резервного копирования описана ниже.
-- **Thunderbird** — `mail-client/thunderbird`. Включены USE-флаги `wayland` и
-  `pulseaudio`; для системных уведомлений нужен `x11-libs/libnotify`.
-  Настройки описаны в [руководстве Thunderbird](../../../settings/thunderbird/).
+- **Thunderbird** — `mail-client/thunderbird`; текущее состояние описано ниже.
+
+### Thunderbird
+
+- Активный профиль находится в `~/.config/thunderbird`. В нём настроены шесть
+  IMAP-аккаунтов: четыре Gmail, один Yandex и один Mail.ru.
+- Текущий план Portage выбирает `wayland` и `pulseaudio`; `X`, `hwaccel` и
+  `system-pipewire` выключены. `-hwaccel` не определяет runtime renderer;
+  `pulseaudio` задаёт audio backend через libpulse, а `system-pipewire` относится
+  к WebRTC и screencast.
+- Тяжёлая сборка получает `p-cores ssd` через
+  `/etc/portage/package.env/10-performance`. Назначение package environments и
+  `ssd` описано в [разделе Toolchain](../system/boot-and-portage/#toolchain) и
+  [описании кэшей сборки](../system/boot-and-portage/#память-и-кэши-сборки).
+- Для четырёх Gmail-аккаунтов в Thunderbird отключён `Place a copy in`.
+  Gmail сохраняет отправленные через SMTP письма на сервере; эта настройка
+  помогает избежать дубликатов в Sent.
+- `x11-libs/libnotify` установлен. Gentoo ebuild Thunderbird предлагает его
+  как optional feature для desktop notifications, а не как обязательную
+  зависимость. В активном профиле также установлено расширение
+  `NTFNTF: Notify on This Folder Not That Folder` для выборочных уведомлений
+  по папкам.
+
+Актуальные параметры пакета и общие принципы настройки описаны в
+[руководстве Thunderbird](../../../settings/thunderbird/).
 
 ## Flatpak
 

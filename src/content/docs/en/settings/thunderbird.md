@@ -3,148 +3,117 @@ title: "Thunderbird: native Gentoo and Wayland"
 kind: guide
 scope: general
 status: current
-last_verified: "2026-10-07"
+last_verified: "2026-11-01"
 verified_on: [asus-b5402]
 ---
 
-Thunderbird from Gentoo fits a Wayland-first desktop with several IMAP
-providers. When setting it up, check build-time capabilities separately from
-the application's actual runtime behavior: USE flags alone do not confirm
-Wayland, rendering, or the audio backend.
+Gentoo can build Thunderbird with a native Wayland backend. Check package
+capabilities separately from application behavior: USE flags do not confirm
+the backend or renderer selected at runtime.
 
-The choices below describe the ASUS ExpertBook B5402 reference system. They
-show one verified setup; Portage rules and local mail storage size are not
-universal Gentoo recommendations.
+## Build capabilities
 
-Only the notification path of Thunderbird 157.0 was re-checked on
-2026-10-07. Build, runtime backend, profile, and other settings below retain
-their 2026-10-01 verification date.
+Check the available version and Portage plan before changing USE flags:
 
-## Build policy
-
-The checked resolver output for `mail-client/thunderbird-157.0` shows:
-
-| Choice | Value and meaning |
-|--------|-------------------|
-| Wayland | `wayland` enables the native Wayland backend. The reference system also selects `-X` as a deliberate pure Wayland policy; it is not required for the Wayland backend itself. |
-| Audio | `pulseaudio` adds the audio backend through libpulse. At runtime, the PipeWire/PulseAudio-compatible stack serves it. `system-pipewire` is not required for this and is disabled in the resolver output. |
-| Rendering | `hwaccel` adds Gentoo system-wide prefs that force-enable hardware-accelerated rendering and installs `gfxtest`. With `-hwaccel`, these prefs are not injected; Thunderbird can still enable WebRender on its own. |
-| System libraries | The resolver output enables `system-av1`, `system-harfbuzz`, `system-jpeg`, `system-libevent`, `system-librnp`, `system-libvpx`, and `system-webp`. |
-| PGO | `pgo` is masked by the current profile and is not enabled. Do not describe this build as a PGO build. |
-
-The resolver also shows `clang`, `hardened`, and `jumbo-build`. These describe
-the current build; they do not mean that the interface or mail handling will
-automatically become faster.
-
-On the reference system, the heavy build is assigned `p-cores ssd`:
-
-```text
-mail-client/thunderbird → p-cores ssd
+```bash
+thunderbird --version
+emerge --pretend --verbose mail-client/thunderbird
 ```
 
-`p-cores` sets CPU affinity for the build, while `ssd` directs the large build
-tree to the SSD-backed `PORTAGE_TMPDIR` (`/var/tmp/portage-disk` on Btrfs)
-instead of tmpfs. This is a local choice for a heavy Mozilla build, not a
-general Gentoo requirement.
+The meaning of individual USE flags depends on the current ebuild. The main
+distinctions are:
 
-## Provider setup
+| USE flag | What it changes |
+|----------|-----------------|
+| `wayland` | Adds the native Wayland backend. `-X` disables the X11 backend, but is not required for Wayland and can coexist with `wayland`. If you want Wayland only, check the current ebuild's `REQUIRED_USE` constraints. |
+| `pulseaudio` | Builds the audio backend through libpulse. PipeWire can serve it through its PulseAudio compatibility layer. |
+| `system-pipewire` | Uses system PipeWire for WebRTC and screencasting. This is separate from ordinary audio output. |
+| `hwaccel` | Applies Gentoo preferences that force-enable accelerated rendering. The flag does not show which renderer the application is running. |
+| `pgo` | Enables Profile-Guided Optimization during the build when the current version and profile allow it. Check the Portage plan; availability can change. |
+| `system-*` | Selects system libraries instead of bundled copies for the corresponding libraries. The set of flags depends on the ebuild. |
 
-The reference setup uses six IMAP accounts: four Gmail accounts, one Yandex
-account, and one Mail.ru account. Do not put email addresses, OAuth tokens, app
-passwords, or saved credentials in documentation.
+`clang` selects Clang as the compiler. `jumbo-build` enables unified builds
+and can increase build memory use. These and other build-time options do not
+by themselves guarantee faster UI or mail handling.
 
-| Provider | Setup |
-|----------|-------|
-| Gmail | IMAP `imap.gmail.com:993` with SSL/TLS and Gmail SMTP; OAuth2. Gmail stores sent mail server-side, so the reference setup disables Thunderbird's `Place a copy in` option for the Sent folder. |
-| Yandex | IMAP/SMTP with an app password or another provider-supported authentication method for external clients. |
-| Mail.ru | IMAP/SMTP with an external-app password or another provider-supported authentication method. |
+## Set up mail accounts
 
-For Yandex and Mail.ru, use the provider's current connection settings; this
-example does not specify servers or ports. Sending and receiving were checked
-for all six accounts.
+Start with Thunderbird's account autodiscovery. Check the selected protocol,
+server, and authentication method; if they are wrong, enter the values from
+the provider's current documentation. IMAP keeps mail on the server and syncs
+it with the client; POP uses a different storage model.
 
-## Runtime verification
+Use authentication supported by the provider. Gmail usually connects through
+**Sign in with Google** and OAuth2. Use an app password only if the provider
+supports it and recommends it for a mail client. Do not put passwords, OAuth
+tokens, or app passwords in documentation.
 
-Open **Help → Troubleshooting Information** (`about:support`) and check the
-selected backend and renderer. The ASUS reference-system acceptance recorded:
+Gmail stores messages sent through SMTP on its server. Check whether enabling
+Thunderbird's `Place a copy in` creates duplicate Sent messages in your setup;
+Google documents the option with Thunderbird's copy disabled.
 
-| `about:support` field | Result |
-|-----------------------|--------|
-| Window Protocol | `wayland` |
-| Desktop Environment | `niri` |
-| Compositing | `WebRender` |
-| GPU | Intel Iris Xe ADL GT2 through Mesa `iris` |
-| Audio Backend | `pulse-rust`, served by the current PipeWire/Pulse stack |
+## Check Wayland and runtime behavior
 
-`USE=-hwaccel` means Gentoo does not inject the force-enable prefs. It does not
-prevent Thunderbird from enabling WebRender on its own: the reference-system
-resolver shows `-hwaccel`, while `about:support` shows
-`Compositing: WebRender`. Enabling `USE=hwaccel` is not currently required on
-this system.
+Open **Help → Troubleshooting Information** (`about:support`) and check
+**Window Protocol**, **Compositing**, **Audio Backend**, and **Profile
+Directory**. Check GPU details when investigating the graphics path.
 
-## Profile and storage
+`USE=wayland` adds a backend but does not confirm that the application uses it.
+Likewise, `USE=-hwaccel` does not prevent Thunderbird from enabling WebRender
+on its own, and `USE=hwaccel` does not prove that the renderer is using hardware
+acceleration. Check runtime behavior in `about:support`.
 
-Get the exact directory from **about:support → Profile Directory**. The profile
-on the reference system uses this path pattern:
+## Profile and local storage
 
-```text
-~/.config/thunderbird/<profile>.default-release
+Use **Profile Directory** in `about:support` to find the profile. Neither
+`~/.config/thunderbird/` nor `~/.thunderbird/` is a universal path. To check
+profile size, use the actual path:
+
+```bash
+du -sh -- "/path/from/Profile Directory"
 ```
 
-The last measurement was about 648 MiB for the profile and about 574 MiB for
-`ImapMail`. Full offline synchronization of all messages remains enabled:
-this actual size causes no issue on this system. These sizes depend on mail
-volume and are not targets for other profiles.
+In **Account Settings → Synchronization & Storage**, choose which messages and
+folders to keep locally. Full offline synchronization uses more disk space but
+lets you read synchronized mail without a network connection. Global Search
+indexes messages and uses local space for its search database; full-text
+message-body search is available for synchronized messages. Choose local
+storage based on available space and offline needs.
 
-## Working policy
+## Notifications
 
-The six accounts on the reference system use these settings:
+Mail notifications depend on Thunderbird's settings and the running desktop
+notification handler. The Gentoo Thunderbird ebuild may offer
+`x11-libs/libnotify` as an optional feature for desktop notifications; it is
+not a mandatory dependency. Check the current ebuild and Portage plan. Sound
+and visual banners can use different paths.
 
-- Unified Folders are enabled; the message list is threaded and sorted by Date
-  descending.
-- Full offline synchronization is enabled; Global Search is enabled.
-- Thunderbird's adaptive spam controls are disabled for all accounts; spam
-  filtering remains with the providers.
-- Remote content is blocked globally.
-- Automatic destructive retention is not configured.
-- End-to-End Encryption is not configured: no OpenPGP keys or S/MIME
-  certificates were added. Configure it only when there is an actual workflow.
-- Return Receipts: do not request outgoing receipts automatically; respond to
-  incoming requests with `Ask me`.
-- User notifications and sound are enabled only for two selected Gmail
-  accounts; the other accounts sync without notification. The profile has
-  `NTFNTF: Notify on This Folder Not That Folder` 1.3.1 installed for this.
+If an alert sound plays but no banner appears, check Thunderbird's system
+notification setting, the optional feature, and the desktop notification
+handler. The [desktop notifications guide](../../desktop/notifications/)
+covers `libnotify`, D-Bus, and the notification server.
 
-## Desktop notifications
+## Troubleshooting and verification
 
-The verified system notification path requires `x11-libs/libnotify` at runtime.
-The current Gentoo Thunderbird ebuild offers it through
-`optfeature "desktop notifications"`, without a mandatory `RDEPEND`, so the
-reference system keeps libnotify as an explicit world package. Stack details
-and Portage checks are in the [notifications guide](../../desktop/notifications/).
+| Symptom | What to check |
+|---------|---------------|
+| The window is not using Wayland | USE `wayland`, launch context, and **Window Protocol** in `about:support`. |
+| Renderer GPU use is unclear | **Compositing** and GPU details in `about:support`; `hwaccel` alone does not confirm it. |
+| Audio does not work | **Audio Backend**; `pulseaudio` and `system-pipewire` control different parts of the build. |
+| Sign-in or sending fails | Authentication method, server settings, and provider requirements. |
+| Mail is unavailable offline or the profile is large | Message and folder synchronization in **Synchronization & Storage**. |
+| No desktop banner appears | Thunderbird's notification settings and the [desktop notifications guide](../../desktop/notifications/). |
 
-Thunderbird has **Show an alert**, **Use the system notification**, and
-**Play a sound** enabled. NTFNTF 1.3.1 sets the policy for two selected Gmail
-accounts with **Name & Message**; the other accounts sync silently.
+Check that the Portage plan matches the chosen capabilities, Thunderbird reports
+the expected **Window Protocol**, audio works, mail can be sent and received,
+and storage and notifications match the selected policy.
 
-On this system, before libnotify was installed, mail arrived and NTFNTF played
-a sound, but no visual notification appeared. A direct
-`nsIAlertsService.showAlert` call failed with
-`NS_ERROR_FAILURE [nsIAlertsService.showAlert]`, and `dbus-monitor` saw no
-`org.freedesktop.Notifications.Notify`. After installing libnotify, the backend
-test reached `Notify` with app `Thunderbird` and summary
-`Thunderbird backend test`, and Noctalia displayed the notification. This was
-the confirmed cause in this case, not a universal explanation for all
-Thunderbird notification failures.
+## Related material
 
-## Acceptance checklist
-
-- [x] Native Wayland — PASS.
-- [x] WebRender — PASS.
-- [x] Audio — PASS.
-- [x] Sending and receiving checked for the configured providers — PASS.
-- [x] Gmail stores one copy of sent mail — PASS.
-- [x] Local offline store is present.
-- [x] 2026-10-07: two selected Gmail accounts — sound + visual notification PASS.
-- [x] 2026-10-07: other accounts — silent sync with no sound and no visual
-  notification PASS.
+- [Thunderbird automatic account configuration](https://support.mozilla.org/en-US/kb/automatic-account-configuration)
+- [Add Gmail to another email client](https://support.google.com/mail/answer/7126229?hl=en)
+- [IMAP synchronization](https://support.mozilla.org/en-US/kb/imap-synchronization)
+- [Global Search](https://support.mozilla.org/en-US/kb/global-search)
+- [Thunderbird profiles](https://support.mozilla.org/en-US/kb/profiles-where-thunderbird-stores-user-data)
+- [Desktop notifications](../../desktop/notifications/)
+- [Applications on ASUS B5402](../../systems/asus-b5402/applications/)

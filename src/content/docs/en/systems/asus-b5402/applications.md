@@ -28,9 +28,30 @@ integration matters.
   Firefox profile; see the [Firefox guide](../../../settings/firefox/).
 - **KeePassXC** — `app-admin/keepassxc`; the working database stays on local
   storage, with sync and backup architecture described below.
-- **Thunderbird** — `mail-client/thunderbird`. USE flags `wayland` and
-  `pulseaudio` are enabled; system notifications use `x11-libs/libnotify`.
-  Settings are covered in the [Thunderbird guide](../../../settings/thunderbird/).
+- **Thunderbird** — `mail-client/thunderbird`; current state is described below.
+
+### Thunderbird
+
+- The active profile is in `~/.config/thunderbird`. It has six IMAP accounts:
+  four Gmail, one Yandex, and one Mail.ru.
+- The current Portage plan selects `wayland` and `pulseaudio`; `X`, `hwaccel`,
+  and `system-pipewire` are disabled. `-hwaccel` does not identify the runtime
+  renderer; `pulseaudio` selects the libpulse audio backend, while
+  `system-pipewire` applies to WebRTC and screencasting.
+- The heavy build uses `p-cores ssd` through
+  `/etc/portage/package.env/10-performance`. See the [Toolchain section](../system/boot-and-portage/#toolchain)
+  and [build cache details](../system/boot-and-portage/#memory-and-build-caches)
+  for package environments and `ssd`.
+- Thunderbird's `Place a copy in` option is disabled for the four Gmail
+  accounts. Gmail stores messages sent through SMTP on the server; this setting
+  helps avoid duplicate Sent messages.
+- `x11-libs/libnotify` is installed. The Gentoo Thunderbird ebuild offers it as
+  an optional feature for desktop notifications, not a mandatory dependency.
+  The active profile also has the `NTFNTF: Notify on This Folder Not That Folder`
+  extension installed for selective folder notifications.
+
+Current package choices and general setup guidance are in the
+[Thunderbird guide](../../../settings/thunderbird/).
 
 ## Flatpak
 
